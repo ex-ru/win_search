@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DigUp Quick Look" Width="980" Height="720" MinWidth="600" MinHeight="440"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterOwner">
+        Topmost="False" ShowInTaskbar="True" WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <Style TargetType="Button">
       <Setter Property="Background" Value="#383838" />
@@ -52,9 +52,48 @@
       <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <Style TargetType="ScrollBar">
+    <Style x:Key="ModernScrollThumb" TargetType="{x:Type Thumb}">
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Thumb}">
+            <Border Background="#444444" CornerRadius="3" Margin="2,0" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#666666" />
+              </Trigger>
+              <Trigger Property="IsDragging" Value="True">
+                <Setter Property="Background" Value="#0078D4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type ScrollBar}">
       <Setter Property="Width" Value="8" />
       <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ScrollBar}">
+            <Grid Background="Transparent">
+              <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" Focusable="False" />
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb Style="{StaticResource ModernScrollThumb}" />
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" Focusable="False" />
+                </Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Window.Resources>
 
@@ -88,6 +127,8 @@
             <MenuItem Header="Сохранить как…" InputGestureText="Ctrl+S" Click="OnSaveAs" />
             <MenuItem Header="Копировать путь" InputGestureText="Ctrl+C" Click="OnCopyPath" />
             <Separator Background="#444444" />
+            <MenuItem Header="Зафиксировать это окно" x:Name="MenuPin" Click="OnPinToggle" />
+            <Separator Background="#444444" />
             <MenuItem Header="Закрыть" InputGestureText="Esc" Click="OnClose" />
           </MenuItem>
         </Menu>
@@ -97,6 +138,8 @@
 
         <!-- Window Buttons: Minimize, Maximize, Close -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="BtnPin" Content="📌" Width="32" Height="26" Padding="0" Margin="0,0,4,0"
+                  FontSize="11" Click="OnPinToggle" Focusable="False" ToolTip="Зафиксировать окно (не переключать при навигации поиска)" Opacity="0.6" />
           <Button x:Name="BtnMinimize" Content="—" Width="36" Height="26" Padding="0" Margin="0,0,4,0"
                   FontSize="11" Click="OnMinimize" Focusable="False" ToolTip="Свернуть окно" />
           <Button x:Name="BtnMaximize" Content="□" Width="36" Height="26" Padding="0" Margin="0,0,4,0"

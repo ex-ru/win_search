@@ -230,6 +230,23 @@ public partial class PreviewWindow : Window
         catch { }
     }
 
+    public bool IsPinned { get; private set; }
+
+    private void OnPinToggle(object sender, RoutedEventArgs e)
+    {
+        IsPinned = !IsPinned;
+        if (BtnPin is not null)
+        {
+            BtnPin.Opacity = IsPinned ? 1.0 : 0.6;
+            BtnPin.Background = IsPinned ? (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#0078D4")! : (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#383838")!;
+            BtnPin.ToolTip = IsPinned ? "Зафиксировано (окно не переключается при смене файла в поиске)" : "Зафиксировать окно (не переключать при навигации поиска)";
+        }
+        if (MenuPin is not null)
+        {
+            MenuPin.IsChecked = IsPinned;
+        }
+    }
+
     private void OnOpen(object sender, RoutedEventArgs e) => _open();
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

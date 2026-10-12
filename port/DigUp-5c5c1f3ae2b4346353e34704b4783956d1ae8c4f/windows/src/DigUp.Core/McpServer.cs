@@ -16,7 +16,7 @@ public sealed class McpServer : IDisposable
 {
     public const string ProtocolVersion = "2024-11-05";
     public const string ServerName = "digup-mcp";
-    public const string ServerVersion = "1.0.4";
+    public const string ServerVersion = "1.0.5";
 
     private readonly TextReader _input;
     private readonly TextWriter _output;

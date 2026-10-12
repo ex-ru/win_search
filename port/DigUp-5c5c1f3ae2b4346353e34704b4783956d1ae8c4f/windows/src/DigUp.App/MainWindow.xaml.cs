@@ -79,11 +79,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            double screenW = SystemParameters.WorkArea.Width;
             double screenH = SystemParameters.WorkArea.Height;
-            Card.Width = Math.Clamp(screenW * 0.58, 780, 1100);
-            Results.MaxHeight = Math.Clamp(screenH * 0.44, 380, 620);
-            Card.Margin = new Thickness(0, Math.Max(40, screenH * 0.08), 0, 0);
+            Results.MaxHeight = Math.Clamp(screenH * 0.44, 340, 620);
         }
         catch { }
     }
@@ -91,73 +88,60 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        TryBlurBehind();
+        Topmost = _isPinned;
     }
 
-    // Blurred screen behind the window (Windows acrylic), lighter than full
-    // frosted glass so text stays readable. If it fails, the dark dim
-    // rectangle still carries the look. Never throws.
-    private void TryBlurBehind()
-    {
-        ApplyLook();
-    }
-
-    /// <summary>Dim + blur from Settings, applied every time the panel opens.</summary>
+    /// <summary>Apply layout adjustments when search opens.</summary>
     public void ApplyLook()
     {
         try
         {
             AdjustCardSize();
-            DimRect.Opacity = Math.Clamp(_settings.Dim, 0, 0.8);
-            var hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
-            var accent = new AccentPolicy
-            {
-                AccentState = _settings.Blur ? 4 /* acrylic */ : 0 /* off */,
-                AccentFlags = 0,
-                GradientColor = 0x02000000,
-                AnimationId = 0,
-            };
-            var data = new WindowCompositionAttributeData
-            {
-                Attribute = 19 /* accent policy */,
-                Data = Marshal.AllocHGlobal(Marshal.SizeOf<AccentPolicy>()),
-                SizeOfData = Marshal.SizeOf<AccentPolicy>(),
-            };
-            try
-            {
-                Marshal.StructureToPtr(accent, data.Data, false);
-                SetWindowCompositionAttribute(hwnd, ref data);
-            }
-            finally { Marshal.FreeHGlobal(data.Data); }
         }
         catch { }
     }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct AccentPolicy
-    {
-        public int AccentState;
-        public int AccentFlags;
-        public uint GradientColor;
-        public int AnimationId;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WindowCompositionAttributeData
-    {
-        public int Attribute;
-        public IntPtr Data;
-        public int SizeOfData;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
     private void FadeIn()
     {
         var anim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(130)));
         Root.BeginAnimation(OpacityProperty, anim);
+    }
+
+    private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            try { DragMove(); } catch { }
+        }
+    }
+
+    private bool _isPinned = true;
+    private void OnPinToggle(object sender, RoutedEventArgs e)
+    {
+        _isPinned = !_isPinned;
+        Topmost = _isPinned;
+        BtnPin.Opacity = _isPinned ? 1.0 : 0.45;
+        BtnPin.ToolTip = _isPinned ? "Открепить от верха" : "Закрепить поверх всех окон";
+    }
+
+    private void OnWidgetMinimize(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void OnWidgetClose(object sender, RoutedEventArgs e)
+    {
+        Hide();
+    }
+
+    private void OnOpenWithButton(object sender, RoutedEventArgs e)
+    {
+        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
+        try
+        {
+            Editors.OpenWith(_currentItems[Results.SelectedIndex].Hit.Path);
+        }
+        catch (Exception ex) { Complain("не удалось открыть меню выбора программы", ex); }
     }
 
     public void FocusQuery()
@@ -172,11 +156,6 @@ public partial class MainWindow : Window
         Query.Text = string.Empty;
         Query.Focus();
         SearchNow();
-    }
-
-    private void OnBackdrop(object sender, MouseButtonEventArgs e)
-    {
-        if (e.OriginalSource is System.Windows.Shapes.Rectangle) Hide();
     }
 
     private void OnFilterClick(object sender, RoutedEventArgs e)
@@ -439,15 +418,7 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
-            {
-                try { _preview.Close(); } catch { }
-                _preview = null;
-            }
-            else
-            {
-                Hide();
-            }
+            Hide();
             e.Handled = true;
         }
     }
@@ -456,12 +427,7 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
-            {
-                try { _preview.Close(); } catch { }
-                _preview = null;
-            }
-            else Hide();
+            Hide();
             e.Handled = true;
         }
         else if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; }
@@ -487,7 +453,7 @@ public partial class MainWindow : Window
         else if (e.Key == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             _big = !_big;
-            Card.Width = _big ? 1100 : 860;
+            Width = _big ? 1100 : 880;
             e.Handled = true;
         }
         else if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && Results.SelectedIndex >= 0)
@@ -527,16 +493,17 @@ public partial class MainWindow : Window
 
     private readonly List<PreviewWindow> _openPreviews = [];
 
-    /// <summary>Space: show the selected file itself, or hide it again.</summary>
+    /// <summary>Space: show the selected file itself, or hide it again. Shift+Space opens a new standalone preview window.</summary>
     private void TogglePreview()
     {
         try
         {
             if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
             var currentHit = _currentItems[Results.SelectedIndex].Hit;
+            bool forceNew = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
 
-            // If an active (non-minimized) preview is currently showing this exact file, toggle it closed
-            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
+            // If an active (non-minimized) preview is currently showing and not pinned, update or close it
+            if (!forceNew && _preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized && !_preview.IsPinned)
             {
                 if (_preview.CurrentHit?.Path == currentHit.Path)
                 {
@@ -560,7 +527,7 @@ public partial class MainWindow : Window
                 _openPreviews.Remove(win);
                 if (ReferenceEquals(_preview, win))
                 {
-                    _preview = _openPreviews.FirstOrDefault(p => p.WindowState != WindowState.Minimized);
+                    _preview = _openPreviews.FirstOrDefault(p => p.WindowState != WindowState.Minimized && !p.IsPinned);
                 }
                 Dispatcher.BeginInvoke(() =>
                 {
@@ -585,7 +552,7 @@ public partial class MainWindow : Window
     /// <summary>The open preview follows the selection, like Quick Look.</summary>
     private void FollowPreview()
     {
-        if (_preview is null || !_preview.IsLoaded || _preview.WindowState == WindowState.Minimized) return;
+        if (_preview is null || !_preview.IsLoaded || _preview.WindowState == WindowState.Minimized || _preview.IsPinned) return;
         try
         {
             if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) _preview.Close();
@@ -673,8 +640,6 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        try { _preview?.Close(); } catch { }
-        _preview = null;
         _debounce.Dispose();
         base.OnClosed(e);
     }

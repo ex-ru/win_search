@@ -29,6 +29,8 @@ public static class Editors
 
     private static string? FindEditor()
     {
+        string? envEditor = Environment.GetEnvironmentVariable("VISUAL") ?? Environment.GetEnvironmentVariable("EDITOR");
+        if (!string.IsNullOrWhiteSpace(envEditor)) return envEditor;
         foreach (string name in new[] { "code.cmd", "code.exe", "cursor.exe", "devenv.exe", "notepad++.exe", "subl.exe" })
             if (ExistsOnPath(name)) return name;
         return null;
@@ -88,6 +90,21 @@ public static class Editors
         catch (Exception ex)
         {
             ErrorLog.Write("OpenInExplorer failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>Invokes Windows native 'Open With...' dialog for the file.</summary>
+    public static void OpenWith(string path)
+    {
+        string native = Native(path);
+        try
+        {
+            Process.Start(new ProcessStartInfo("rundll32.exe", $"shell32.dll,OpenAs_RunDLL \"{native}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("OpenWith failed: " + ex.Message);
+            Open(native);
         }
     }
 }

@@ -119,6 +119,51 @@
       <Setter Property="Padding" Value="14" />
       <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
+
+    <!-- Modern Dark ScrollBar Style -->
+    <Style x:Key="ModernScrollThumb" TargetType="{x:Type Thumb}">
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Thumb}">
+            <Border Background="#444444" CornerRadius="4" Margin="2,0" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#666666" />
+              </Trigger>
+              <Trigger Property="IsDragging" Value="True">
+                <Setter Property="Background" Value="#0078D4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type ScrollBar}">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ScrollBar}">
+            <Grid Background="Transparent">
+              <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" Focusable="False" />
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb Style="{StaticResource ModernScrollThumb}" />
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" Focusable="False" />
+                </Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
   <DockPanel Margin="18">
@@ -138,9 +183,18 @@
         <DockPanel Margin="0,0,0,14">
           <TextBlock Text="Настройки DigUp" FontSize="20" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
           <Border Background="#2E4A62" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" VerticalAlignment="Center">
-            <TextBlock Text="v1.0.4 Windows" FontSize="11" Foreground="#80D8FF" FontWeight="SemiBold" />
+            <TextBlock Text="v1.0.5 Windows" FontSize="11" Foreground="#80D8FF" FontWeight="SemiBold" />
           </Border>
         </DockPanel>
+
+        <!-- Informational banner about initial indexing -->
+        <Border Background="#1C2E3D" BorderBrush="#256B9E" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,12">
+          <DockPanel>
+            <TextBlock Text="💡" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Top" />
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#D0E8FF"
+                       Text="Первичная индексация может занять некоторое время. Вы можете свернуть или закрыть приложение — при повторном открытии процесс автоматически продолжится с того же места." />
+          </DockPanel>
+        </Border>
 
         <!-- Section 1: Folders to search -->
         <Border Style="{StaticResource CardStyle}">
@@ -162,12 +216,14 @@
             <TextBlock Foreground="#888888" FontSize="12" Margin="0,0,0,8"
                        TextWrapping="Wrap"
                        Text="Векторные эмбеддинги формируются локальной моделью EmbeddingGemma 2 и обеспечивают поиск по смыслу запроса." />
-            <DockPanel>
-              <Button Content="Очистить векторный индекс" Style="{StaticResource DangerButtonStyle}"
-                      Click="OnClearVectors" ToolTip="Удаляет все векторы по выбранным папкам и ставит файлы в очередь на переиндексацию" />
-              <TextBlock Foreground="#777777" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap"
-                         Text="Используйте при обновлении модели эмбеддингов или необходимости полного пересчета векторов." />
-            </DockPanel>
+            <WrapPanel Margin="0,0,0,6">
+              <Button x:Name="BtnClearFolderVectors" Content="Очистить векторы выбранной папки" Margin="0,0,8,6"
+                      Click="OnClearFolderVectors" ToolTip="Очищает векторы только для папки, выделенной в списке выше" />
+              <Button Content="Очистить весь векторный индекс" Style="{StaticResource DangerButtonStyle}" Margin="0,0,0,6"
+                      Click="OnClearAllVectors" ToolTip="Удаляет все векторы по всем папкам и ставит их в очередь на переиндексацию" />
+            </WrapPanel>
+            <TextBlock Foreground="#777777" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                       Text="Используйте очистку выбранной папки для частичного обновления или полную очистку при смене модели эмбеддингов." />
           </StackPanel>
         </Border>
 
@@ -175,9 +231,9 @@
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
             <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Горячая клавиша (быстрый вызов)" />
-            <TextBox x:Name="Hotkey" Margin="0,0,0,6" ToolTip="Кликните сюда и нажмите клавишу Пробел с зажатыми Shift, Ctrl, Alt или Win. Например: Ctrl+Alt+Space." />
+            <TextBox x:Name="Hotkey" Margin="0,0,0,6" ToolTip="Кликните сюда и нажмите клавишу Пробел с зажатыми Shift, Ctrl, Alt или Win. Например: Ctrl+Space." />
             <TextBlock Foreground="#888888" FontSize="12" TextWrapping="Wrap"
-                       Text="Пример: Ctrl+Alt+Space. Win+Space занято Windows; избегайте Shift+Alt (Windows переключает раскладку клавиатуры)." />
+                       Text="По умолчанию: Ctrl+Space. Избегайте Win+Space (системная смена языка) и Shift+Alt (переключение раскладки)." />
           </StackPanel>
         </Border>
 
@@ -191,16 +247,11 @@
           </StackPanel>
         </Border>
 
-        <!-- Section 5: Overlay appearance -->
+        <!-- Section 5: Interface Language -->
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
-            <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Внешний вид окна поиска" />
-            <CheckBox x:Name="Blur" Content="Размывать фон за окном поиска (Windows Acrylic effect)" />
-            <DockPanel Margin="0,4,0,2">
-              <TextBlock Text="Затемнение экрана:" Foreground="#BBBBBB" VerticalAlignment="Center" />
-              <TextBlock x:Name="DimValueLabel" Text="45%" Foreground="#80D8FF" HorizontalAlignment="Right" VerticalAlignment="Center" />
-            </DockPanel>
-            <Slider x:Name="Dim" Minimum="0" Maximum="80" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0" />
+            <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Язык интерфейса / Interface Language" />
+            <ComboBox x:Name="UiLanguage" Margin="0,0,0,4" />
           </StackPanel>
         </Border>
 
@@ -210,8 +261,8 @@
             <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Система и обновления" />
             <CheckBox x:Name="Startup" Content="Запускать DigUp при старте Windows" />
             <CheckBox x:Name="Updates" Content="Проверять обновления программы раз в день" />
-            <TextBlock Text="Локальный источник пакетов обновлений (releases.win.json):" Foreground="#BBBBBB" Margin="0,4,0,4" />
-            <TextBox x:Name="UpdateSource" ToolTip="Выберите папку dist\releases или оставьте пустым для онлайн-проверки." />
+            <TextBlock Text="Источник пакетов обновлений (GitHub Releases или локальная папка):" Foreground="#BBBBBB" Margin="0,4,0,4" />
+            <TextBox x:Name="UpdateSource" ToolTip="Оставьте пустым для обновлений с https://github.com/ex-ru/win_search/releases или укажите локальную папку." />
             <TextBlock Foreground="#777777" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
                        Text="DigUp работает per-user: не требует прав администратора, данные хранятся в %LocalAppData%\DigUp." />
           </StackPanel>

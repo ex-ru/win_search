@@ -219,11 +219,11 @@ public partial class App : System.Windows.Application
         };
         menu.Items.Add(indexItem);
 
-        menu.Items.Add("Настройки…", null, (_, _) => OpenSettings());
+        menu.Items.Add(Loc.Settings, null, (_, _) => OpenSettings());
 
         // About menu section
-        var aboutMenu = new WinForms.ToolStripMenuItem("О программе (About)");
-        aboutMenu.DropDownItems.Add("Версия: v1.0.4", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        var aboutMenu = new WinForms.ToolStripMenuItem(Loc.About);
+        aboutMenu.DropDownItems.Add("Версия: v1.0.5", null, (_, _) => SettingsWindow.ShowAboutDialog());
         aboutMenu.DropDownItems.Add("GitHub: github.com/ex-ru/win_search", null, (_, _) =>
         {
             try
@@ -236,7 +236,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add(aboutMenu);
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("Выход (Quit DigUp)", null, (_, _) => Shutdown());
+        menu.Items.Add(Loc.Quit, null, (_, _) => Shutdown());
 
         // Dynamically update indexing counts when context menu opens
         menu.Opening += (_, _) =>
@@ -244,7 +244,18 @@ public partial class App : System.Windows.Application
             if (_engine is not null)
             {
                 var (indexed, remaining) = _engine.GetIndexProgress();
-                indexItem.Text = $"Индексация: {indexed} проиндексировано, {remaining} осталось";
+                if (_engine.IsPaused)
+                {
+                    indexItem.Text = Loc.IndexPaused(indexed);
+                }
+                else if (remaining <= 0)
+                {
+                    indexItem.Text = Loc.IndexDone(indexed);
+                }
+                else
+                {
+                    indexItem.Text = Loc.IndexRunning(indexed, remaining);
+                }
                 indexItem.Checked = !_engine.IsPaused;
             }
         };
@@ -254,7 +265,7 @@ public partial class App : System.Windows.Application
         _tray.BalloonTipTitle = "DigUp";
         if (_settings?.SetupDone == true)
         {
-            _tray.ShowBalloonTip(4000, "DigUp готов к работе", $"Поиск: {_settings.Hotkey} (или клик по иконке в трее)", WinForms.ToolTipIcon.Info);
+            _tray.ShowBalloonTip(4000, Loc.TrayReadyTitle, Loc.TrayReadyText(_settings.Hotkey), WinForms.ToolTipIcon.Info);
         }
     }
 

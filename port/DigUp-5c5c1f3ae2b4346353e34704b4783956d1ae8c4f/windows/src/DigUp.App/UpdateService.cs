@@ -17,8 +17,19 @@ internal sealed class UpdateService : IDisposable
     {
         _settings = settings;
         _notify = notify;
-        _makeManager = makeManager ?? (source => new UpdateManager(source));
+        _makeManager = makeManager ?? CreateManager;
         _timer.Tick += async (_, _) => await CheckOnceAsync();
+    }
+
+    private static UpdateManager CreateManager(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source) || source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            string url = string.IsNullOrWhiteSpace(source) ? "https://github.com/ex-ru/win_search" : source;
+            var github = new Velopack.Sources.GithubSource(url, accessToken: null, prerelease: false);
+            return new UpdateManager(github);
+        }
+        return new UpdateManager(source);
     }
 
     public void Start()
@@ -42,14 +53,13 @@ internal sealed class UpdateService : IDisposable
 
     internal async Task CheckOnceAsync()
     {
-        if (_disposed || _check is not null || !_settings.CheckUpdates || string.IsNullOrWhiteSpace(_settings.UpdateSource)) return;
+        if (_disposed || _check is not null || !_settings.CheckUpdates) return;
         if (_settings.LastUpdateCheck is { } last && DateTimeOffset.UtcNow - last < TimeSpan.FromDays(1)) return;
         string source = _settings.UpdateSource;
         using var check = new CancellationTokenSource();
         _check = check;
         try
         {
-            if (!Path.IsPathFullyQualified(source)) throw new InvalidOperationException("The update folder must be an absolute local path.");
             var manager = _makeManager(source);
             // Loose developer builds do not have Velopack's installed manifest.
             if (!manager.IsInstalled) return;

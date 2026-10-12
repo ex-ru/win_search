@@ -12,7 +12,8 @@ public sealed class Settings
 {
     public List<string> Folders { get; set; } = [];
     public List<string> Skipped { get; set; } = [];
-    public string Hotkey { get; set; } = "ctrl+alt+space";
+    public string Hotkey { get; set; } = "ctrl+space";
+    public string Language { get; set; } = "ru";
     /// <summary>How dark the screen gets behind search, 0..0.8.</summary>
     public double Dim { get; set; } = 0.35;
     /// <summary>Blur the screen behind search (Windows acrylic).</summary>
@@ -49,11 +50,9 @@ public sealed class Settings
                 s.IsNew = false;
                 // Files from before this flag existed count as set up.
                 s.SetupDone = true;
-                // The old default (Shift+Alt+Space) clashes with Windows'
-                // language keys: move it to the new default, unless the user
-                // picked something of their own.
-                if (s.Hotkey == "shift+alt+space")
-                    s.Hotkey = "ctrl+alt+space";
+                // Migrate to new default Ctrl+Space if old default was present
+                if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
+                    s.Hotkey = "ctrl+space";
                 return s;
             }
         }

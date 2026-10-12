@@ -5,8 +5,12 @@ models/
 # Pre-packaged tools, runtimes and SDKs
 tools/*
 !tools/mcp
+# Large binaries (exceed GitHub 100MB limit)
+dist/releases/*.zip
+dist/releases/*.nupkg
+dist/releases/*.exe
+dist/releases/legacy/
 *.zip
-!dist/releases/*.zip
 
 # Build outputs
 run/
