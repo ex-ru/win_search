@@ -5,7 +5,7 @@
 
 ---
 
-## [Unreleased]
+## [1.0.4] - 2026-10-12
 
 ### Added
 - **Сервер Model Context Protocol (MCP) для ИИ-агентов (MCP-01):**

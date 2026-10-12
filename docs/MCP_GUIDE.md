@@ -124,7 +124,7 @@ for hit in results:
 ```
 **Ожидаемый ответ:**
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"digup-mcp","version":"1.0.3"}}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"digup-mcp","version":"1.0.4"}}}
 ```
 
 ### Проверка поиска:
