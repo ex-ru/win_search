@@ -4,6 +4,7 @@
 // %LocalAppData%\DigUp.
 
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using DigUp.Core;
@@ -32,6 +33,8 @@ public partial class App : System.Windows.Application
     }
 
     private static Mutex? _single;
+    private static EventWaitHandle? _showEvent;
+    private static RegisteredWaitHandle? _showWaitRegistered;
     private WinForms.NotifyIcon? _tray;
     private MainWindow? _panel;
     private Engine? _engine;
@@ -60,8 +63,43 @@ public partial class App : System.Windows.Application
         {
             ErrorLog.Write("fatal: " + (ex.ExceptionObject as Exception)?.Message);
         };
+
         _single = new Mutex(true, @"Local\DigUp-Windows-v1", out bool first);
-        if (!first) { Shutdown(); return; }
+        if (!first)
+        {
+            try
+            {
+                if (EventWaitHandle.TryOpenExisting(@"Local\DigUp-Show-Event", out var existingHandle))
+                {
+                    existingHandle.Set();
+                    existingHandle.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("signal existing instance failed: " + ex.Message);
+            }
+            Shutdown();
+            return;
+        }
+
+        try
+        {
+            _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\DigUp-Show-Event");
+            _showWaitRegistered = ThreadPool.RegisterWaitForSingleObject(
+                _showEvent,
+                (_, _) =>
+                {
+                    Dispatcher.BeginInvoke(() => ShowSearchPanel());
+                },
+                null,
+                -1,
+                false);
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("show-event init: " + ex.Message);
+        }
 
         _settings = Settings.Load();
         _engine = new Engine(_settings);
@@ -83,34 +121,45 @@ public partial class App : System.Windows.Application
                 RegisterHotkey();
                 ResetWatcher();
                 if (_settings.SetupDone)
+                {
                     _engine.ApplySettings();
+                    ShowSearchPanel();
+                }
                 else
+                {
                     _tray?.ShowBalloonTip(8000, "DigUp",
                         "Finish the one-time setup to start searching (tray menu → Open search).",
                         WinForms.ToolTipIcon.Info);
+                }
             };
         }
         else
         {
             _engine.Start(); // first pass runs in the background, pausable from the tray
         }
-        if (e.Args.Contains("--show") && _settings.SetupDone)
+
+        if (!e.Args.Contains("--silent") && _settings.SetupDone)
         {
-            Dispatcher.BeginInvoke(() =>
-            {
-                _panel.ShowInTaskbar = true;
-                _panel.ApplyLook();
-                _panel.Show();
-                _panel.Activate();
-                _panel.FocusQuery();
-                ErrorLog.Write($"startup panel visible={_panel.IsVisible}");
-            });
+            Dispatcher.BeginInvoke(() => ShowSearchPanel());
         }
+    }
+
+    public void ShowSearchPanel()
+    {
+        if (_panel is null) return;
+        _panel.ShowInTaskbar = true;
+        _panel.ApplyLook();
+        _panel.Show();
+        _panel.Activate();
+        _panel.FocusQuery();
+        ErrorLog.Write($"Search panel shown, visible={_panel.IsVisible}");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         ErrorLog.Write($"App.OnExit called with code {e.ApplicationExitCode}");
+        _showWaitRegistered?.Unregister(null);
+        _showEvent?.Dispose();
         _updates?.Dispose();
         _hotkey?.Dispose();
         if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); }
@@ -168,6 +217,10 @@ public partial class App : System.Windows.Application
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => TogglePanel();
         _tray.BalloonTipTitle = "DigUp";
+        if (_settings?.SetupDone == true)
+        {
+            _tray.ShowBalloonTip(4000, "DigUp готов к работе", $"Поиск: {_settings.Hotkey} (или клик по иконке в трее)", WinForms.ToolTipIcon.Info);
+        }
     }
 
     private void OpenSettings()
