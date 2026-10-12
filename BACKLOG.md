@@ -90,5 +90,17 @@
 
 ---
 
+### EPIC-8: Интеграция с ИИ-агентами (Model Context Protocol / MCP)
+> **Цель:** Обеспечить интеграцию проиндексированного локального RAG с современными ИИ-агентами (Claude Desktop, Cursor, Antigravity, Docker Agent) строго в режиме Read-Only.
+
+| ID | Задача | Приоритет | Статус | Оценка | Описание / DoD |
+|---|---|---|---|---|---|
+| **MCP-01** | Ядро сервера MCP (JSON-RPC 2.0 stdio) и CLI (`digup mcp`) | **P0** | **Done** | 1.5d | Реализован `McpServer.cs` в `DigUp.Core` без внешних зависимостей. Команда `digup mcp` в CLI. Потоки: stdin/stdout для протокола, stderr для логов. Обработка UTF-8 BOM в Windows-пайпах. |
+| **MCP-02** | Безопасные инструменты чтения и поиска RAG | **P0** | **Done** | 1d | Реализованы инструменты: `search_documents`, `read_document_content`, `get_document_info`, `get_index_status`. Строгий режим Read-Only, поддержка слайсов строк, защита от бинарников и системных каталогов. |
+| **MCP-03** | Python-коннектор (`digup_mcp.py`) и FastMCP | **P1** | **Done** | 0.5d | Создан скрипт `tools/mcp/digup_mcp.py` для экосистемы Python с поддержкой FastMCP (`uv run digup_mcp.py`) и прямого клиента `DigUpClient`. |
+| **MCP-04** | Автоматизированные тесты и документация по подключению | **P0** | **Done** | 1d | Написаны xUnit тесты в `McpServerTests.cs` (рукопожатие, схемы инструментов, фильтрация, guardrails). Подготовлено руководство `docs/MCP_GUIDE.md` и обновлены спецификации. |
+
+---
+
 ## 📈 Журнал спринтов и обновлений
 *См. подробности реализации в [CHANGELOG.md](file:///d:/_projects/win_search/CHANGELOG.md).*

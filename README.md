@@ -72,7 +72,18 @@ cmd /c "set DIGUP_MODELS=D:\_projects\win_search\models&& .\run-vulkan\digup.exe
 
 # Поиск из командной строки
 cmd /c "set DIGUP_MODELS=D:\_projects\win_search\models&& .\run-vulkan\digup.exe search ""договор оказания услуг"" --index state\index-vulkan"
+
+# Запуск MCP сервера для ИИ-агентов (Claude Desktop, Cursor, Antigravity)
+digup mcp
 ```
+
+### 🤖 Подключение ИИ-агентов (Model Context Protocol / MCP)
+
+DigUp включает встроенный сервер **Model Context Protocol (MCP)** для безопасного подключения больших языковых моделей и автономных агентов строго в режиме **Read-Only**:
+- **Zero-setup:** встроен прямо в `digup.exe mcp` (не требует Python/Node.js).
+- **Готовые инструменты:** `search_documents`, `read_document_content`, `get_document_info`, `get_index_status`.
+- **Поддержка сред:** Claude Desktop, Cursor, Antigravity, Docker Agent, VS Code, Cline.
+- Подробные инструкции по настройке и примеры конфигураций см. в [Руководстве по MCP](docs/MCP_GUIDE.md).
 
 ---
 

@@ -17,6 +17,7 @@ internal static class Program
           digup search <words>... [-n 10] [--json]
           digup status                            what's in the index
           digup eval <queries.json> [-n 10]       recall of known answers
+          digup mcp                               run Model Context Protocol (MCP) server over stdio for AI agents
 
         Options:
           --index DIR          index folder (default: %LocalAppData%\DigUp\index.noindex)
@@ -57,6 +58,7 @@ internal static class Program
                 case "search": return Search(rest, indexDir);
                 case "status": return Status(indexDir);
                 case "eval": return Eval(rest, indexDir);
+                case "mcp": return RunMcp(indexDir);
                 default: Console.WriteLine(Usage); return 2;
             }
         }
@@ -379,5 +381,19 @@ internal static class Program
         if (seconds < 60) return $"{seconds:0} s";
         if (seconds < 3600) return $"{seconds / 60:0} min";
         return $"{seconds / 3600:0.0} h";
+    }
+
+    private static int RunMcp(string indexDir)
+    {
+        // MCP communicates over stdin/stdout using JSON-RPC 2.0 lines.
+        // Diagnostics and logs go strictly to Console.Error to avoid corrupting the JSON-RPC stream.
+        Console.Error.WriteLine($"[digup-mcp] Starting Model Context Protocol server (index: {indexDir})...");
+        using var server = new McpServer(
+            Console.In,
+            Console.Out,
+            indexDir,
+            queryEmbedder: (query, isCode) => TryEmbedQuery(query, isCode, indexDir, quiet: true));
+        server.Run();
+        return 0;
     }
 }
