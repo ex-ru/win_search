@@ -1,0 +1,2 @@
+# Restoring a project copy
+The backup routine keeps dated snapshots on a rotating external disk. If the working drive stops responding, disconnect it, choose the newest snapshot that passed its integrity check, and restore the project into a new folder. Compare a few important files before resuming work, then record which snapshot was used. Keep the source copy untouched until recovery is confirmed.

@@ -1,0 +1,96 @@
+{
+  "backend": "cpu",
+  "native_build": "official llama.cpp b11461",
+  "no_logits_patch": false,
+  "model_load_wall_seconds": 2.0937560999991547,
+  "worker_info": {
+    "model": "google/embeddinggemma-2",
+    "revision": "bfcd298762cc34d0357ece5ebdd31791a3a374d8",
+    "runtime": "llama.cpp-vectors1",
+    "dtype": "text-q8_0+mmproj-q8_0",
+    "dim": 768,
+    "text_only": false,
+    "load_seconds": 1.91
+  },
+  "checks": [
+    {
+      "name": "query",
+      "finite": true,
+      "norm": 1.000000003788847,
+      "cosine_with_reference": 0.9999193770424153,
+      "passed": true
+    },
+    {
+      "name": "query-bn",
+      "finite": true,
+      "norm": 0.9999999774589242,
+      "cosine_with_reference": 0.9999295409092257,
+      "passed": true
+    },
+    {
+      "name": "query-ar",
+      "finite": true,
+      "norm": 0.9999999707384867,
+      "cosine_with_reference": 0.9999211795088857,
+      "passed": true
+    },
+    {
+      "name": "document",
+      "finite": true,
+      "norm": 0.9999999896188358,
+      "cosine_with_reference": 0.9997876045631378,
+      "passed": true
+    },
+    {
+      "name": "document-long",
+      "finite": true,
+      "norm": 1.0000000493918135,
+      "cosine_with_reference": 0.9999076541978509,
+      "passed": true
+    },
+    {
+      "name": "screen-280",
+      "finite": true,
+      "norm": 1.000000031489242,
+      "cosine_with_reference": 0.9999480019183955,
+      "passed": true
+    },
+    {
+      "name": "photo-140",
+      "finite": true,
+      "norm": 1.0000000443418213,
+      "cosine_with_reference": 0.9997966938439692,
+      "passed": true
+    },
+    {
+      "name": "frame-70",
+      "finite": true,
+      "norm": 1.0000000130004023,
+      "cosine_with_reference": 0.9997017882966565,
+      "passed": true
+    },
+    {
+      "name": "speech",
+      "finite": true,
+      "norm": 1.0000000231804913,
+      "cosine_with_reference": 0.9998432086346353,
+      "passed": true
+    }
+  ],
+  "warm_text_encode_ms": {
+    "samples": [
+      32.70669999983511,
+      32.01009999975213,
+      33.18030000082217,
+      28.05830000215792,
+      29.187200001615565,
+      29.16900000127498,
+      36.958999997295905,
+      45.72369999732473,
+      40.488700000423705,
+      31.622099999367492
+    ],
+    "median": 32.35839999979362
+  },
+  "passed": true
+}

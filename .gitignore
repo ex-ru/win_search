@@ -1,0 +1,31 @@
+# Models & weights (exceed GitHub file limits)
+models/
+*.gguf
+
+# Pre-packaged tools, runtimes and SDKs
+tools/
+*.zip
+
+# Build outputs
+run/
+run-vulkan/
+**/[Bb]in/
+**/[Oo]bj/
+
+# Local application state & indexes
+state/
+
+# IDE & Editor files
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS & Temp
+Thumbs.db
+[Dd]esktop.ini
+*.tmp
+*.log

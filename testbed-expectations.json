@@ -1,0 +1,76 @@
+{
+  "queries": [
+    {
+      "query": "DECLINE-QX87231",
+      "expected_filename": "item-02.md",
+      "kind": "exact",
+      "direction": "identifier→document"
+    },
+    {
+      "query": "Можно ли держать кота в съемной квартире и вернут ли внесенный залог?",
+      "expected_filename": "item-01.txt",
+      "kind": "semantic",
+      "direction": "Russian→English"
+    },
+    {
+      "query": "Почему банк не провел покупку и какой номер назвать оператору?",
+      "expected_filename": "item-02.md",
+      "kind": "semantic",
+      "direction": "Russian→Russian"
+    },
+    {
+      "query": "Как вернуть рабочие документы после поломки диска?",
+      "expected_filename": "item-03.md",
+      "kind": "semantic",
+      "direction": "Russian→English"
+    },
+    {
+      "query": "What time is the train to Kyiv, and where do passengers change?",
+      "expected_filename": "item-04.txt",
+      "kind": "semantic",
+      "direction": "English→Russian"
+    },
+    {
+      "query": "How can I grow small tomato plants in pots on a sunny balcony?",
+      "expected_filename": "item-05.md",
+      "kind": "semantic",
+      "direction": "English→Russian"
+    },
+    {
+      "query": "How should an asynchronous job wait longer between temporary request failures?",
+      "expected_filename": "item-06.txt",
+      "kind": "semantic",
+      "direction": "English→Russian"
+    },
+    {
+      "query": "Як заварити каву з мелених зерен у френч-пресі?",
+      "expected_filename": "item-08.html",
+      "kind": "semantic",
+      "direction": "Ukrainian→English"
+    },
+    {
+      "query": "Як повернути ланцюг на велосипед і перевірити гальма?",
+      "expected_filename": "item-07.md",
+      "kind": "semantic",
+      "direction": "Ukrainian→Ukrainian"
+    },
+    {
+      "query": "What is a safe way to recover files from the latest verified copy after a drive failure?",
+      "expected_filename": "item-03.md",
+      "kind": "semantic",
+      "direction": "English→English"
+    },
+    {
+      "query": "How much coffee and hot water should I use, and how long should it steep?",
+      "expected_filename": "item-08.html",
+      "kind": "semantic",
+      "direction": "English→English"
+    },
+    {
+      "query": "Как настроить телескоп для наблюдения колец Сатурна?",
+      "expected_filename": null,
+      "kind": "absent",
+      "direction": "Russian→Russian"
+    }
+  ]
+}
