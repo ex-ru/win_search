@@ -99,8 +99,10 @@ public sealed class Engine : IDisposable
     private void IndexOne(IndexStore store, IndexOptions options, string _)
     {
         using var indexer = MakeIndexer(store, options);
+        store.Scope = _settings.Folders;
         var sync = indexer.Sync(_settings.Folders);
-        Say($"reading {sync.Queued.Count} new files…");
+        int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
+        Say($"reading {sync.Queued.Count + recovered} new or recovered files…");
         indexer.Run(shouldStop: () => _paused || _run!.IsCancellationRequested,
             onEvent: e => Say($"[{e.Done}/{e.Total}] {e.State} {Short(e.Path)}"));
         indexer.FinishLongFiles(shouldStop: () => _paused || _run!.IsCancellationRequested);

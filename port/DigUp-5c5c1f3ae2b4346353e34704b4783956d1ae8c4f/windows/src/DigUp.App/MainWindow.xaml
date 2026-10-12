@@ -28,6 +28,42 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+
+    <Style x:Key="FilterChipStyle" TargetType="Button">
+      <Setter Property="Background" Value="#2D2D2D" />
+      <Setter Property="Foreground" Value="#BBBBBB" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="#444444" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="ChipBorder" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="12" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ChipBorder" Property="Background" Value="#3E3E3E" />
+                <Setter Property="Foreground" Value="White" />
+              </Trigger>
+              <Trigger Property="Tag" Value="Active">
+                <Setter TargetName="ChipBorder" Property="Background" Value="#0078D4" />
+                <Setter TargetName="ChipBorder" Property="BorderBrush" Value="#2B88D8" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style TargetType="ScrollBar">
       <Setter Property="Width" Value="8" />
       <Setter Property="Background" Value="Transparent" />
@@ -35,19 +71,20 @@
   </Window.Resources>
   <Grid x:Name="Root" MouseDown="OnBackdrop">
     <Rectangle x:Name="DimRect" Fill="Black" Opacity="0.45" />
-    <Border x:Name="Card" Width="680" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,110,0,0">
-      <Border Background="#282828" CornerRadius="14" Padding="14"
-              BorderBrush="#4A4A4A" BorderThickness="1">
+    <Border x:Name="Card" Width="860" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,80,0,0">
+      <Border Background="#252525" CornerRadius="14" Padding="16"
+              BorderBrush="#444444" BorderThickness="1">
         <Border.Effect>
-          <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.6" Color="Black" />
+          <DropShadowEffect BlurRadius="45" ShadowDepth="0" Opacity="0.65" Color="Black" />
         </Border.Effect>
         <StackPanel>
+          <!-- Search input with clear button -->
           <Grid Margin="0,0,0,10">
-            <TextBox x:Name="Query" FontSize="20" Padding="10,8,38,8" Background="#333333" Foreground="White"
+            <TextBox x:Name="Query" FontSize="20" Padding="12,10,42,10" Background="#333333" Foreground="White"
                      CaretBrush="White" BorderThickness="0"
-                     ToolTip="Describe what you look for. code: finds code. Enter opens, Esc hides." />
+                     ToolTip="Опишите, что ищете. code: для поиска кода. Enter — открыть, Esc — скрыть." />
             <Button x:Name="ClearButton" Content="✕" Width="26" Height="26"
-                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
                     Foreground="#AAAAAA" Background="#444444" BorderThickness="0"
                     FontSize="12" FontWeight="Normal" Cursor="Hand" Focusable="False"
                     Visibility="Collapsed" Click="OnClearQuery"
@@ -71,20 +108,44 @@
               </Button.Template>
             </Button>
           </Grid>
-          <ListBox x:Name="Results" FontSize="14" MaxHeight="300" Background="Transparent" Foreground="White"
+
+          <!-- Type filter bar -->
+          <WrapPanel x:Name="FilterBar" Margin="0,0,0,10">
+            <Button x:Name="FilterAll" Content="Все" Style="{StaticResource FilterChipStyle}" Tag="Active" Click="OnFilterClick" />
+            <Button x:Name="FilterPdf" Content="📄 PDF" Style="{StaticResource FilterChipStyle}" Click="OnFilterClick" />
+            <Button x:Name="FilterImg" Content="🖼️ Картинки" Style="{StaticResource FilterChipStyle}" Click="OnFilterClick" />
+            <Button x:Name="FilterDoc" Content="📝 Текст / Док" Style="{StaticResource FilterChipStyle}" Click="OnFilterClick" />
+            <Button x:Name="FilterCode" Content="💻 Код" Style="{StaticResource FilterChipStyle}" Click="OnFilterClick" />
+            <Button x:Name="FilterMedia" Content="🎬 Медиа" Style="{StaticResource FilterChipStyle}" Click="OnFilterClick" />
+          </WrapPanel>
+
+          <!-- Results list -->
+          <ListBox x:Name="Results" FontSize="14" MinHeight="100" MaxHeight="460" Background="Transparent" Foreground="White"
                    BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    ScrollViewer.VerticalScrollBarVisibility="Auto">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <StackPanel Margin="0,6">
-                  <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" Foreground="White" />
-                  <TextBlock Foreground="#AAAAAA" Text="{Binding Detail}" TextWrapping="Wrap" />
-                </StackPanel>
+                <Grid Margin="0,5">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Border Grid.Column="0" CornerRadius="5" Padding="7,2" Margin="0,1,10,0" VerticalAlignment="Top"
+                          Background="{Binding BadgeBackground}" BorderBrush="{Binding BadgeBorder}" BorderThickness="1">
+                    <TextBlock Text="{Binding BadgeText}" FontSize="11" FontWeight="Bold" Foreground="{Binding BadgeForeground}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" Foreground="White" />
+                    <TextBlock Foreground="#AAAAAA" Text="{Binding Detail}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,0" />
+                  </StackPanel>
+                </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
             <ListBox.ItemContainerStyle>
               <Style TargetType="ListBoxItem">
-                <Setter Property="Padding" Value="8,2" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Margin" Value="0,1" />
                 <Style.Triggers>
                   <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="#0078D4" />
@@ -93,27 +154,38 @@
               </Style>
             </ListBox.ItemContainerStyle>
           </ListBox>
-          <Border x:Name="PreviewBox" Margin="0,10,0,0" Background="#303030" CornerRadius="8" Padding="10">
+
+          <!-- Preview & Action card -->
+          <Border x:Name="PreviewBox" Margin="0,10,0,0" Background="#2E2E2E" CornerRadius="10" Padding="12">
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
-              <Image x:Name="PreviewImage" Grid.Column="0" MaxHeight="180" Stretch="Uniform" Margin="0,0,10,0" />
+              <Border Grid.Column="0" Background="#222222" CornerRadius="6" Margin="0,0,12,0" ClipToBounds="True">
+                <Image x:Name="PreviewImage" MaxHeight="180" Stretch="Uniform" Cursor="Hand" MouseDown="OnPreviewImageClick"
+                       ToolTip="Дважды кликните для полноэкранного предпросмотра" />
+              </Border>
               <StackPanel Grid.Column="1">
-                <TextBlock x:Name="PreviewTitle" FontWeight="SemiBold" Foreground="White" TextWrapping="Wrap" />
-                <TextBlock x:Name="PreviewKind" Foreground="#AAAAAA" Margin="0,2,0,6" />
-                <TextBlock x:Name="PreviewText" Foreground="#DDDDDD" TextWrapping="Wrap" MaxHeight="120"
-                           TextTrimming="CharacterEllipsis" />
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <TextBlock x:Name="PreviewTitle" FontWeight="SemiBold" Foreground="White" TextWrapping="Wrap" FontSize="15" />
+                <TextBlock x:Name="PreviewKind" Foreground="#AAAAAA" Margin="0,2,0,6" FontSize="12" />
+                <TextBlock x:Name="PreviewText" Foreground="#DDDDDD" TextWrapping="Wrap" MaxHeight="110"
+                           TextTrimming="CharacterEllipsis" FontSize="13" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <Button Content="👁️ Quick Look (Пробел)" Width="170" Margin="0,0,8,0" Click="OnQuickLookButton" Focusable="False" />
                   <Button Content="Open" Width="80" Margin="0,0,8,0" Click="OnOpenButton" Focusable="False" />
-                  <Button Content="Show in Explorer" Width="120" Margin="0,0,8,0" Click="OnShowButton" Focusable="False" />
+                  <Button Content="Show in Explorer" Width="130" Margin="0,0,8,0" Click="OnShowButton" Focusable="False" />
                   <Button Content="Copy" Width="70" Click="OnCopyButton" Focusable="False" />
                 </StackPanel>
               </StackPanel>
             </Grid>
           </Border>
-          <TextBlock x:Name="Status" Foreground="#888888" Margin="0,8,0,0" Text="starting…" />
+
+          <!-- Footer status -->
+          <Grid Margin="0,8,0,0">
+            <TextBlock x:Name="Status" Foreground="#888888" HorizontalAlignment="Left" Text="starting…" />
+            <TextBlock Foreground="#666666" HorizontalAlignment="Right" FontSize="11" Text="Пробел: предпросмотр · Enter: открыть · Esc: закрыть" />
+          </Grid>
         </StackPanel>
       </Border>
     </Border>

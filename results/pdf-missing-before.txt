@@ -1,0 +1,4 @@
+sync: +1 ~0 =0 moved:0 -0
+[1/1] failed   D:/_projects/win_search/state/fix-smoke/pdf-input/invoice-probe.pdf
+  failed          1
+read+decode 0,0 s CPU, model+store 0,0 s (21,3 files/s).

@@ -4,6 +4,7 @@ $env:DIGUP_HOME = Join-Path $PSScriptRoot 'state\app'
 $env:DIGUP_MODELS = Join-Path $PSScriptRoot 'models'
 $env:DIGUP_INDEX = Join-Path $PSScriptRoot "state\index-$Backend"
 $env:DIGUP_FFMPEG = Join-Path $PSScriptRoot 'tools\ffmpeg'
+$env:DIGUP_UPDATE_SOURCE = Join-Path $PSScriptRoot 'dist\releases'
 $runDir = if ($Backend -eq 'vulkan') { Join-Path $PSScriptRoot 'run-vulkan' } else { Join-Path $PSScriptRoot 'run' }
 $exe = Join-Path $runDir 'DigUpApp.exe'
 if (!(Test-Path -LiteralPath $exe)) { throw "Build missing: $exe" }
@@ -17,7 +18,8 @@ if (!(Test-Path -LiteralPath $settingsPath)) {
         Dim = 0.35
         Blur = $true
         Code = $false
-        CheckUpdates = $false
+        CheckUpdates = $true
+        UpdateSource = $env:DIGUP_UPDATE_SOURCE
         Editor = 'auto'
         IsNew = $false
         SetupDone = $true

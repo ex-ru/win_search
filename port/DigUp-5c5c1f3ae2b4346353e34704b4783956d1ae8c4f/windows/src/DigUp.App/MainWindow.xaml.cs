@@ -3,23 +3,40 @@
 // their moment), Esc or backdrop click hides. The preview shows a thumbnail
 // for pictures and video frames, words for documents and code.
 
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using DigUp.Core;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using Button = System.Windows.Controls.Button;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace DigUp.App;
+
+public sealed class ResultItemViewModel
+{
+    public required Engine.Hit Hit { get; init; }
+    public required string Title { get; init; }
+    public required string Detail { get; init; }
+    public required string BadgeText { get; init; }
+    public required System.Windows.Media.Brush BadgeBackground { get; init; }
+    public required System.Windows.Media.Brush BadgeBorder { get; init; }
+    public required System.Windows.Media.Brush BadgeForeground { get; init; }
+}
 
 public partial class MainWindow : Window
 {
     private readonly Engine _engine;
     private readonly Settings _settings;
     private readonly System.Timers.Timer _debounce = new(180) { AutoReset = false };
-    private List<Engine.Hit> _hits = [];
+    private List<ResultItemViewModel> _allHits = [];
+    private List<ResultItemViewModel> _currentItems = [];
+    private string _activeFilter = "all";
     private bool _big;
     private int _searchGen; // only the newest background search may touch the list
     private PreviewWindow? _preview;
@@ -38,21 +55,37 @@ public partial class MainWindow : Window
         _debounce.Elapsed += (_, _) => Dispatcher.Invoke(SearchNow);
         Query.TextChanged += (_, _) =>
         {
+            Interlocked.Increment(ref _searchGen);
             _navigated = false;
             ClearButton.Visibility = string.IsNullOrEmpty(Query.Text) ? Visibility.Collapsed : Visibility.Visible;
             _debounce.Stop();
-            _debounce.Start();
+            if (string.IsNullOrWhiteSpace(Query.Text)) SearchNow();
+            else _debounce.Start();
         };
         Query.PreviewKeyDown += OnKey;
         Query.PreviewMouseLeftButtonDown += (_, _) => _navigated = false;
         Results.MouseDoubleClick += (_, _) => OpenSelected();
         Results.PreviewMouseLeftButtonDown += (_, _) => _navigated = true;
         Results.SelectionChanged += (_, _) => { ShowPreview(); FollowPreview(); };
-        Results.KeyDown += (_, e) =>
+        Results.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Space) { TogglePreview(); e.Handled = true; }
         };
-        Loaded += (_, _) => FadeIn();
+        Loaded += (_, _) => { AdjustCardSize(); FadeIn(); };
+        SizeChanged += (_, _) => AdjustCardSize();
+    }
+
+    private void AdjustCardSize()
+    {
+        try
+        {
+            double screenW = SystemParameters.WorkArea.Width;
+            double screenH = SystemParameters.WorkArea.Height;
+            Card.Width = Math.Clamp(screenW * 0.58, 780, 1100);
+            Results.MaxHeight = Math.Clamp(screenH * 0.44, 380, 620);
+            Card.Margin = new Thickness(0, Math.Max(40, screenH * 0.08), 0, 0);
+        }
+        catch { }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -74,6 +107,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            AdjustCardSize();
             DimRect.Opacity = Math.Clamp(_settings.Dim, 0, 0.8);
             var hwnd = new WindowInteropHelper(this).Handle;
             if (hwnd == IntPtr.Zero) return;
@@ -81,8 +115,6 @@ public partial class MainWindow : Window
             {
                 AccentState = _settings.Blur ? 4 /* acrylic */ : 0 /* off */,
                 AccentFlags = 0,
-                // Blur only, (almost) no tint: the Dim slider alone decides
-                // darkness. A black tint here used to double-darken everything.
                 GradientColor = 0x02000000,
                 AnimationId = 0,
             };
@@ -147,17 +179,89 @@ public partial class MainWindow : Window
         if (e.OriginalSource is System.Windows.Shapes.Rectangle) Hide();
     }
 
+    private void OnFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        string tag = btn.Name switch
+        {
+            nameof(FilterPdf) => "pdf",
+            nameof(FilterImg) => "img",
+            nameof(FilterDoc) => "doc",
+            nameof(FilterCode) => "code",
+            nameof(FilterMedia) => "media",
+            _ => "all"
+        };
+
+        _activeFilter = tag;
+        foreach (var child in FilterBar.Children)
+        {
+            if (child is Button b)
+                b.Tag = ReferenceEquals(b, btn) ? "Active" : string.Empty;
+        }
+
+        ApplyCurrentFilter();
+        Query.Focus();
+    }
+
+    private void ApplyCurrentFilter()
+    {
+        _currentItems = _activeFilter switch
+        {
+            "pdf" => _allHits.Where(x => x.BadgeText == "PDF").ToList(),
+            "img" => _allHits.Where(x => x.BadgeText is "IMG" or "СКРИН").ToList(),
+            "doc" => _allHits.Where(x => x.BadgeText is "DOC" or "TXT").ToList(),
+            "code" => _allHits.Where(x => x.BadgeText == "CODE").ToList(),
+            "media" => _allHits.Where(x => x.BadgeText is "ВИДЕО" or "АУДИО").ToList(),
+            _ => _allHits.ToList()
+        };
+
+        Results.ItemsSource = _currentItems;
+        if (_currentItems.Count > 0) Results.SelectedIndex = 0;
+        else Results.SelectedIndex = -1;
+
+        ShowPreview();
+        FollowPreview();
+    }
+
+    private void UpdateFilterCounts()
+    {
+        int allCount = _allHits.Count;
+        int pdfCount = _allHits.Count(x => x.BadgeText == "PDF");
+        int imgCount = _allHits.Count(x => x.BadgeText is "IMG" or "СКРИН");
+        int docCount = _allHits.Count(x => x.BadgeText is "DOC" or "TXT");
+        int codeCount = _allHits.Count(x => x.BadgeText == "CODE");
+        int mediaCount = _allHits.Count(x => x.BadgeText is "ВИДЕО" or "АУДИО");
+
+        FilterAll.Content = allCount > 0 ? $"Все ({allCount})" : "Все";
+        FilterPdf.Content = pdfCount > 0 ? $"📄 PDF ({pdfCount})" : "📄 PDF";
+        FilterImg.Content = imgCount > 0 ? $"🖼️ Картинки ({imgCount})" : "🖼️ Картинки";
+        FilterDoc.Content = docCount > 0 ? $"📝 Текст / Док ({docCount})" : "📝 Текст / Док";
+        FilterCode.Content = codeCount > 0 ? $"💻 Код ({codeCount})" : "💻 Код";
+        FilterMedia.Content = mediaCount > 0 ? $"🎬 Медиа ({mediaCount})" : "🎬 Медиа";
+    }
+
     // The query box never waits: each keystroke starts a background search,
     // and only the newest one paints (older ones throw their work away).
     private void SearchNow()
     {
-        string q = Query.Text.Trim();
-        if (q.Length == 0) { Results.ItemsSource = null; ShowPreview(); return; }
         int gen = Interlocked.Increment(ref _searchGen);
+        string q = Query.Text.Trim();
+        if (q.Length == 0)
+        {
+            _allHits.Clear();
+            _currentItems.Clear();
+            Results.ItemsSource = null;
+            PreviewImage.Source = null;
+            PreviewText.Text = string.Empty;
+            UpdateFilterCounts();
+            ShowPreview();
+            FollowPreview();
+            return;
+        }
         Task.Run(() =>
         {
             List<Engine.Hit> hits;
-            try { hits = _engine.Search(q, limit: 30); }
+            try { hits = _engine.Search(q, limit: 50); }
             catch (Exception ex)
             {
                 Dispatcher.Invoke(() =>
@@ -173,45 +277,126 @@ public partial class MainWindow : Window
             Dispatcher.Invoke(() =>
             {
                 if (gen != _searchGen) return; // a newer keystroke won
-                _hits = hits;
-                Results.ItemsSource = _hits.Select(h => new
-                {
-                    Title = Short(h.Path) + (h.Where.Length > 0 ? "  " + h.Where : ""),
-                    Detail = h.Kind + (h.Excerpt is null ? "" : " — " + h.Excerpt),
-                }).ToList();
-                if (_hits.Count > 0) Results.SelectedIndex = 0;
-                ShowPreview();
-                FollowPreview(); // an open Space preview tracks new results, never goes stale
-                if (CodeQuery.TextOf(q) is null && _hits.Count > 0
-                    && _hits.All(h => h.Kind == "Code"))
-                    Status.Text = "only code matches — tip: code: searches code, plain words search the rest";
+                _allHits = hits.Select(CreateItem).ToList();
+                UpdateFilterCounts();
+                ApplyCurrentFilter();
+
+                if (CodeQuery.TextOf(q) is null && _allHits.Count > 0
+                    && _allHits.All(h => h.Hit.Kind == "Code"))
+                    Status.Text = "только код совпадает — подсказка: code: ищет по коду, обычные слова — по остальным файлам";
             });
         });
     }
 
+    private static ResultItemViewModel CreateItem(Engine.Hit h)
+    {
+        string ext = Path.GetExtension(h.Path).ToLowerInvariant();
+        string badgeText;
+        string bg;
+        string border;
+        string fg;
+
+        if (h.Kind == "Pdf" || ext == ".pdf")
+        {
+            badgeText = "PDF";
+            bg = "#3D1818";
+            border = "#E53935";
+            fg = "#FF8A80";
+        }
+        else if (h.Kind == "Screenshot")
+        {
+            badgeText = "СКРИН";
+            bg = "#0D2E35";
+            border = "#00ACC1";
+            fg = "#80DEEA";
+        }
+        else if (h.Kind == "Image" || ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp" or ".tiff" or ".tif" or ".svg")
+        {
+            badgeText = "IMG";
+            bg = "#2A183D";
+            border = "#AB47BC";
+            fg = "#E1BEE7";
+        }
+        else if (h.Kind == "Code" || ext is ".cs" or ".js" or ".ts" or ".py" or ".cpp" or ".c" or ".h" or ".rs" or ".go" or ".java" or ".html" or ".css" or ".php" or ".sh" or ".ps1")
+        {
+            badgeText = "CODE";
+            bg = "#182E19";
+            border = "#43A047";
+            fg = "#A5D6A7";
+        }
+        else if (h.Kind == "Video" || ext is ".mp4" or ".mkv" or ".avi" or ".mov" or ".webm")
+        {
+            badgeText = "ВИДЕО";
+            bg = "#3D2714";
+            border = "#FB8C00";
+            fg = "#FFCC80";
+        }
+        else if (h.Kind == "Audio" || ext is ".mp3" or ".wav" or ".flac" or ".m4a" or ".ogg" or ".aac")
+        {
+            badgeText = "АУДИО";
+            bg = "#3A162B";
+            border = "#E91E63";
+            fg = "#F48FB1";
+        }
+        else if (ext is ".txt" or ".md" or ".markdown" or ".log" or ".csv" or ".tsv" or ".json" or ".yaml" or ".yml" or ".ini")
+        {
+            badgeText = "TXT";
+            bg = "#1A2E26";
+            border = "#26A69A";
+            fg = "#80CBC4";
+        }
+        else
+        {
+            badgeText = "DOC";
+            bg = "#0D243D";
+            border = "#1E88E5";
+            fg = "#90CAF9";
+        }
+
+        var bc = new BrushConverter();
+        var bgBrush = (SolidColorBrush)(bc.ConvertFrom(bg) ?? Brushes.DarkGray);
+        var borderBrush = (SolidColorBrush)(bc.ConvertFrom(border) ?? Brushes.Gray);
+        var fgBrush = (SolidColorBrush)(bc.ConvertFrom(fg) ?? Brushes.White);
+        bgBrush.Freeze();
+        borderBrush.Freeze();
+        fgBrush.Freeze();
+
+        return new ResultItemViewModel
+        {
+            Hit = h,
+            Title = Short(h.Path, 100) + (h.Where.Length > 0 ? "  " + h.Where : ""),
+            Detail = h.Kind + (h.Excerpt is null ? "" : " — " + h.Excerpt),
+            BadgeText = badgeText,
+            BadgeBackground = bgBrush,
+            BadgeBorder = borderBrush,
+            BadgeForeground = fgBrush
+        };
+    }
+
     private void ShowPreview()
     {
-        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count)
+        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count)
         {
             PreviewBox.Visibility = Visibility.Collapsed;
             return;
         }
         PreviewBox.Visibility = Visibility.Visible;
-        var h = _hits[Results.SelectedIndex];
-        PreviewTitle.Text = Short(h.Path, 90) + (h.Where.Length > 0 ? "  " + h.Where : "");
+        var item = _currentItems[Results.SelectedIndex];
+        var h = item.Hit;
+        PreviewTitle.Text = Short(h.Path, 100) + (h.Where.Length > 0 ? "  " + h.Where : "");
         PreviewKind.Text = KindText(h);
-        PreviewText.Text = h.Excerpt ?? "(no words — found by what it shows or says)";
+        PreviewText.Text = h.Excerpt ?? "(нет текстового фрагмента — найдено по смыслу / изображению)";
         PreviewImage.Source = null;
         // Thumbnails load off the UI thread; a late one for an old selection is dropped.
-        // The whole continuation runs on the UI thread: touching Results from
-        // a pool thread throws and silently kills every thumbnail.
         int at = Results.SelectedIndex;
+        int gen = _searchGen;
         Task.Run(() => ThumbFor(h)).ContinueWith(t =>
         {
             string? file;
             try { file = t.Result; }
             catch { return; }
-            if (file is null || at != Results.SelectedIndex) return;
+            if (file is null || gen != _searchGen || at != Results.SelectedIndex
+                || at >= _currentItems.Count || !ReferenceEquals(h, _currentItems[at].Hit)) return;
             try
             {
                 var bmp = new BitmapImage();
@@ -221,7 +406,7 @@ public partial class MainWindow : Window
                 bmp.UriSource = new Uri(file);
                 bmp.EndInit();
                 bmp.Freeze();
-                if (at != Results.SelectedIndex) return;
+                if (gen != _searchGen || at != Results.SelectedIndex) return;
                 PreviewImage.Source = bmp;
             }
             catch { }
@@ -232,21 +417,21 @@ public partial class MainWindow : Window
     {
         try
         {
-            return h.Kind switch
-            {
-                "Image" or "Screenshot" => Thumbs.ForImage(h.Path),
-                "Video" => Thumbs.ForVideo(h.Path, ParseSeconds(h.Where)),
-                _ => null,
-            };
+            string ext = Path.GetExtension(h.Path).ToLowerInvariant();
+            if (h.Kind is "Image" or "Screenshot" || ext is ".jpg" or ".jpeg" or ".png" or ".webp")
+                return Thumbs.ForImage(h.Path);
+            if (h.Kind == "Video")
+                return Thumbs.ForVideo(h.Path, ParseSeconds(h.Where));
+            return null;
         }
         catch { return null; }
     }
 
     private static string KindText(Engine.Hit h) => h.Kind switch
     {
-        "Video" or "Audio" => $"{h.Kind} · plays from {h.Where}",
-        "Pdf" => $"PDF · page {h.Where.TrimStart('@')}",
-        "Code" => $"Code · {h.Where}",
+        "Video" or "Audio" => $"{h.Kind} · с момента {h.Where}",
+        "Pdf" => $"PDF · страница {h.Where.TrimStart('@')}",
+        "Code" => $"Код · {h.Where}",
         _ => h.Kind,
     };
 
@@ -254,24 +439,69 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            // Esc closes the preview first, then the panel (like the Mac).
             if (_preview is not null) { try { _preview.Close(); } catch { } }
             else Hide();
             e.Handled = true;
         }
         else if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; }
-        else if (e.Key == Key.Space && _navigated) { TogglePreview(); e.Handled = true; }
+        else if (e.Key == Key.Space && (_navigated || Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) || Keyboard.Modifiers.HasFlag(ModifierKeys.Control)))
+        {
+            TogglePreview();
+            e.Handled = true;
+        }
         else if (e.Key == Key.Down && Results.Items.Count > 0)
-        { Results.SelectedIndex = Math.Min(Results.SelectedIndex + 1, Results.Items.Count - 1); Results.ScrollIntoView(Results.SelectedItem); _navigated = true; e.Handled = true; }
+        {
+            Results.SelectedIndex = Math.Min(Results.SelectedIndex + 1, Results.Items.Count - 1);
+            Results.ScrollIntoView(Results.SelectedItem);
+            _navigated = true;
+            e.Handled = true;
+        }
         else if (e.Key == Key.Up && Results.Items.Count > 0)
-        { Results.SelectedIndex = Math.Max(Results.SelectedIndex - 1, 0); Results.ScrollIntoView(Results.SelectedItem); _navigated = true; e.Handled = true; }
+        {
+            Results.SelectedIndex = Math.Max(Results.SelectedIndex - 1, 0);
+            Results.ScrollIntoView(Results.SelectedItem);
+            _navigated = true;
+            e.Handled = true;
+        }
         else if (e.Key == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        { _big = !_big; Card.Width = _big ? 980 : 680; e.Handled = true; }
+        {
+            _big = !_big;
+            Card.Width = _big ? 1100 : 860;
+            e.Handled = true;
+        }
         else if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && Results.SelectedIndex >= 0)
         {
-            try { System.Windows.Clipboard.SetFileDropList([.. _hits.Where((_, i) => i == Results.SelectedIndex).Select(x => x.Path)]); }
+            try
+            {
+                var cur = _currentItems[Results.SelectedIndex].Hit.Path;
+                System.Windows.Clipboard.SetFileDropList([cur]);
+            }
             catch { }
         }
+    }
+
+    public void NavigateSelection(int delta)
+    {
+        if (Results.Items.Count == 0) return;
+        int next = Math.Clamp(Results.SelectedIndex + delta, 0, Results.Items.Count - 1);
+        if (next != Results.SelectedIndex)
+        {
+            Results.SelectedIndex = next;
+            Results.ScrollIntoView(Results.SelectedItem);
+        }
+    }
+
+    internal static string FindPdfium()
+    {
+        string p1 = Path.Combine(AppContext.BaseDirectory, "pdfium.dll");
+        if (File.Exists(p1)) return p1;
+        string p2 = Path.Combine(AppContext.BaseDirectory, "native", "x64", "pdfium.dll");
+        if (File.Exists(p2)) return p2;
+        string p3 = @"D:\_projects\win_search\run-vulkan\pdfium.dll";
+        if (File.Exists(p3)) return p3;
+        string p4 = @"D:\_projects\win_search\port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\native\x64\pdfium.dll";
+        if (File.Exists(p4)) return p4;
+        return p1;
     }
 
     /// <summary>Space: show the selected file itself, or hide it again.</summary>
@@ -280,25 +510,22 @@ public partial class MainWindow : Window
         try
         {
             if (_preview is not null) { _preview.Close(); return; }
-            if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count) return;
-            var win = new PreviewWindow(
-                System.IO.Path.Combine(AppContext.BaseDirectory, "pdfium.dll"), OpenSelected);
+            if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
+            var win = new PreviewWindow(FindPdfium(), OpenSelected, (delta) => NavigateSelection(delta));
             win.Owner = this;
             win.Closed += (_, _) =>
             {
                 if (ReferenceEquals(_preview, win)) _preview = null;
-                // Focus goes back to the list (unless they're typing): arrows
-                // and Space keep working without another click.
                 try { if (!Query.IsFocused) Results.Focus(); } catch { }
             };
             _preview = win;
-            win.ShowHit(_hits[Results.SelectedIndex], Query.Text);
+            win.ShowHit(_currentItems[Results.SelectedIndex].Hit, Query.Text);
             win.Show();
             win.Focus();
         }
         catch (Exception ex)
         {
-            Status.Text = "can't preview it: " + ex.Message.Split('\n')[0].Trim();
+            Status.Text = "предпросмотр недоступен: " + ex.Message.Split('\n')[0].Trim();
         }
     }
 
@@ -308,10 +535,17 @@ public partial class MainWindow : Window
         if (_preview is null) return;
         try
         {
-            if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count) _preview.Close();
-            else _preview.ShowHit(_hits[Results.SelectedIndex], Query.Text);
+            if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) _preview.Close();
+            else _preview.ShowHit(_currentItems[Results.SelectedIndex].Hit, Query.Text);
         }
         catch { try { _preview.Close(); } catch { } }
+    }
+
+    private void OnQuickLookButton(object sender, RoutedEventArgs e) => TogglePreview();
+
+    private void OnPreviewImageClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount >= 2) TogglePreview();
     }
 
     private void OnOpenButton(object sender, RoutedEventArgs e) => OpenSelected();
@@ -320,33 +554,35 @@ public partial class MainWindow : Window
     {
         string msg = $"{what}: {ex.Message.Split('\n')[0].Trim()}";
         Status.Text = msg;
-        // Status lines are easy to miss: balloon it too. Never silent.
         if (System.Windows.Application.Current is App app) app.ShowNote(msg);
     }
 
     private void OnShowButton(object sender, RoutedEventArgs e)
     {
-        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count) return;
+        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",
-                $"/select,\"{_hits[Results.SelectedIndex].Path.Replace('/', '\\')}\"") { UseShellExecute = true });
-            Hide(); // Explorer opens below us otherwise: we cover the whole screen.
+                $"/select,\"{_currentItems[Results.SelectedIndex].Hit.Path.Replace('/', '\\')}\"") { UseShellExecute = true });
+            Hide();
         }
-        catch (Exception ex) { Complain("can't show it", ex); }
+        catch (Exception ex) { Complain("не удалось открыть проводник", ex); }
     }
 
     private void OnCopyButton(object sender, RoutedEventArgs e)
     {
-        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count) return;
-        try { System.Windows.Clipboard.SetFileDropList([.. _hits.Where((_, i) => i == Results.SelectedIndex).Select(x => x.Path)]); }
-        catch (Exception ex) { Complain("can't copy it", ex); }
+        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
+        try
+        {
+            System.Windows.Clipboard.SetFileDropList([_currentItems[Results.SelectedIndex].Hit.Path]);
+        }
+        catch (Exception ex) { Complain("не удалось скопировать", ex); }
     }
 
     private void OpenSelected()
     {
-        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _hits.Count) return;
-        var h = _hits[Results.SelectedIndex];
+        if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
+        var h = _currentItems[Results.SelectedIndex].Hit;
         try
         {
             if (h.Kind == "Code")
@@ -357,9 +593,9 @@ public partial class MainWindow : Window
             }
             else if (h.Kind == "Pdf") Editors.OpenPdf(h.Path, ParsePage(h.Where));
             else Editors.Open(h.Path);
-            Hide(); // the opened app would land behind our fullscreen overlay
+            Hide();
         }
-        catch (Exception ex) { Complain($"can't open {Short(h.Path, 60)}", ex); }
+        catch (Exception ex) { Complain($"не удалось открыть {Short(h.Path, 60)}", ex); }
     }
 
     internal static int ParseLine(string where)

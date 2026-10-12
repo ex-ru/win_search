@@ -452,6 +452,29 @@ public sealed class IndexStore : IDisposable, IIndexerStore
             new[] { SqlValue.Int(id) });
     }
 
+    /// <summary>Requeues failed PDFs that could not be read because PDFium was missing.</summary>
+    public int RetryMissingPdfiumFailures()
+    {
+        const string detailPrefix = "unreadable: pdfium.dll is missing";
+        return _db.Transaction(() =>
+        {
+            var ids = new List<long>();
+            var values = new List<SqlValue>
+            {
+                SqlValue.Int(detailPrefix.Length),
+                SqlValue.Text(detailPrefix),
+            };
+            values.AddRange(_scopeValues);
+            _db.Query("SELECT id FROM files WHERE kind = 'pdf' AND state = 'failed' " +
+                      "AND substr(detail, 1, ?) = ?" + _scopeSql,
+                values, r => ids.Add(r.GetInt64(0)));
+
+            foreach (long id in ids)
+                Requeue(id);
+            return ids.Count;
+        });
+    }
+
     /// <summary>Same file at a new path (a move or rename): only the path changes.</summary>
     public void Move(long id, string toPath)
     {

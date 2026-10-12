@@ -83,7 +83,7 @@ internal static class Program
     // rules as indexing, so the number matches the first pass.
     private static int Estimate(List<string> rest, bool json = false)
     {
-        var folders = rest.Where(a => !a.StartsWith('-') && !IsValueOf(a, rest)).ToList();
+        var folders = rest.Where(a => !a.StartsWith('-') && !IsValueOf(a, rest)).Select(Path.GetFullPath).ToList();
         if (folders.Count == 0) throw new InvalidOperationException("which folders? e.g. digup estimate %USERPROFILE%\\Documents");
         foreach (var f in folders)
             if (!Directory.Exists(f) && !File.Exists(f)) throw new InvalidOperationException($"not a folder: {f}");
@@ -121,7 +121,7 @@ internal static class Program
     // digup-embed.exe so its memory goes back to Windows when it quits.
     private static int Index(List<string> rest, string indexDir)
     {
-        var folders = rest.Where(a => !a.StartsWith('-') && !IsValueOf(a, rest)).ToList();
+        var folders = rest.Where(a => !a.StartsWith('-') && !IsValueOf(a, rest)).Select(Path.GetFullPath).ToList();
         int? limit = null;
         int workers = 1; // one helper per GPU; more contend (measured 9.7 vs 5.4 files/s)
         for (int i = 0; i < rest.Count; i++)
@@ -136,8 +136,11 @@ internal static class Program
 
         var options = new IndexOptions { Code = rest.Contains("--code") };
         using var store = options.Code ? new IndexStore(indexDir, IndexStore.CodeFile) : new IndexStore(indexDir);
+        store.Scope = folders;
         using var indexer = MakeIndexer(store, options, workers);
         var sync = indexer.Sync(folders);
+        int recovered = File.Exists(FindPdfium()) ? store.RetryMissingPdfiumFailures() : 0;
+        if (recovered > 0) Console.WriteLine($"retry: {recovered} PDFs previously blocked by missing PDFium");
         Console.WriteLine($"sync: +{sync.Added} ~{sync.Changed} ={sync.Unchanged} moved:{sync.Moved} -{sync.Removed}");
         // Leftover pending files (a stopped run) still need reading.
         if (sync.Queued.Count == 0 && store.PendingCount() == 0) { Console.WriteLine("nothing new to read."); return 0; }

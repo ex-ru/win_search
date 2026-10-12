@@ -1,0 +1,246 @@
+{
+  "startedAtUtc": "2026-10-12T17:10:08.3666171+00:00",
+  "finishedAtUtc": "2026-10-12T17:10:14.5631655+00:00",
+  "runDirectory": "D:\\_projects\\win_search\\run-vulkan",
+  "indexDirectory": "D:\\_projects\\win_search\\state\\index-vulkan",
+  "manifestPath": "D:\\_projects\\win_search\\testbed-russian-eval.json",
+  "worker": {
+    "model": "google/embeddinggemma-2",
+    "revision": "bfcd298762cc34d0357ece5ebdd31791a3a374d8",
+    "runtime": "llama.cpp-vectors1",
+    "dtype": "text-q8_0\u002Bmmproj-q8_0",
+    "dimension": 768,
+    "textOnly": true,
+    "loadSeconds": 1.58,
+    "vectorSource": "google/embeddinggemma-2@bfcd298 llama.cpp-vectors1 text-q8_0\u002Bmmproj-q8_0"
+  },
+  "searcherVectorSource": "google/embeddinggemma-2@bfcd298 llama.cpp-vectors1 text-q8_0\u002Bmmproj-q8_0",
+  "storedVectorCount": 8137,
+  "vectorSourceMatches": true,
+  "results": [
+    {
+      "query": "88392",
+      "expectedFilename": "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+      "kind": "exact",
+      "direction": "RU-OCR-InvoiceNumber",
+      "embeddingMs": 84.3528,
+      "hybridSearchMs": 99.9693,
+      "embeddingDimension": 768,
+      "embeddingNorm": 1.0000000194169059,
+      "hybridTop": [
+        "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+        "\u0411-3893674486-1.rtf",
+        "Jelegantnaja_Vselennaja.rtf",
+        "Licence.rtf",
+        "Licence.rtf"
+      ],
+      "hybridExpectedRank": 1,
+      "lexicalSearchMs": 0.9946,
+      "lexicalTop": [
+        "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png"
+      ],
+      "lexicalExpectedRank": 1
+    },
+    {
+      "query": "15400",
+      "expectedFilename": "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+      "kind": "exact",
+      "direction": "RU-OCR-Amount",
+      "embeddingMs": 62.3182,
+      "hybridSearchMs": 61.4583,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999871054112,
+      "hybridTop": [
+        "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+        "ProphetsTomb_C088_frametimes_2018-08-20_20.31.22.txt",
+        "\u0411-3893674486-1.rtf",
+        "Jelegantnaja_Vselennaja.rtf",
+        "chat.txt"
+      ],
+      "hybridExpectedRank": 1,
+      "lexicalSearchMs": 0.6154,
+      "lexicalTop": [
+        "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+        "ProphetsTomb_C088_frametimes_2018-08-20_20.31.22.txt"
+      ],
+      "lexicalExpectedRank": 1
+    },
+    {
+      "query": "\u0421\u0447\u0435\u0442 \u043D\u0430 \u043E\u043F\u043B\u0430\u0442\u0443 \u0443\u0441\u043B\u0443\u0433 \u043F\u043E\u0438\u0441\u043A\u043E\u0432\u043E\u0433\u043E \u0438\u043D\u0434\u0435\u043A\u0441\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F",
+      "expectedFilename": "\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442-\u0441\u0447\u0435\u0442.png",
+      "kind": "exact",
+      "direction": "RU-OCR-Phrase",
+      "embeddingMs": 40.3775,
+      "hybridSearchMs": 123.9445,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999780223694,
+      "hybridTop": [
+        "\u0421\u0447\u0435\u0442.html",
+        "\u0421\u0447\u0435\u0442.html",
+        "\u0421\u0447\u0435\u04421.html",
+        "\u0421\u0447\u0435\u04421.html",
+        "230123_5000.jpg"
+      ],
+      "hybridExpectedRank": null,
+      "lexicalSearchMs": 41.069,
+      "lexicalTop": [
+        "\u0437\u0430\u043C\u0435\u0442\u043A\u0438 LEGAL MAX .txt"
+      ],
+      "lexicalExpectedRank": null
+    },
+    {
+      "query": "\u041F\u043E\u0447\u0435\u043C\u0443 \u0431\u0430\u043D\u043A \u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u043B \u043F\u043E\u043A\u0443\u043F\u043A\u0443 \u0438 \u043A\u0430\u043A\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u043D\u0430\u0437\u0432\u0430\u0442\u044C \u043E\u043F\u0435\u0440\u0430\u0442\u043E\u0440\u0443?",
+      "expectedFilename": "item-02.md",
+      "kind": "semantic",
+      "direction": "Russian\u2192Russian",
+      "embeddingMs": 31.4115,
+      "hybridSearchMs": 119.3181,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999699517803,
+      "hybridTop": [
+        "item-02.md",
+        "\u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u043E\u0432.txt",
+        "\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B.jpg",
+        "\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B.jpg",
+        "IMG_20240619_111523.jpg"
+      ],
+      "hybridExpectedRank": 1,
+      "lexicalSearchMs": 60.1082,
+      "lexicalTop": [],
+      "lexicalExpectedRank": null
+    },
+    {
+      "query": "\u041C\u043E\u0436\u043D\u043E \u043B\u0438 \u0434\u0435\u0440\u0436\u0430\u0442\u044C \u043A\u043E\u0442\u0430 \u0432 \u0441\u044A\u0435\u043C\u043D\u043E\u0439 \u043A\u0432\u0430\u0440\u0442\u0438\u0440\u0435 \u0438 \u0432\u0435\u0440\u043D\u0443\u0442 \u043B\u0438 \u0432\u043D\u0435\u0441\u0435\u043D\u043D\u044B\u0439 \u0437\u0430\u043B\u043E\u0433?",
+      "expectedFilename": "item-01.txt",
+      "kind": "semantic",
+      "direction": "Russian\u2192English",
+      "embeddingMs": 33.3748,
+      "hybridSearchMs": 126.8459,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999921322398,
+      "hybridTop": [
+        "item-01.txt",
+        "\u041A_05.jpeg",
+        "WhatsApp Image 2019-10-25 at 20.23.26.jpeg",
+        "WhatsApp Image 2019-10-25 at 20.23.26.jpeg",
+        "\u041A_05.jpeg"
+      ],
+      "hybridExpectedRank": 1,
+      "lexicalSearchMs": 13.1604,
+      "lexicalTop": [],
+      "lexicalExpectedRank": null
+    },
+    {
+      "query": "\u041A\u0430\u043A \u0432\u0435\u0440\u043D\u0443\u0442\u044C \u0440\u0430\u0431\u043E\u0447\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043F\u043E\u0441\u043B\u0435 \u043F\u043E\u043B\u043E\u043C\u043A\u0438 \u0434\u0438\u0441\u043A\u0430?",
+      "expectedFilename": "item-03.md",
+      "kind": "semantic",
+      "direction": "Russian\u2192English",
+      "embeddingMs": 43.0776,
+      "hybridSearchMs": 88.7819,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999903313445,
+      "hybridTop": [
+        "WhatsApp Image 2017-04-20 at 21.14.46.jpeg",
+        "WhatsApp Image 2017-04-20 at 21.14.46.jpeg",
+        "\u0434\u0438\u0441\u043A\u0438 \u0441\u0435\u0440\u0432\u0435\u0440.txt",
+        "0031 \u041F\u0440\u043E\u0433\u043E\u043D \u041C\u0430\u0439\u043D\u0438\u0442\u0435\u043A, \u0442\u0438\u043F \u0414\u043E\u0433\u043E\u0432\u043E\u0440, \u041B\u0430\u043D\u0441\u043A\u0438\u0445 \u0413\u0414 \u0443\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C \u043E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C \u0438 \u0432\u0435\u0440\u043D\u0443\u0442\u044C \u044E\u0440\u0438\u0441\u0442\u0430\u043C (1).png",
+        "0031 \u041F\u0440\u043E\u0433\u043E\u043D \u041C\u0430\u0439\u043D\u0438\u0442\u0435\u043A, \u0442\u0438\u043F \u0414\u043E\u0433\u043E\u0432\u043E\u0440, \u041B\u0430\u043D\u0441\u043A\u0438\u0445 \u0413\u0414 \u0443\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C \u043E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C \u0438 \u0432\u0435\u0440\u043D\u0443\u0442\u044C \u044E\u0440\u0438\u0441\u0442\u0430\u043C.png"
+      ],
+      "hybridExpectedRank": null,
+      "lexicalSearchMs": 11.2065,
+      "lexicalTop": [],
+      "lexicalExpectedRank": null
+    },
+    {
+      "query": "\u0417\u0430\u043A\u0430\u0437 \u043F\u0438\u0446\u0446\u044B \u0438 \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0430 \u0435\u0434\u044B \u043D\u0430 \u0434\u043E\u043C",
+      "expectedFilename": null,
+      "kind": "absent",
+      "direction": "Russian-Absent",
+      "embeddingMs": 50.4845,
+      "hybridSearchMs": 69.8194,
+      "embeddingDimension": 768,
+      "embeddingNorm": 0.9999999780659905,
+      "hybridTop": [
+        "2___\u0417\u0430\u043A\u0430\u0437 725266667.png",
+        "Screenshot_2.png",
+        "20220811 (1).jpg",
+        "3___\u0417\u0430\u043A\u0430\u0437 763686600.png",
+        "Screenshot_3.png"
+      ],
+      "hybridExpectedRank": null,
+      "lexicalSearchMs": 31.5516,
+      "lexicalTop": [],
+      "lexicalExpectedRank": null
+    }
+  ],
+  "positiveMetrics": {
+    "hybrid": {
+      "exact": {
+        "evaluated": 3,
+        "top1Hits": 2,
+        "top1Rate": 0.6666666666666666,
+        "top5Hits": 2,
+        "top5Rate": 0.6666666666666666
+      },
+      "semantic": {
+        "evaluated": 3,
+        "top1Hits": 2,
+        "top1Rate": 0.6666666666666666,
+        "top5Hits": 2,
+        "top5Rate": 0.6666666666666666
+      }
+    },
+    "lexicalOnly": {
+      "exact": {
+        "evaluated": 3,
+        "top1Hits": 2,
+        "top1Rate": 0.6666666666666666,
+        "top5Hits": 2,
+        "top5Rate": 0.6666666666666666
+      },
+      "semantic": {
+        "evaluated": 3,
+        "top1Hits": 0,
+        "top1Rate": 0,
+        "top5Hits": 0,
+        "top5Rate": 0
+      }
+    }
+  },
+  "absentFindings": [
+    {
+      "query": "\u0417\u0430\u043A\u0430\u0437 \u043F\u0438\u0446\u0446\u044B \u0438 \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0430 \u0435\u0434\u044B \u043D\u0430 \u0434\u043E\u043C",
+      "direction": "Russian-Absent",
+      "hybridTop": [
+        "2___\u0417\u0430\u043A\u0430\u0437 725266667.png",
+        "Screenshot_2.png",
+        "20220811 (1).jpg",
+        "3___\u0417\u0430\u043A\u0430\u0437 763686600.png",
+        "Screenshot_3.png"
+      ],
+      "hybridReturnedAny": true,
+      "lexicalTop": [],
+      "lexicalReturnedAny": false
+    }
+  ],
+  "warmTiming": {
+    "query": "\u041F\u043E\u0447\u0435\u043C\u0443 \u0431\u0430\u043D\u043A \u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u043B \u043F\u043E\u043A\u0443\u043F\u043A\u0443 \u0438 \u043A\u0430\u043A\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u043D\u0430\u0437\u0432\u0430\u0442\u044C \u043E\u043F\u0435\u0440\u0430\u0442\u043E\u0440\u0443?",
+    "repetitions": 10,
+    "samplesMs": [
+      166.3711,
+      140.4579,
+      161.9242,
+      129.9642,
+      195.1728,
+      167.2957,
+      147.0688,
+      143.5398,
+      152.1433,
+      123.9356
+    ],
+    "medianMs": 149.60605,
+    "p95Ms": 195.1728,
+    "percentileMethod": "nearest-rank (ceil(p*n))"
+  },
+  "error": null
+}

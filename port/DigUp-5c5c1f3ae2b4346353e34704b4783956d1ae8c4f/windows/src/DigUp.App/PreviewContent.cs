@@ -37,8 +37,17 @@ public static class PreviewContent
     {
         string path = hit.Path.Replace('/', Path.DirectorySeparatorChar);
         List<string> tokens = Tokens(query);
+        string ext = Path.GetExtension(path).ToLowerInvariant();
         try
         {
+            if (File.Exists(path))
+            {
+                if (ext is ".jpg" or ".jpeg" or ".png" or ".webp" or ".bmp" or ".gif" or ".tiff" or ".tif")
+                    return new PreviewModel.Image(path);
+                if (ext == ".pdf")
+                    return PdfPage(hit, path, pdfiumDll, tokens);
+            }
+
             return hit.Kind switch
             {
                 "Image" or "Screenshot" when File.Exists(path) => new PreviewModel.Image(path),
@@ -82,10 +91,17 @@ public static class PreviewContent
         try
         {
             int page = (int)(MainWindow.ParsePage(hit.Where) ?? 1);
-            string png = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".png");
+            string png = Path.Combine(Path.GetTempPath(), "digup-prev-" + Guid.NewGuid().ToString("N") + ".png");
             using var engine = new PdfiumEngine(pdfiumDll);
             using var doc = engine.Open(path);
-            doc.RenderPageToPng(Math.Max(0, page - 1), 1400, png);
+            try
+            {
+                doc.RenderPageToPng(Math.Max(0, page - 1), 1600, png);
+            }
+            catch
+            {
+                doc.RenderPageToPng(0, 1600, png);
+            }
             return new PreviewModel.TempImage(png);
         }
         catch

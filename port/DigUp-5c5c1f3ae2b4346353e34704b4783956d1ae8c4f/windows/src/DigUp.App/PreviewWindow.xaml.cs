@@ -14,20 +14,24 @@ public partial class PreviewWindow : Window
 {
     private readonly string _pdfiumDll;
     private readonly Action _open;
+    private readonly Action<int>? _onNavigate;
     private string? _tempPng;
     private double _moment;
     private System.Windows.Threading.DispatcherTimer? _clock;
 
-    public PreviewWindow(string pdfiumDll, Action open)
+    public PreviewWindow(string pdfiumDll, Action open, Action<int>? onNavigate = null)
     {
         _pdfiumDll = pdfiumDll;
         _open = open;
+        _onNavigate = onNavigate;
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
         KeyDown += (_, e) =>
         {
             if (e.Key is Key.Escape or Key.Space) { Close(); e.Handled = true; }
             else if (e.Key == Key.Enter) { _open(); e.Handled = true; }
+            else if (e.Key == Key.Down) { _onNavigate?.Invoke(1); e.Handled = true; }
+            else if (e.Key == Key.Up) { _onNavigate?.Invoke(-1); e.Handled = true; }
         };
         Player.MediaOpened += (_, _) =>
         {
@@ -42,7 +46,7 @@ public partial class PreviewWindow : Window
         };
         Player.MediaFailed += (_, _) =>
         {
-            Words.Text = "(this file won't play here — Enter opens it in its own app)";
+            Words.Text = "(этот файл не воспроизводится здесь — нажмите Enter для открытия в стандартной программе)";
             Words.Visibility = Visibility.Visible;
             WordsScroll.Visibility = Visibility.Visible;
             Player.Visibility = Visibility.Collapsed;
@@ -81,7 +85,7 @@ public partial class PreviewWindow : Window
         }
         catch
         {
-            ShowWords("(can't preview this — Enter opens it in its own app)", mono: false, at: -1, length: 0);
+            ShowWords("(предпросмотр недоступен — нажмите Enter для открытия в стандартной программе)", mono: false, at: -1, length: 0);
         }
     }
 
@@ -97,15 +101,36 @@ public partial class PreviewWindow : Window
     private void ShowPicture(string path, bool temp)
     {
         if (temp) _tempPng = path;
-        var bmp = new BitmapImage();
-        bmp.BeginInit();
-        bmp.CacheOption = BitmapCacheOption.OnLoad;
-        bmp.DecodePixelWidth = 1400;
-        bmp.UriSource = new Uri(path);
-        bmp.EndInit();
-        bmp.Freeze();
-        Picture.Source = bmp;
-        Picture.Visibility = Visibility.Visible;
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 1600;
+            bmp.UriSource = new Uri(path);
+            bmp.EndInit();
+            bmp.Freeze();
+            Picture.Source = bmp;
+            Picture.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var decoder = BitmapDecoder.Create(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                if (decoder.Frames.Count > 0)
+                {
+                    var frame = decoder.Frames[0];
+                    frame.Freeze();
+                    Picture.Source = frame;
+                    Picture.Visibility = Visibility.Visible;
+                    return;
+                }
+            }
+            catch { }
+            throw;
+        }
     }
 
     private void ShowMedia(PreviewModel.Media m)
@@ -113,7 +138,7 @@ public partial class PreviewWindow : Window
         _moment = m.Seconds;
         Player.Visibility = m.IsVideo ? Visibility.Visible : Visibility.Collapsed;
         Transport.Visibility = Visibility.Visible;
-        Time.Text = m.IsVideo ? "" : $"sound · from {Stamp(m.Seconds)}";
+        Time.Text = m.IsVideo ? "" : $"звук · с {Stamp(m.Seconds)}";
         try
         {
             Player.Source = new Uri(m.Path);
@@ -121,7 +146,7 @@ public partial class PreviewWindow : Window
         }
         catch
         {
-            Words.Text = "(this file won't play here — Enter opens it in its own app)";
+            Words.Text = "(этот файл не воспроизводится здесь — нажмите Enter для открытия в стандартной программе)";
             Words.Visibility = Visibility.Visible;
             WordsScroll.Visibility = Visibility.Visible;
             Player.Visibility = Visibility.Collapsed;
@@ -151,9 +176,9 @@ public partial class PreviewWindow : Window
 
     private static string KindLine(Engine.Hit h) => h.Kind switch
     {
-        "Video" or "Audio" => $"{h.Kind} · plays from {Stamp(MainWindow.ParseSeconds(h.Where))}",
-        "Pdf" => $"PDF · page {(int)(MainWindow.ParsePage(h.Where) ?? 1)}",
-        "Code" => $"Code · {h.Where}",
+        "Video" or "Audio" => $"{h.Kind} · с момента {Stamp(MainWindow.ParseSeconds(h.Where))}",
+        "Pdf" => $"PDF · страница {(int)(MainWindow.ParsePage(h.Where) ?? 1)}",
+        "Code" => $"Код · {h.Where}",
         _ => h.Kind,
     };
 

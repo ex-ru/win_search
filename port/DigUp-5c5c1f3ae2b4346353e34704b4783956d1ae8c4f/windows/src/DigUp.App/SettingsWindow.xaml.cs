@@ -25,6 +25,7 @@ public partial class SettingsWindow : Window
         Editor.ItemsSource = Settings.Editors;
         Editor.SelectedItem = Settings.Editors.Contains(settings.Editor) ? settings.Editor : "auto";
         Updates.IsChecked = settings.CheckUpdates;
+        UpdateSource.Text = settings.UpdateSource;
         Startup.IsChecked = settings.StartWithWindows;
         Blur.IsChecked = settings.Blur;
         Dim.Value = Math.Clamp(settings.Dim * 100, 0, 80);
@@ -97,10 +98,19 @@ public partial class SettingsWindow : Window
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
+        string updateSource = UpdateSource.Text.Trim();
+        if (updateSource.Length > 0 && !System.IO.Path.IsPathFullyQualified(updateSource))
+        {
+            System.Windows.MessageBox.Show(this, "Choose an absolute local path for updates.", "DigUp settings");
+            return;
+        }
         _settings.Hotkey = _hotkey;
         _settings.Code = Code.IsChecked == true;
         _settings.Editor = Editor.SelectedItem as string ?? "auto";
         _settings.CheckUpdates = Updates.IsChecked == true;
+        if (!string.Equals(_settings.UpdateSource, updateSource, StringComparison.OrdinalIgnoreCase))
+            _settings.LastUpdateCheck = null;
+        _settings.UpdateSource = updateSource;
         _settings.StartWithWindows = Startup.IsChecked == true;
         _settings.Blur = Blur.IsChecked == true;
         _settings.Dim = Dim.Value / 100;

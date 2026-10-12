@@ -23,6 +23,8 @@
         <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Code opens in" />
         <ComboBox x:Name="Editor" Margin="0,0,0,14" />
         <CheckBox x:Name="Updates" Content="Check for updates once a day" Margin="0,0,0,8" />
+        <TextBlock Text="Local folder containing releases.win.json and release packages" TextWrapping="Wrap" Margin="0,0,0,4" />
+        <TextBox x:Name="UpdateSource" Margin="0,0,0,14" ToolTip="For this workspace, choose dist\releases. Downloaded updates apply on the next launch." />
         <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Search overlay" />
         <CheckBox x:Name="Blur" Content="Blur the screen behind search" Margin="0,0,0,6" />
         <TextBlock Margin="0,0,0,2" Text="How dark the screen gets behind search" />

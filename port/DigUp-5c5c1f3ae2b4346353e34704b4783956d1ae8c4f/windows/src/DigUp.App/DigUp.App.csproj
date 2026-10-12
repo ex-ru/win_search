@@ -8,6 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>DigUpApp</AssemblyName>
     <RootNamespace>DigUp.App</RootNamespace>
+    <StartupObject>DigUp.App.App</StartupObject>
     <ApplicationIcon>Assets\DigUp.ico</ApplicationIcon>
     <!-- AssemblyName differs from the digup CLI on purpose: Windows disks are
          case-insensitive, so DigUp.dll would overwrite digup.dll in one folder
@@ -20,8 +21,11 @@
     <ProjectReference Include="..\DigUp.Core\DigUp.Core.csproj" />
     <!-- Thumbnails (ships in the app folder, no install). -->
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
   <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
     <!-- Embedded for windows + tray (pack:// URI); the exe icon comes from ApplicationIcon above. -->
     <Resource Include="Assets\DigUp.ico" />
   </ItemGroup>

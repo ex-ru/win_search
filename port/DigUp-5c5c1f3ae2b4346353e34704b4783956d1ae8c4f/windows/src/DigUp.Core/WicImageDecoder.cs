@@ -64,6 +64,7 @@ public sealed class WicImageDecoder : IImageDecoder
         uint h = decoder.PixelHeight;
         if (Math.Max(w, h) < minSide)
             throw ExtractError.TooSmall((int)w, (int)h);
+        bool hasNonNormalExifOrientation = await HasNonNormalExifOrientation(decoder);
 
         string? taken = null;
         try
@@ -83,21 +84,27 @@ public sealed class WicImageDecoder : IImageDecoder
         string destFileName = Guid.NewGuid().ToString("N") + (png ? ".png" : ".jpg");
         string destPath = Path.Combine(outputFolder, destFileName);
 
-        double scale = Math.Min(1.0, (double)maxPixel / Math.Max(w, h));
-        if (scale >= 1.0 && (png || IsJpeg(sourcePath)))
+        uint orientedWidth = decoder.OrientedPixelWidth;
+        uint orientedHeight = decoder.OrientedPixelHeight;
+        double scale = Math.Min(1.0, (double)maxPixel / Math.Max(orientedWidth, orientedHeight));
+        bool outputMatchesSource = png ? IsPng(sourcePath) : IsJpeg(sourcePath);
+        if (scale >= 1.0 && !hasNonNormalExifOrientation && outputMatchesSource)
         {
             // Already small enough: direct copy
             File.Copy(fullSource, destPath, overwrite: true);
             return new PreparedImage(destPath, (int)w, (int)h, taken);
         }
 
-        uint tw = Math.Max(1u, (uint)Math.Round(w * scale));
-        uint th = Math.Max(1u, (uint)Math.Round(h * scale));
+        uint tw = Math.Max(1u, (uint)Math.Round(orientedWidth * scale));
+        uint th = Math.Max(1u, (uint)Math.Round(orientedHeight * scale));
+        uint scaledSourceWidth = Math.Max(1u, (uint)Math.Round(w * scale));
+        uint scaledSourceHeight = Math.Max(1u, (uint)Math.Round(h * scale));
 
         var transform = new BitmapTransform
         {
-            ScaledWidth = tw,
-            ScaledHeight = th,
+            // WIC scales in the source coordinate space, before applying EXIF rotation.
+            ScaledWidth = scaledSourceWidth,
+            ScaledHeight = scaledSourceHeight,
             InterpolationMode = BitmapInterpolationMode.Fant
         };
 
@@ -146,4 +153,32 @@ public sealed class WicImageDecoder : IImageDecoder
     private static bool IsJpeg(string path) =>
         path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
         path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPng(string path) =>
+        path.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
+
+    private static async Task<bool> HasNonNormalExifOrientation(BitmapDecoder decoder)
+    {
+        try
+        {
+            var properties = await decoder.BitmapProperties.GetPropertiesAsync(new[] { "System.Photo.Orientation" });
+            if (!properties.TryGetValue("System.Photo.Orientation", out var property) || property?.Value is null)
+                return false;
+
+            return property.Value switch
+            {
+                ushort orientation => orientation != 1,
+                short orientation => orientation != 1,
+                uint orientation => orientation != 1,
+                int orientation => orientation != 1,
+                byte orientation => orientation != 1,
+                _ => true,
+            };
+        }
+        catch
+        {
+            // If orientation metadata cannot be read, avoid copying pixels that may need correction.
+            return true;
+        }
+    }
 }

@@ -1,0 +1,12 @@
+{
+  "ClearButtonHidPreview": true,
+  "ClearButtonEmptiedResults": true,
+  "FoundExpectedFile": true,
+  "Query": "Счет 88392",
+  "Folders": [
+    "testbed"
+  ],
+  "Index": "state/review/index",
+  "ExpectedFile": "testbed/Скриншот-счет.png",
+  "Run": "run-vulkan"
+}

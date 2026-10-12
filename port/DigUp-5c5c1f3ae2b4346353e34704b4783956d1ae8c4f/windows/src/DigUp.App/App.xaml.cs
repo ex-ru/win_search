@@ -7,12 +7,30 @@ using System.IO;
 using System.Windows;
 using System.Windows.Interop;
 using DigUp.Core;
+using Velopack;
 using WinForms = System.Windows.Forms;
 
 namespace DigUp.App;
 
 public partial class App : System.Windows.Application
 {
+    [STAThread]
+    public static void Main()
+    {
+        try
+        {
+            // Installer hooks must run before WPF, the single-instance mutex and indexing.
+            VelopackApp.Build().Run();
+            var app = new App();
+            app.InitializeComponent();
+            app.Run();
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("Main crash: " + ex);
+        }
+    }
+
     private static Mutex? _single;
     private WinForms.NotifyIcon? _tray;
     private MainWindow? _panel;
@@ -20,6 +38,7 @@ public partial class App : System.Windows.Application
     private Hotkey? _hotkey;
     private FileSystemWatcherRunner? _watcher;
     private Settings? _settings;
+    private UpdateService? _updates;
     private bool _hotkeyHooked;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -50,12 +69,13 @@ public partial class App : System.Windows.Application
         _panel.Hide();
 
         MakeTray();
+        _updates = new UpdateService(_settings, ShowNote);
+        _updates.Start();
         RegisterHotkey();
         _watcher = new FileSystemWatcherRunner(_settings, () => _engine.RequestIndex());
 
         if (_settings.IsNew || !_settings.SetupDone)
         {
-            // First run: set up once, then start. The window saves on close.
             var setup = new Onboarding(_settings, _engine);
             setup.Show();
             setup.Closed += (_, _) =>
@@ -90,6 +110,8 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ErrorLog.Write($"App.OnExit called with code {e.ApplicationExitCode}");
+        _updates?.Dispose();
         _hotkey?.Dispose();
         if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); }
         _watcher?.Dispose();
@@ -157,6 +179,7 @@ public partial class App : System.Windows.Application
             RegisterHotkey();
             ResetWatcher();
             _engine.ApplySettings();
+            _updates?.Restart();
         }
     }
 
