@@ -1,0 +1,12 @@
+# Auto-detect text files and normalize line endings
+* text=auto eol=lf
+*.cs text diff=csharp
+*.xaml text
+*.json text
+*.md text
+*.ps1 text eol=crlf
+
+# Git LFS for large distribution packages (>100MB)
+dist/releases/*.exe filter=lfs diff=lfs merge=lfs -text
+dist/releases/*.zip filter=lfs diff=lfs merge=lfs -text
+dist/releases/*.nupkg filter=lfs diff=lfs merge=lfs -text

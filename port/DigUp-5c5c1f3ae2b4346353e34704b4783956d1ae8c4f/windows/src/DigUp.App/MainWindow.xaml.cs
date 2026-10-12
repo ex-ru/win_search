@@ -435,11 +435,32 @@ public partial class MainWindow : Window
         _ => h.Kind,
     };
 
+    private void OnWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
+            {
+                try { _preview.Close(); } catch { }
+                _preview = null;
+            }
+            else
+            {
+                Hide();
+            }
+            e.Handled = true;
+        }
+    }
+
     private void OnKey(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
-            if (_preview is not null) { try { _preview.Close(); } catch { } }
+            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
+            {
+                try { _preview.Close(); } catch { }
+                _preview = null;
+            }
             else Hide();
             e.Handled = true;
         }
@@ -504,22 +525,54 @@ public partial class MainWindow : Window
         return p1;
     }
 
+    private readonly List<PreviewWindow> _openPreviews = [];
+
     /// <summary>Space: show the selected file itself, or hide it again.</summary>
     private void TogglePreview()
     {
         try
         {
-            if (_preview is not null) { _preview.Close(); return; }
             if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
+            var currentHit = _currentItems[Results.SelectedIndex].Hit;
+
+            // If an active (non-minimized) preview is currently showing this exact file, toggle it closed
+            if (_preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized)
+            {
+                if (_preview.CurrentHit?.Path == currentHit.Path)
+                {
+                    _preview.Close();
+                    _preview = null;
+                    return;
+                }
+                else
+                {
+                    _preview.ShowHit(currentHit, Query.Text);
+                    return;
+                }
+            }
+
+            // Otherwise, open a new preview window
             var win = new PreviewWindow(FindPdfium(), OpenSelected, (delta) => NavigateSelection(delta));
-            win.Owner = this;
+            _openPreviews.Add(win);
+            _preview = win;
             win.Closed += (_, _) =>
             {
-                if (ReferenceEquals(_preview, win)) _preview = null;
-                try { if (!Query.IsFocused) Results.Focus(); } catch { }
+                _openPreviews.Remove(win);
+                if (ReferenceEquals(_preview, win))
+                {
+                    _preview = _openPreviews.FirstOrDefault(p => p.WindowState != WindowState.Minimized);
+                }
+                Dispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        this.Activate();
+                        Query.Focus();
+                    }
+                    catch { }
+                });
             };
-            _preview = win;
-            win.ShowHit(_currentItems[Results.SelectedIndex].Hit, Query.Text);
+            win.ShowHit(currentHit, Query.Text);
             win.Show();
             win.Focus();
         }
@@ -532,7 +585,7 @@ public partial class MainWindow : Window
     /// <summary>The open preview follows the selection, like Quick Look.</summary>
     private void FollowPreview()
     {
-        if (_preview is null) return;
+        if (_preview is null || !_preview.IsLoaded || _preview.WindowState == WindowState.Minimized) return;
         try
         {
             if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) _preview.Close();
@@ -562,8 +615,7 @@ public partial class MainWindow : Window
         if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",
-                $"/select,\"{_currentItems[Results.SelectedIndex].Hit.Path.Replace('/', '\\')}\"") { UseShellExecute = true });
+            Editors.OpenInExplorer(_currentItems[Results.SelectedIndex].Hit.Path);
             Hide();
         }
         catch (Exception ex) { Complain("не удалось открыть проводник", ex); }

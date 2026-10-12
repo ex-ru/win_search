@@ -31,36 +31,11 @@ public static class DocExtractor
     {
         try
         {
-            // Strict UTF-8 first; Latin-1 fallback, as in readText (Extractors.swift:178).
-            string text = System.IO.File.ReadAllText(path, System.Text.Encoding.UTF8);
-            if (text.Contains('�') && !HasReplacementBytes(path))
-            {
-                return System.IO.File.ReadAllText(
-                    path, System.Text.Encoding.GetEncoding("iso-8859-1"));
-            }
-
-            return text;
+            return EncodingHelper.ReadTextAuto(path);
         }
         catch (System.Exception error) when (error is System.IO.IOException || error is System.UnauthorizedAccessException)
         {
             throw ExtractError.Unreadable(error.Message);
-        }
-    }
-
-    private static bool HasReplacementBytes(string path)
-    {
-        // Heuristic: trust UTF-8 unless the raw bytes are not valid UTF-8.
-        try
-        {
-            byte[] raw = System.IO.File.ReadAllBytes(path);
-            int sample = System.Math.Min(raw.Length, 8192);
-            var utf8 = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-            utf8.GetString(raw, 0, sample);
-            return true;
-        }
-        catch
-        {
-            return false;
         }
     }
 

@@ -395,37 +395,24 @@ public sealed class McpServer : IDisposable
 
         try
         {
-            var lines = new List<string>();
-            int currentLine = 1;
-            int endLine = startLine + maxLines - 1;
-
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
-            {
-                string? line;
-                while ((line = reader.ReadLine()) is not null)
-                {
-                    if (currentLine >= startLine && currentLine <= endLine)
-                    {
-                        lines.Add(line);
-                    }
-                    if (currentLine > endLine) break;
-                    currentLine++;
-                }
-            }
+            string[] allLines = EncodingHelper.ReadAllLinesAuto(path);
+            int total = allLines.Length;
+            int fromIdx = Math.Max(0, startLine - 1);
+            int count = Math.Min(maxLines, Math.Max(0, total - fromIdx));
+            int actualEnd = fromIdx + count;
 
             var sb = new StringBuilder();
-            sb.AppendLine($"### Content: {Path.GetFileName(path)} (lines {startLine}..{Math.Min(currentLine - 1, endLine)})");
-            sb.AppendLine($"```");
-            foreach (var l in lines)
+            sb.AppendLine($"### Content: {Path.GetFileName(path)} (lines {fromIdx + 1}..{actualEnd} of {total})");
+            sb.AppendLine("```");
+            for (int i = 0; i < count; i++)
             {
-                sb.AppendLine(l);
+                sb.AppendLine(allLines[fromIdx + i]);
             }
-            sb.AppendLine($"```");
+            sb.AppendLine("```");
 
-            if (currentLine > endLine)
+            if (actualEnd < total)
             {
-                sb.AppendLine($"*(truncated at line {endLine}; call again with start_line={endLine + 1} to continue reading)*");
+                sb.AppendLine($"*(truncated at line {actualEnd}; call again with start_line={actualEnd + 1} to continue reading)*");
             }
 
             SendToolResult(id, sb.ToString().TrimEnd());

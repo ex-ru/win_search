@@ -47,7 +47,7 @@ public static class Editors
         Process.Start(new ProcessStartInfo(Native(path)) { UseShellExecute = true });
 
     // The index keeps forward slashes; Windows apps prefer backslashes.
-    private static string Native(string path) => path.Replace('/', '\\');
+    public static string Native(string path) => path.Replace('/', '\\');
 
     // PDFs: most readers take no page arg; Acrobat takes /A page=N.
     public static void OpenPdf(string path, double? page)
@@ -65,5 +65,29 @@ public static class Editors
         }
         catch { }
         Open(native);
+    }
+
+    public static void OpenInExplorer(string path)
+    {
+        string native = Native(path);
+        try
+        {
+            if (File.Exists(native) || Directory.Exists(native))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{native}\"") { UseShellExecute = true });
+                return;
+            }
+            string? dir = Path.GetDirectoryName(native);
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
+                return;
+            }
+            Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("OpenInExplorer failed: " + ex.Message);
+        }
     }
 }

@@ -115,7 +115,7 @@ public static class PreviewContent
         try
         {
             int line = MainWindow.ParseLine(hit.Where);
-            string[] lines = File.ReadAllLines(path);
+            string[] lines = EncodingHelper.ReadAllLinesAuto(path);
             int from = Math.Max(1, line - 40), to = Math.Min(lines.Length, line + 40);
             var sb = new System.Text.StringBuilder();
             for (int i = from; i <= to; i++)
@@ -137,7 +137,7 @@ public static class PreviewContent
             if (File.Exists(path) && TextExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
                 && new FileInfo(path).Length <= MaxTextBytes)
             {
-                string body = File.ReadAllText(path);
+                string body = EncodingHelper.ReadTextAuto(path, (int)MaxTextBytes);
                 var (at, length) = Passage(body, tokens);
                 return new PreviewModel.Text(body, at, length);
             }

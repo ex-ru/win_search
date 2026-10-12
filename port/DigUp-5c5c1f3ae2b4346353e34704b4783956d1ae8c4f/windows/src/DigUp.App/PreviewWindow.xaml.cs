@@ -7,6 +7,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 
 namespace DigUp.App;
 
@@ -18,6 +19,9 @@ public partial class PreviewWindow : Window
     private string? _tempPng;
     private double _moment;
     private System.Windows.Threading.DispatcherTimer? _clock;
+    private Engine.Hit? _currentHit;
+
+    public Engine.Hit? CurrentHit => _currentHit;
 
     public PreviewWindow(string pdfiumDll, Action open, Action<int>? onNavigate = null)
     {
@@ -26,13 +30,18 @@ public partial class PreviewWindow : Window
         _onNavigate = onNavigate;
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
+
         KeyDown += (_, e) =>
         {
-            if (e.Key is Key.Escape or Key.Space) { Close(); e.Handled = true; }
-            else if (e.Key == Key.Enter) { _open(); e.Handled = true; }
-            else if (e.Key == Key.Down) { _onNavigate?.Invoke(1); e.Handled = true; }
-            else if (e.Key == Key.Up) { _onNavigate?.Invoke(-1); e.Handled = true; }
+            if (e.Key is Key.Escape) { Close(); e.Handled = true; }
+            else if (e.Key is Key.Space && !Words.IsFocused) { Close(); e.Handled = true; }
+            else if (e.Key == Key.Enter && !Words.IsFocused) { _open(); e.Handled = true; }
+            else if (e.Key == Key.Down && !Words.IsFocused) { _onNavigate?.Invoke(1); e.Handled = true; }
+            else if (e.Key == Key.Up && !Words.IsFocused) { _onNavigate?.Invoke(-1); e.Handled = true; }
+            else if (e.Key == Key.E && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { OnOpenInExplorer(this, new RoutedEventArgs()); e.Handled = true; }
+            else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { OnSaveAs(this, new RoutedEventArgs()); e.Handled = true; }
         };
+
         Player.MediaOpened += (_, _) =>
         {
             try
@@ -58,9 +67,13 @@ public partial class PreviewWindow : Window
     /// <summary>Show another hit (follows the panel's selection).</summary>
     public void ShowHit(Engine.Hit hit, string query = "")
     {
+        _currentHit = hit;
         Cleanup();
         ResetViews();
-        Title.Text = hit.Path + (hit.Where.Length > 0 ? "  " + hit.Where : "");
+        string fileName = Path.GetFileName(hit.Path);
+        HeaderTitle.Text = string.IsNullOrEmpty(fileName) ? hit.Path : fileName;
+        base.Title = $"{HeaderTitle.Text} — Предпросмотр";
+        DocTitle.Text = hit.Path + (hit.Where.Length > 0 ? "  " + hit.Where : "");
         Kind.Text = KindLine(hit);
         try
         {
@@ -210,7 +223,6 @@ public partial class PreviewWindow : Window
     {
         try
         {
-            // No CanPause/IsPlaying flag exists: keep our own from the label.
             bool playing = (string)PlayPause.Content == "Pause";
             if (playing) Player.Pause(); else Player.Play();
             PlayPause.Content = playing ? "Play" : "Pause";
@@ -221,6 +233,77 @@ public partial class PreviewWindow : Window
     private void OnOpen(object sender, RoutedEventArgs e) => _open();
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximize(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        BtnMaximize.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+    }
+
+    private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            if (e.ClickCount == 2)
+            {
+                OnMaximize(sender, e);
+            }
+            else
+            {
+                try { DragMove(); } catch { }
+            }
+        }
+    }
+
+    private void OnOpenInExplorer(object sender, RoutedEventArgs e)
+    {
+        if (_currentHit is null) return;
+        Editors.OpenInExplorer(_currentHit.Path);
+    }
+
+    private void OnSaveAs(object sender, RoutedEventArgs e)
+    {
+        if (_currentHit is null) return;
+        string sourcePath = Editors.Native(_currentHit.Path);
+        if (!File.Exists(sourcePath))
+        {
+            System.Windows.MessageBox.Show(this, "Исходный файл не найден на диске.", "Сохранить как", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string originalExt = Path.GetExtension(sourcePath);
+        var sfd = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = Path.GetFileName(sourcePath),
+            Filter = string.IsNullOrEmpty(originalExt) ? "Все файлы (*.*)|*.*" : $"Файл (*{originalExt})|*{originalExt}|Все файлы (*.*)|*.*",
+            Title = "Сохранить копию файла как…"
+        };
+
+        if (sfd.ShowDialog(this) == true)
+        {
+            try
+            {
+                File.Copy(sourcePath, sfd.FileName, overwrite: true);
+                System.Windows.MessageBox.Show(this, $"Файл успешно сохранен:\n{sfd.FileName}", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(this, $"Ошибка сохранения: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void OnCopyPath(object sender, RoutedEventArgs e)
+    {
+        if (_currentHit is null) return;
+        try
+        {
+            System.Windows.Clipboard.SetText(Editors.Native(_currentHit.Path));
+        }
+        catch { }
+    }
 
     private void Cleanup()
     {

@@ -203,17 +203,52 @@ public partial class App : System.Windows.Application
     {
         _tray = new WinForms.NotifyIcon
         {
-            Text = "DigUp: search your files by meaning",
+            Text = "DigUp: поиск по смыслу файлов",
             Icon = AppIcon.Tray,
             Visible = true,
         };
         var menu = new WinForms.ContextMenuStrip();
-        menu.Items.Add("Open search", null, (_, _) => TogglePanel());
-        var pause = new WinForms.ToolStripMenuItem("Pause indexing") { CheckOnClick = true };
-        pause.CheckedChanged += (_, _) => _engine?.SetPaused(pause.Checked);
-        menu.Items.Add(pause);
-        menu.Items.Add("Settings…", null, (_, _) => OpenSettings());
-        menu.Items.Add("Quit DigUp", null, (_, _) => Shutdown());
+        menu.Items.Add("Открыть поиск", null, (_, _) => TogglePanel());
+
+        // Checkable indexing item with dynamic count
+        var indexItem = new WinForms.ToolStripMenuItem("Индексация") { CheckOnClick = true, Checked = true };
+        indexItem.CheckedChanged += (_, _) =>
+        {
+            // Checked = indexing running, Unchecked = paused
+            _engine?.SetPaused(!indexItem.Checked);
+        };
+        menu.Items.Add(indexItem);
+
+        menu.Items.Add("Настройки…", null, (_, _) => OpenSettings());
+
+        // About menu section
+        var aboutMenu = new WinForms.ToolStripMenuItem("О программе (About)");
+        aboutMenu.DropDownItems.Add("Версия: v1.0.4", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        aboutMenu.DropDownItems.Add("GitHub: github.com/ex-ru/win_search", null, (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/ex-ru/win_search") { UseShellExecute = true });
+            }
+            catch { }
+        });
+        aboutMenu.DropDownItems.Add("Подробнее…", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        menu.Items.Add(aboutMenu);
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add("Выход (Quit DigUp)", null, (_, _) => Shutdown());
+
+        // Dynamically update indexing counts when context menu opens
+        menu.Opening += (_, _) =>
+        {
+            if (_engine is not null)
+            {
+                var (indexed, remaining) = _engine.GetIndexProgress();
+                indexItem.Text = $"Индексация: {indexed} проиндексировано, {remaining} осталось";
+                indexItem.Checked = !_engine.IsPaused;
+            }
+        };
+
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => TogglePanel();
         _tray.BalloonTipTitle = "DigUp";
@@ -226,7 +261,7 @@ public partial class App : System.Windows.Application
     private void OpenSettings()
     {
         if (_settings is null || _engine is null) return;
-        var win = new SettingsWindow(_settings);
+        var win = new SettingsWindow(_settings, _engine);
         if (win.ShowDialog() == true)
         {
             RegisterHotkey();

@@ -6,12 +6,13 @@ models/
 tools/*
 !tools/mcp
 *.zip
+!dist/releases/*.zip
 
 # Build outputs
 run/
 run-vulkan/
-dist/
-releases/
+dist/staging/
+/releases/
 **/[Bb]in/
 **/[Oo]bj/
 

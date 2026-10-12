@@ -546,6 +546,38 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         });
     }
 
+    /// <summary>Deletes all vectors and segments for files under the specified folders (or all folders if null),
+    /// resetting those files to 'pending' for fresh re-embedding.</summary>
+    public void ClearVectors(IReadOnlyList<string>? roots = null)
+    {
+        _db.Transaction(() =>
+        {
+            if (roots is null || roots.Count == 0)
+            {
+                _db.Run("DELETE FROM fts WHERE rowid IN (SELECT id FROM segments WHERE kind != 'name')");
+                _db.Run("DELETE FROM segments WHERE kind != 'name'");
+                _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL");
+                SetMeta("fingerprint", null);
+            }
+            else
+            {
+                foreach (string root in roots)
+                {
+                    string prefix = NormalizePath(root);
+                    if (!prefix.EndsWith('/')) prefix += "/";
+                    _db.Run("DELETE FROM fts WHERE rowid IN (SELECT s.id FROM segments s JOIN files f ON s.file = f.id WHERE (f.path = ? OR (f.path >= ? AND f.path < ?)) AND s.kind != 'name')",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
+                    _db.Run("DELETE FROM segments WHERE file IN (SELECT id FROM files WHERE path = ? OR (path >= ? AND path < ?)) AND kind != 'name'",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
+                    _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE path = ? OR (path >= ? AND path < ?)",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
+                }
+                SetMeta("fingerprint", null);
+            }
+        });
+        try { _db.Execute("VACUUM;"); } catch { }
+    }
+
     /// <summary>Files waiting to be embedded, in indexing order; <paramref name="only"/>
     /// narrows it to some files (just-added ones).</summary>
     public IReadOnlyList<FileRecord> Pending(int? limit, ISet<long>? only = null)

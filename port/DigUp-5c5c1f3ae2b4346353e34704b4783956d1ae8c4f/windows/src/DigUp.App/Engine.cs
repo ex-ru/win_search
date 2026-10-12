@@ -52,6 +52,65 @@ public sealed class Engine : IDisposable
     /// <summary>Settings window saved: pick up folders/code without a restart.</summary>
     public void ApplySettings() => RequestIndex();
 
+    public bool IsPaused => _paused;
+    public bool IsIndexing { get; private set; }
+    public int ProgressDone { get; private set; }
+    public int ProgressTotal { get; private set; }
+
+    public (int Indexed, int Remaining) GetIndexProgress()
+    {
+        try
+        {
+            OpenStores();
+            if (_store is null) return (0, 0);
+            int pending = _store.PendingCount();
+            var counts = _store.Counts();
+            int indexed = counts.Vectors;
+            if (_codeStore is not null)
+            {
+                pending += _codeStore.PendingCount();
+                var codeCounts = _codeStore.Counts();
+                indexed += codeCounts.Vectors;
+            }
+            if (IsIndexing && ProgressTotal > 0)
+            {
+                int remaining = Math.Max(0, ProgressTotal - ProgressDone);
+                return (ProgressDone, remaining);
+            }
+            return (indexed, pending);
+        }
+        catch
+        {
+            return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
+        }
+    }
+
+    /// <summary>Clears vectors and segments in the index database, resetting files to pending,
+    /// and immediately triggers a fresh re-indexing pass.</summary>
+    public void ResetIndex(IReadOnlyList<string>? roots = null)
+    {
+        try
+        {
+            _run?.Cancel();
+            DropQueryWorker();
+            lock (_searchGate)
+            {
+                _searcher?.Dispose(); _searcher = null;
+                _codeSearcher?.Dispose(); _codeSearcher = null;
+            }
+            OpenStores();
+            _store?.ClearVectors(roots);
+            _codeStore?.ClearVectors(roots);
+            Say("векторный индекс очищен; переиндексация…");
+            RequestIndex();
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("ResetIndex: " + ex);
+            Say("ошибка очистки индекса: " + FirstLine(ex.Message));
+        }
+    }
+
     public bool ModelsReady => ModelFiles.Missing(ModelFiles.InstalledDirectory).Count == 0;
 
     public void RequestIndex() => Task.Run(() => IndexPass());
@@ -61,6 +120,8 @@ public sealed class Engine : IDisposable
         if (_disposed || _paused) return;
         if (Interlocked.Exchange(ref _wanted, 0) == 0 && _run is not null) { _wanted = 1; return; }
         _run = new CancellationTokenSource();
+        IsIndexing = true;
+        Changed?.Invoke();
         try
         {
             if (OnBatterySaver()) { Say("waiting for power…"); return; }
@@ -93,7 +154,13 @@ public sealed class Engine : IDisposable
         }
         catch (OperationCanceledException) { Say("paused"); }
         catch (Exception ex) { ErrorLog.Write("index: " + ex); Say($"indexer stopped: {FirstLine(ex.Message)}"); }
-        finally { _run = null; if (Interlocked.CompareExchange(ref _wanted, 0, 0) == 1) RequestIndex(); }
+        finally
+        {
+            IsIndexing = false;
+            _run = null;
+            Changed?.Invoke();
+            if (Interlocked.CompareExchange(ref _wanted, 0, 0) == 1) RequestIndex();
+        }
     }
 
     private void IndexOne(IndexStore store, IndexOptions options, string _)
@@ -104,7 +171,11 @@ public sealed class Engine : IDisposable
         int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
         Say($"reading {sync.Queued.Count + recovered} new or recovered files…");
         indexer.Run(shouldStop: () => _paused || _run!.IsCancellationRequested,
-            onEvent: e => Say($"[{e.Done}/{e.Total}] {e.State} {Short(e.Path)}"));
+            onEvent: e => {
+                ProgressDone = e.Done;
+                ProgressTotal = e.Total;
+                Say($"[{e.Done}/{e.Total}] {e.State} {Short(e.Path)}");
+            });
         indexer.FinishLongFiles(shouldStop: () => _paused || _run!.IsCancellationRequested);
         indexer.CloseWorker();
     }
