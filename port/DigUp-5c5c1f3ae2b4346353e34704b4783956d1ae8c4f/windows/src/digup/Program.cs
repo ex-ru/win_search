@@ -262,7 +262,7 @@ internal static class Program
     {
         var crawler = new Crawler();
         var extractor = new DefaultExtractor(options,
-            new GdiImageDecoder(), new WindowsOcrEngineStub(),
+            new GdiImageDecoder(), new WindowsMediaOcrEngine(),
             new PdfiumEngine(FindPdfium()), FindFFmpeg(), null);
         var indexer = new Indexer(store, options, crawler, () => MakeEmbedderFor(store.Directory), extractor);
         // A words-only index adopts a words-only fingerprint; when the real

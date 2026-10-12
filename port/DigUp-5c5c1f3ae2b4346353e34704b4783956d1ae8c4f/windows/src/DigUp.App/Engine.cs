@@ -251,7 +251,7 @@ public sealed class Engine : IDisposable
     private Indexer MakeIndexer(IndexStore store, IndexOptions options)
     {
         var extractor = new DefaultExtractor(options,
-            new GdiImageDecoder(), new WindowsOcrEngineStub(),
+            new GdiImageDecoder(), new WindowsMediaOcrEngine(),
             new PdfiumEngine(ExeNextTo("pdfium.dll")), FindFFmpeg(), null);
         var indexer = new Indexer(store, options, new Crawler(), () => MakeEmbedder(store.Directory), extractor);
         // A new model means new vectors: the index rebuilds and the warm

@@ -8,6 +8,11 @@
 ## [Unreleased]
 
 ### Added
+- Реализован нативный движок оптического распознавания текста [WindowsMediaOcrEngine](file:///d:/_projects/win_search/port/DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/DigUp.Core/WindowsMediaOcrEngine.cs) на базе `Windows.Media.Ocr.OcrEngine` (WinRT), заменивший неработающую заглушку `WindowsOcrEngineStub`.
+- Подключена поддержка распознавания скриншотов на языках профиля пользователя Windows (включая русский и английский) без сторонних тяжелых бинарников.
+- Добавлена поддержка русскоязычных префиксов скриншотов Windows («Снимок экрана», «Снимок», «Скриншот») в [Rules.cs](file:///d:/_projects/win_search/port/DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/DigUp.Core/Rules.cs) с регистронезависимым сопоставлением (`OrdinalIgnoreCase`).
+- Добавлен тестовый скриншот `testbed/Скриншот-счет.png` и проверен сквозной сценарий OCR-индексации и полнотекстового поиска по реквизитам счета («88392», «15400»).
+- Добавлены модульные тесты OCR (`OcrTests.cs`) и классификации скриншотов (`RulesTests.cs`), общее число тестов в `DigUp.Tests` увеличено до 20 (все пройдены).
 - Добавлен аппаратный SIMD-метод скалярного произведения `Vectors.DotProduct` с 4-way unrolling на базе `System.Numerics.Vector<float>` (AVX2 / AVX-512 / Neon).
 - Метод `Searcher.Score` переведён на аппаратный SIMD `DotProduct`, устранив скалярный вложенный цикл `for` по 768 float-числам.
 - Расширен список стоп-слов `Searcher.Stopwords` для русского языка (союзы, предлоги, частицы, мусорные слова и служебные маркеры поиска: «найди», «покажи», «файл», «скриншот» и др.).

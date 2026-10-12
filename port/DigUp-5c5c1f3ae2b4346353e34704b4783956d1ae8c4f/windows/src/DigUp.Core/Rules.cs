@@ -37,7 +37,10 @@ public static class Rules
         StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Screenshot file-name prefixes, the fallback when no screen-capture mark exists (Rules.swift:37).</summary>
-    public static readonly string[] ScreenshotPrefixes = { "Screenshot", "Screen Shot", "CleanShot", "SCR-" };
+    public static readonly string[] ScreenshotPrefixes = {
+        "Screenshot", "Screen Shot", "CleanShot", "SCR-", "Capture", "Snip",
+        "Снимок экрана", "Снимок", "Скриншот"
+    };
 
     /// <summary>
     /// Image extensions standing in for UTType.image conformance
@@ -223,7 +226,7 @@ public static class Rules
         string name = Path.GetFileName(path);
         foreach (string prefix in ScreenshotPrefixes)
         {
-            if (name.StartsWith(prefix, StringComparison.Ordinal))
+            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
