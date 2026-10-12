@@ -1,0 +1,46 @@
+{
+  "queries": [
+    {
+      "query": "88392",
+      "expected_filename": "Скриншот-счет.png",
+      "kind": "exact",
+      "direction": "RU-OCR-InvoiceNumber"
+    },
+    {
+      "query": "15400",
+      "expected_filename": "Скриншот-счет.png",
+      "kind": "exact",
+      "direction": "RU-OCR-Amount"
+    },
+    {
+      "query": "Счет на оплату услуг поискового индексирования",
+      "expected_filename": "Скриншот-счет.png",
+      "kind": "exact",
+      "direction": "RU-OCR-Phrase"
+    },
+    {
+      "query": "Почему банк не провел покупку и какой номер назвать оператору?",
+      "expected_filename": "item-02.md",
+      "kind": "semantic",
+      "direction": "Russian→Russian"
+    },
+    {
+      "query": "Можно ли держать кота в съемной квартире и вернут ли внесенный залог?",
+      "expected_filename": "item-01.txt",
+      "kind": "semantic",
+      "direction": "Russian→English"
+    },
+    {
+      "query": "Как вернуть рабочие документы после поломки диска?",
+      "expected_filename": "item-03.md",
+      "kind": "semantic",
+      "direction": "Russian→English"
+    },
+    {
+      "query": "Заказ пиццы и доставка еды на дом",
+      "expected_filename": null,
+      "kind": "absent",
+      "direction": "Russian-Absent"
+    }
+  ]
+}

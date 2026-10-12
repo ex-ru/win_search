@@ -9,6 +9,8 @@ tools/
 # Build outputs
 run/
 run-vulkan/
+dist/
+releases/
 **/[Bb]in/
 **/[Oo]bj/
 

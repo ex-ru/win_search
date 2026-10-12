@@ -1,6 +1,6 @@
 {
-  "startedAtUtc": "2026-10-12T14:28:04.2503236+00:00",
-  "finishedAtUtc": "2026-10-12T14:28:06.9839636+00:00",
+  "startedAtUtc": "2026-10-12T15:00:28.35904+00:00",
+  "finishedAtUtc": "2026-10-12T15:00:30.8562003+00:00",
   "runDirectory": "D:\\_projects\\win_search\\run-vulkan",
   "indexDirectory": "D:\\_projects\\win_search\\state\\index-vulkan",
   "manifestPath": "D:\\_projects\\win_search\\testbed-expectations.json",
@@ -11,11 +11,11 @@
     "dtype": "text-q8_0\u002Bmmproj-q8_0",
     "dimension": 768,
     "textOnly": true,
-    "loadSeconds": 1.79,
+    "loadSeconds": 1.24,
     "vectorSource": "google/embeddinggemma-2@bfcd298 llama.cpp-vectors1 text-q8_0\u002Bmmproj-q8_0"
   },
   "searcherVectorSource": "google/embeddinggemma-2@bfcd298 llama.cpp-vectors1 text-q8_0\u002Bmmproj-q8_0",
-  "storedVectorCount": 12,
+  "storedVectorCount": 13,
   "vectorSourceMatches": true,
   "results": [
     {
@@ -23,15 +23,15 @@
       "expectedFilename": "item-02.md",
       "kind": "exact",
       "direction": "identifier\u2192document",
-      "embeddingMs": 39.989,
-      "hybridSearchMs": 30.7641,
+      "embeddingMs": 41.0965,
+      "hybridSearchMs": 33.0642,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999538427805,
       "hybridTop": [
         "item-02.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.819,
+      "lexicalSearchMs": 0.6835,
       "lexicalTop": [
         "item-02.md"
       ],
@@ -42,15 +42,15 @@
       "expectedFilename": "item-01.txt",
       "kind": "semantic",
       "direction": "Russian\u2192English",
-      "embeddingMs": 31.9603,
-      "hybridSearchMs": 4.8867,
+      "embeddingMs": 29.8749,
+      "hybridSearchMs": 4.3776,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999921322398,
       "hybridTop": [
         "item-01.txt"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 1.0182,
+      "lexicalSearchMs": 1.0857,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -59,15 +59,15 @@
       "expectedFilename": "item-02.md",
       "kind": "semantic",
       "direction": "Russian\u2192Russian",
-      "embeddingMs": 21.8998,
-      "hybridSearchMs": 1.9309,
+      "embeddingMs": 21.7756,
+      "hybridSearchMs": 1.983,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999699517803,
       "hybridTop": [
         "item-02.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 1.1038,
+      "lexicalSearchMs": 0.9682,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -76,15 +76,15 @@
       "expectedFilename": "item-03.md",
       "kind": "semantic",
       "direction": "Russian\u2192English",
-      "embeddingMs": 22.3821,
-      "hybridSearchMs": 0.6964,
+      "embeddingMs": 21.1498,
+      "hybridSearchMs": 0.6741,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999903313445,
       "hybridTop": [
         "item-03.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.2395,
+      "lexicalSearchMs": 0.2174,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -93,15 +93,15 @@
       "expectedFilename": "item-04.txt",
       "kind": "semantic",
       "direction": "English\u2192Russian",
-      "embeddingMs": 21.2883,
-      "hybridSearchMs": 1.0539,
+      "embeddingMs": 22.4181,
+      "hybridSearchMs": 1.0774,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999835418747,
       "hybridTop": [
         "item-04.txt"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.2771,
+      "lexicalSearchMs": 0.3044,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -110,15 +110,15 @@
       "expectedFilename": "item-05.md",
       "kind": "semantic",
       "direction": "English\u2192Russian",
-      "embeddingMs": 19.9142,
-      "hybridSearchMs": 0.7809,
+      "embeddingMs": 20.8496,
+      "hybridSearchMs": 1.4508,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999998994363,
       "hybridTop": [
         "item-05.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.3378,
+      "lexicalSearchMs": 0.5867,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -127,15 +127,15 @@
       "expectedFilename": "item-06.txt",
       "kind": "semantic",
       "direction": "English\u2192Russian",
-      "embeddingMs": 20.6754,
-      "hybridSearchMs": 1.7441,
+      "embeddingMs": 23.0417,
+      "hybridSearchMs": 2.5623,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999656125194,
       "hybridTop": [
         "item-06.txt"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 1.096,
+      "lexicalSearchMs": 1.3799,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -144,15 +144,15 @@
       "expectedFilename": "item-08.html",
       "kind": "semantic",
       "direction": "Ukrainian\u2192English",
-      "embeddingMs": 28.774,
-      "hybridSearchMs": 0.6651,
+      "embeddingMs": 30.3999,
+      "hybridSearchMs": 0.8761,
       "embeddingDimension": 768,
       "embeddingNorm": 1.0000000346802413,
       "hybridTop": [
         "item-08.html"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.2539,
+      "lexicalSearchMs": 0.2948,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -161,15 +161,15 @@
       "expectedFilename": "item-07.md",
       "kind": "semantic",
       "direction": "Ukrainian\u2192Ukrainian",
-      "embeddingMs": 22.1595,
-      "hybridSearchMs": 1.5245,
+      "embeddingMs": 22.9271,
+      "hybridSearchMs": 1.8792,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999987292101,
       "hybridTop": [
         "item-07.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 0.8901,
+      "lexicalSearchMs": 1.0877,
       "lexicalTop": [
         "item-07.md"
       ],
@@ -180,15 +180,15 @@
       "expectedFilename": "item-03.md",
       "kind": "semantic",
       "direction": "English\u2192English",
-      "embeddingMs": 20.8227,
-      "hybridSearchMs": 1.637,
+      "embeddingMs": 21.383,
+      "hybridSearchMs": 1.7029,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999741535245,
       "hybridTop": [
         "item-03.md"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 1.0073,
+      "lexicalSearchMs": 1.1058,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -197,15 +197,15 @@
       "expectedFilename": "item-08.html",
       "kind": "semantic",
       "direction": "English\u2192English",
-      "embeddingMs": 21.7195,
-      "hybridSearchMs": 1.6765,
+      "embeddingMs": 21.6648,
+      "hybridSearchMs": 1.9756,
       "embeddingDimension": 768,
       "embeddingNorm": 1.0000000207085098,
       "hybridTop": [
         "item-08.html"
       ],
       "hybridExpectedRank": 1,
-      "lexicalSearchMs": 1.0812,
+      "lexicalSearchMs": 1.1114,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     },
@@ -214,13 +214,13 @@
       "expectedFilename": null,
       "kind": "absent",
       "direction": "Russian\u2192Russian",
-      "embeddingMs": 20.5849,
-      "hybridSearchMs": 0.7064,
+      "embeddingMs": 22.5943,
+      "hybridSearchMs": 0.9049,
       "embeddingDimension": 768,
       "embeddingNorm": 0.9999999819950807,
       "hybridTop": [],
       "hybridExpectedRank": null,
-      "lexicalSearchMs": 0.2411,
+      "lexicalSearchMs": 0.25,
       "lexicalTop": [],
       "lexicalExpectedRank": null
     }
@@ -273,19 +273,19 @@
     "query": "\u041C\u043E\u0436\u043D\u043E \u043B\u0438 \u0434\u0435\u0440\u0436\u0430\u0442\u044C \u043A\u043E\u0442\u0430 \u0432 \u0441\u044A\u0435\u043C\u043D\u043E\u0439 \u043A\u0432\u0430\u0440\u0442\u0438\u0440\u0435 \u0438 \u0432\u0435\u0440\u043D\u0443\u0442 \u043B\u0438 \u0432\u043D\u0435\u0441\u0435\u043D\u043D\u044B\u0439 \u0437\u0430\u043B\u043E\u0433?",
     "repetitions": 10,
     "samplesMs": [
-      22.8655,
-      23.156,
-      21.908,
-      23.3953,
-      23.7745,
-      22.115,
-      23.649,
-      23.1816,
-      22.4848,
-      23.8515
+      23.7637,
+      23.7455,
+      24.5417,
+      23.5281,
+      24.437,
+      24.856,
+      23.7095,
+      24.9029,
+      23.8663,
+      25.7129
     ],
-    "medianMs": 23.168799999999997,
-    "p95Ms": 23.8515,
+    "medianMs": 24.15165,
+    "p95Ms": 25.7129,
     "percentileMethod": "nearest-rank (ceil(p*n))"
   },
   "error": null

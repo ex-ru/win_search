@@ -43,12 +43,10 @@ public interface IOcrEngine
 /// </summary>
 public sealed class WicImageDecoderStub : IImageDecoder
 {
-    public PreparedImage Decode(string sourcePath, int maxPixel, int minSide, string outputFolder, bool png)
-    {
-        throw new System.NotSupportedException(
-            "WIC image decoding is not wired yet: decode " + sourcePath +
-            $" to a thumbnail of {maxPixel}px (min side {minSide}) here.");
-    }
+    private readonly WicImageDecoder _inner = new();
+
+    public PreparedImage Decode(string sourcePath, int maxPixel, int minSide, string outputFolder, bool png) =>
+        _inner.Decode(sourcePath, maxPixel, minSide, outputFolder, png);
 }
 
 /// <summary>Windows.Media.Ocr stub. Throws until the OCR engine is wired.</summary>

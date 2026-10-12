@@ -77,4 +77,46 @@ public class VectorMathTests
                 $"Mismatch at index {i}: original {original[i]}, restored {restored[i]}");
         }
     }
+
+    [Fact]
+    public void VectorStore_LargeBlock_ParallelScoringMatchesScalar()
+    {
+        const int rowCount = 200; // Triggers the >= 128 parallel scoring branch
+        using var store = VectorStore.Create(rowCount);
+        Assert.NotNull(store);
+
+        var rand = new Random(12345);
+        var q = new float[Vectors.Dimension];
+        for (int i = 0; i < Vectors.Dimension; i++)
+            q[i] = (float)(rand.NextDouble() * 2.0 - 1.0);
+
+        var expectedScores = new float[rowCount];
+        for (int r = 0; r < rowCount; r++)
+        {
+            var rowVec = new float[Vectors.Dimension];
+            for (int i = 0; i < Vectors.Dimension; i++)
+                rowVec[i] = (float)(rand.NextDouble() * 2.0 - 1.0);
+
+            store.SetRow(r, Vectors.ToHalfBlob(rowVec));
+
+            // Compute expected dot product using half-precision restored values
+            var restored = Vectors.FromHalfBlob(Vectors.ToHalfBlob(rowVec));
+            expectedScores[r] = Vectors.DotProduct(restored, q);
+        }
+
+        var block = new float[VectorStore.BlockRows * Vectors.Dimension];
+        store.CopyBlockAsFloat(0, rowCount, block);
+
+        var actualScores = new float[rowCount];
+        System.Threading.Tasks.Parallel.For(0, rowCount, r =>
+        {
+            ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
+            actualScores[r] = Vectors.DotProduct(rowSpan, q.AsSpan(0, Vectors.Dimension));
+        });
+
+        for (int r = 0; r < rowCount; r++)
+        {
+            Assert.Equal(expectedScores[r], actualScores[r], precision: 4);
+        }
+    }
 }

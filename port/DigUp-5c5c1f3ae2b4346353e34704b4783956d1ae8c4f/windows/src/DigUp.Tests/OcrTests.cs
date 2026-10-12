@@ -38,4 +38,44 @@ public class OcrTests
         Assert.True(text.Contains("88392") || text.Contains("15400") || text.Contains("PAYMENT") || text.Contains("оплат"),
             $"Expected text not found in OCR result: '{text}'");
     }
+
+    [Fact]
+    public void CompositeOcrEngine_DelegatesToFallback_WhenPrimaryEmpty()
+    {
+        var stubPrimary = new MockOcrEngine("");
+        var stubFallback = new MockOcrEngine("Fallback text from Tesseract");
+
+        var composite = new CompositeOcrEngine(stubPrimary, stubFallback);
+        string result = composite.Recognize("dummy_path.png");
+
+        Assert.Equal("Fallback text from Tesseract", result);
+    }
+
+    [Fact]
+    public void CompositeOcrEngine_PrefersPrimary_WhenNonEmpty()
+    {
+        var stubPrimary = new MockOcrEngine("Primary text from WinRT");
+        var stubFallback = new MockOcrEngine("Fallback text");
+
+        var composite = new CompositeOcrEngine(stubPrimary, stubFallback);
+        string result = composite.Recognize("dummy_path.png");
+
+        Assert.Equal("Primary text from WinRT", result);
+    }
+
+    [Fact]
+    public void TesseractOcrEngine_GracefullyHandlesMissingExecutable()
+    {
+        var tess = new TesseractOcrEngine(customTesseractExe: @"C:\non_existent_path\tesseract.exe");
+        string result = tess.Recognize(@"D:\_projects\win_search\testbed\Screenshot-probe.png");
+        Assert.Equal(string.Empty, result);
+    }
+
+    private sealed class MockOcrEngine : IOcrEngine
+    {
+        private readonly string _text;
+        public bool ReadsArabic => false;
+        public MockOcrEngine(string text) => _text = text;
+        public string Recognize(string imagePath) => _text;
+    }
 }

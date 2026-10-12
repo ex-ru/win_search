@@ -459,10 +459,22 @@ public sealed class Searcher : IDisposable
         {
             int count = Math.Min(VectorStore.BlockRows, rows - row);
             _vectors.CopyBlockAsFloat(row, count, block);
-            for (int r = 0; r < count; r++)
+            int baseRow = row;
+            if (count >= 128)
             {
-                ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
-                scores[row + r] = Vectors.DotProduct(rowSpan, qSpan);
+                Parallel.For(0, count, r =>
+                {
+                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
+                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, q.AsSpan(0, Vectors.Dimension));
+                });
+            }
+            else
+            {
+                for (int r = 0; r < count; r++)
+                {
+                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
+                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, qSpan);
+                }
             }
             row += count;
         }

@@ -180,7 +180,7 @@ public static class AudioVideoExtractor
     // MARK: FFmpeg argument builders (invariant culture; quoted paths)
 
     public static string BuildPcmArgs(string inputPath) =>
-        $"-hide_banner -v error -i {Quote(inputPath)} -ac 1 -ar {(int)SampleRate} -f s16le -acodec pcm_s16le pipe:1";
+        $"-nostdin -hide_banner -v error -i {Quote(inputPath)} -vn -sn -dn -ac 1 -ar {(int)SampleRate} -f s16le -acodec pcm_s16le pipe:1";
 
     public static string BuildProbeArgs(string inputPath) =>
         $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {Quote(inputPath)}";
@@ -191,13 +191,13 @@ public static class AudioVideoExtractor
     public static string BuildCandidatesArgs(string inputPath, double fps, int maxPixel, string outputPattern) =>
         string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
-            "-hide_banner -v error -i {0} -vf fps={1},scale={2}:{2}:force_original_aspect_ratio=decrease -fps_mode passthrough -q:v 3 {3}",
+            "-nostdin -hide_banner -v error -threads 0 -i {0} -an -sn -dn -vf fps={1},scale={2}:{2}:force_original_aspect_ratio=decrease -fps_mode passthrough -q:v 3 {3}",
             Quote(inputPath), fps, maxPixel, Quote(outputPattern));
 
     public static string BuildGrayArgs(string inputPath, double fps) =>
         string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
-            "-hide_banner -v error -i {0} -vf fps={1},scale=8:8,format=gray -f rawvideo -pix_fmt gray pipe:1",
+            "-nostdin -hide_banner -v error -threads 0 -i {0} -an -sn -dn -vf fps={1},scale=8:8,format=gray -f rawvideo -pix_fmt gray pipe:1",
             Quote(inputPath), fps);
 
     private static string Quote(string path) => "\"" + path.Replace("\"", string.Empty) + "\"";
