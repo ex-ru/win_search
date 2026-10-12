@@ -439,14 +439,12 @@ public sealed class Searcher : IDisposable
             return hits.Count;
         double top = hits[0].Score;
         int n = 0;
-        while (n < hits.Count && hits[n].Score >= top * ratio)
-            n++;
         return n;
     }
 
     /// <summary>Cosine similarity of <paramref name="query"/> with every stored vector
     /// (all are L2-normalized): a matrix-vector product, done a block of rows at a time,
-    /// each block turned into float32 first.</summary>
+    /// each block turned into float32 first. Accelerated by SIMD via <see cref="Vectors.DotProduct"/>.</summary>
     private float[] Score(IReadOnlyList<float> query)
     {
         int rows = _rowFile.Count;
@@ -454,6 +452,7 @@ public sealed class Searcher : IDisposable
         if (_vectors is null || rows == 0)
             return scores;
         float[] q = query is float[] arr ? arr : query.ToArray();
+        ReadOnlySpan<float> qSpan = q.AsSpan(0, Math.Min(q.Length, Vectors.Dimension));
         var block = new float[VectorStore.BlockRows * Vectors.Dimension];
         int row = 0;
         while (row < rows)
@@ -462,11 +461,8 @@ public sealed class Searcher : IDisposable
             _vectors.CopyBlockAsFloat(row, count, block);
             for (int r = 0; r < count; r++)
             {
-                double dot = 0;
-                int off = r * Vectors.Dimension;
-                for (int d = 0; d < Vectors.Dimension; d++)
-                    dot += (double)block[off + d] * q[d];
-                scores[row + r] = (float)dot;
+                ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
+                scores[row + r] = Vectors.DotProduct(rowSpan, qSpan);
             }
             row += count;
         }
@@ -495,6 +491,21 @@ public sealed class Searcher : IDisposable
         "কোথায়", "কোন", "কী", "কি", "যে", "ছবি", "স্ক্রিনশট", "ভিডিও", "ফাইল", "পিডিএফ",
         "في", "من", "على", "الى", "عن", "مع", "هذا", "هذه", "ذلك", "التي", "الذي", "اين", "ما",
         "صورة", "صور", "لقطة", "شاشة", "فيديو", "ملف", "مستند",
+        // Russian stopwords and kind words
+        "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а", "то", "все", "она",
+        "так", "его", "но", "да", "ты", "к", "у", "же", "вы", "за", "бы", "по", "только", "ее",
+        "мне", "было", "вот", "от", "меня", "еще", "нет", "о", "об", "из", "ему", "теперь",
+        "когда", "даже", "ну", "ли", "если", "уже", "или", "ни", "быть", "был", "него", "до",
+        "вас", "опять", "вам", "ведь", "там", "потом", "себя", "ей", "может", "они", "тут",
+        "где", "есть", "надо", "ней", "для", "мы", "тебя", "их", "чем", "была", "сам", "чтоб",
+        "без", "тоже", "себе", "под", "будет", "тогда", "кто", "этот", "того", "потому", "этого",
+        "какой", "совсем", "здесь", "этом", "один", "почти", "мой", "тем", "чтобы", "нее", "сейчас",
+        "были", "куда", "зачем", "всех", "никогда", "можно", "при", "наконец", "другой", "после",
+        "над", "больше", "тот", "через", "эти", "нас", "про", "всего", "них", "какая", "много",
+        "эту", "моя", "хорошо", "свою", "этой", "перед", "лучше", "том", "нельзя", "такой", "им",
+        "более", "всегда", "всю", "между", "найти", "покажи", "показать", "файл", "файлы", "фото",
+        "фотография", "фотографии", "картинка", "картинки", "скриншот", "скриншоты", "видео",
+        "документ", "документы", "пдф", "запись"
     };
 
     /// <summary>The content words of a query, normalized as keyword search keeps its text.

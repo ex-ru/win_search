@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.MemoryMappedFiles;
+using System.Numerics;
 
 namespace DigUp.Core;
 
@@ -33,15 +34,63 @@ public static class Vectors
         return vector;
     }
 
-    /// <summary>Cosine similarity. Stored vectors are L2-normalized, so for a
-    /// normalized query this is the dot product.</summary>
-    public static float Cosine(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+    /// <summary>
+    /// Hardware-accelerated (SIMD) dot product. Uses Vector&lt;float&gt; with 4-way unrolling
+    /// mapping to AVX2, AVX-512, or ARM64 Neon.
+    /// Dimension 768 is a multiple of all standard SIMD widths (4, 8, 16).
+    /// </summary>
+    public static float DotProduct(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
     {
+        int len = Math.Min(a.Length, b.Length);
+        if (len == 0)
+            return 0f;
+
+        if (Vector.IsHardwareAccelerated && len >= Vector<float>.Count * 4)
+        {
+            int vCount = Vector<float>.Count;
+            int step = vCount * 4;
+            int i = 0;
+            int unrollLimit = len - step;
+
+            var acc0 = Vector<float>.Zero;
+            var acc1 = Vector<float>.Zero;
+            var acc2 = Vector<float>.Zero;
+            var acc3 = Vector<float>.Zero;
+
+            while (i <= unrollLimit)
+            {
+                acc0 += new Vector<float>(a.Slice(i)) * new Vector<float>(b.Slice(i));
+                acc1 += new Vector<float>(a.Slice(i + vCount)) * new Vector<float>(b.Slice(i + vCount));
+                acc2 += new Vector<float>(a.Slice(i + vCount * 2)) * new Vector<float>(b.Slice(i + vCount * 2));
+                acc3 += new Vector<float>(a.Slice(i + vCount * 3)) * new Vector<float>(b.Slice(i + vCount * 3));
+                i += step;
+            }
+
+            var totalAcc = (acc0 + acc1) + (acc2 + acc3);
+            while (i <= len - vCount)
+            {
+                totalAcc += new Vector<float>(a.Slice(i)) * new Vector<float>(b.Slice(i));
+                i += vCount;
+            }
+
+            float sum = Vector.Dot(totalAcc, Vector<float>.One);
+            while (i < len)
+            {
+                sum += a[i] * b[i];
+                i++;
+            }
+            return sum;
+        }
+
         double dot = 0;
-        for (int i = 0; i < Dimension; i++)
+        for (int i = 0; i < len; i++)
             dot += (double)a[i] * b[i];
         return (float)dot;
     }
+
+    /// <summary>Cosine similarity. Stored vectors are L2-normalized, so for a
+    /// normalized query this is the dot product.</summary>
+    public static float Cosine(ReadOnlySpan<float> a, ReadOnlySpan<float> b) => DotProduct(a, b);
 }
 
 /// <summary>The vectors search scores, as stored (float16), plus room to turn
