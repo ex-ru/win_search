@@ -36,7 +36,13 @@ public partial class MainWindow : Window
         _engine.Changed += () => Dispatcher.Invoke(() => Status.Text = _engine.Status);
         Status.Text = _engine.Status;
         _debounce.Elapsed += (_, _) => Dispatcher.Invoke(SearchNow);
-        Query.TextChanged += (_, _) => { _navigated = false; _debounce.Stop(); _debounce.Start(); };
+        Query.TextChanged += (_, _) =>
+        {
+            _navigated = false;
+            ClearButton.Visibility = string.IsNullOrEmpty(Query.Text) ? Visibility.Collapsed : Visibility.Visible;
+            _debounce.Stop();
+            _debounce.Start();
+        };
         Query.PreviewKeyDown += OnKey;
         Query.PreviewMouseLeftButtonDown += (_, _) => _navigated = false;
         Results.MouseDoubleClick += (_, _) => OpenSelected();
@@ -124,8 +130,16 @@ public partial class MainWindow : Window
 
     public void FocusQuery()
     {
+        ClearButton.Visibility = string.IsNullOrEmpty(Query.Text) ? Visibility.Collapsed : Visibility.Visible;
         Query.Focus();
         Query.SelectAll();
+    }
+
+    private void OnClearQuery(object sender, RoutedEventArgs e)
+    {
+        Query.Text = string.Empty;
+        Query.Focus();
+        SearchNow();
     }
 
     private void OnBackdrop(object sender, MouseButtonEventArgs e)

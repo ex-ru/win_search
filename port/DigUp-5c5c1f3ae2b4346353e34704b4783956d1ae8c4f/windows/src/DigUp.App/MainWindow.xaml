@@ -42,9 +42,35 @@
           <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.6" Color="Black" />
         </Border.Effect>
         <StackPanel>
-          <TextBox x:Name="Query" FontSize="20" Padding="10,8" Background="#333333" Foreground="White"
-                   CaretBrush="White" BorderThickness="0" Margin="0,0,0,10"
-                   ToolTip="Describe what you look for. code: finds code. Enter opens, Esc hides." />
+          <Grid Margin="0,0,0,10">
+            <TextBox x:Name="Query" FontSize="20" Padding="10,8,38,8" Background="#333333" Foreground="White"
+                     CaretBrush="White" BorderThickness="0"
+                     ToolTip="Describe what you look for. code: finds code. Enter opens, Esc hides." />
+            <Button x:Name="ClearButton" Content="✕" Width="26" Height="26"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"
+                    Foreground="#AAAAAA" Background="#444444" BorderThickness="0"
+                    FontSize="12" FontWeight="Normal" Cursor="Hand" Focusable="False"
+                    Visibility="Collapsed" Click="OnClearQuery"
+                    ToolTip="Очистить строку поиска">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" CornerRadius="13">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="BtnBorder" Property="Background" Value="#5A5A5A" />
+                      <Setter Property="Foreground" Value="White" />
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                      <Setter TargetName="BtnBorder" Property="Background" Value="#707070" />
+                      <Setter Property="Foreground" Value="White" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
+          </Grid>
           <ListBox x:Name="Results" FontSize="14" MaxHeight="300" Background="Transparent" Foreground="White"
                    BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    ScrollViewer.VerticalScrollBarVisibility="Auto">
