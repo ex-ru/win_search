@@ -39,11 +39,34 @@
       </Style.Triggers>
     </Style>
 
-    <!-- Close Button Style (Red on hover) -->
-    <Style x:Key="WindowCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="Transparent" />
+    <!-- Window Header Button Style (Matches PreviewWindow) -->
+    <Style x:Key="WindowHeaderButtonStyle" TargetType="Button">
+      <Setter Property="Background" Value="#383838" />
+      <Setter Property="Foreground" Value="White" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}" CornerRadius="6"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#484848" />
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Setter Property="Background" Value="#0078D4" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- Close Button Style (Red on hover) -->
+    <Style x:Key="WindowCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource WindowHeaderButtonStyle}">
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
           <Setter Property="Background" Value="#C42B1C" />
@@ -51,18 +74,6 @@
         </Trigger>
         <Trigger Property="IsPressed" Value="True">
           <Setter Property="Background" Value="#9E1E12" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-
-    <!-- Window Minimize Button Style -->
-    <Style x:Key="WindowMinButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="0" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#444444" />
         </Trigger>
       </Style.Triggers>
     </Style>
@@ -175,15 +186,15 @@
           <TextBlock Text="Быстрый поиск по смыслу" Foreground="#777777" FontSize="11" VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- Window Buttons (Minimize, Close to tray) -->
+        <!-- Window Buttons (Pin, Minimize, Close to tray) -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Cursor="Arrow">
-          <Button x:Name="BtnPin" Content="📌" Width="28" Height="24" FontSize="10" Margin="0,0,2,0"
+          <Button x:Name="BtnPin" Content="📌" Width="32" Height="26" FontSize="11" Margin="0,0,4,0"
                   Click="OnPinToggle" Focusable="False" ToolTip="Закрепить поверх всех окон"
-                  Style="{StaticResource WindowMinButtonStyle}" />
-          <Button x:Name="BtnMin" Content="—" Width="28" Height="24" FontSize="11" Margin="0,0,2,0"
+                  Style="{StaticResource WindowHeaderButtonStyle}" />
+          <Button x:Name="BtnMin" Content="—" Width="36" Height="26" FontSize="11" Margin="0,0,4,0"
                   Click="OnWidgetMinimize" Focusable="False" ToolTip="Свернуть"
-                  Style="{StaticResource WindowMinButtonStyle}" />
-          <Button x:Name="BtnClose" Content="✕" Width="28" Height="24" FontSize="11"
+                  Style="{StaticResource WindowHeaderButtonStyle}" />
+          <Button x:Name="BtnClose" Content="✕" Width="36" Height="26" FontSize="11"
                   Click="OnWidgetClose" Focusable="False" ToolTip="Свернуть в трей (Esc)"
                   Style="{StaticResource WindowCloseButtonStyle}" />
         </StackPanel>

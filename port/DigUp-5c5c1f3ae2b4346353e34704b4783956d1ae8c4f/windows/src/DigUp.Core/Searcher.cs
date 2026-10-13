@@ -354,7 +354,7 @@ public sealed class Searcher : IDisposable
                     segment = SegmentKindStrings.Parse(r.NullableText(0));
                     loc = r.IsDBNull(1) ? null : r.GetDouble(1);
                     locEnd = r.IsDBNull(2) ? null : r.GetDouble(2);
-                    storedExcerpt = r.NullableText(3);
+                    storedExcerpt = EncodingHelper.FixMojibake(r.NullableText(3));
                 });
             // Quote the matched words only when they come from the segment we point at.
             // A segment with no place and no text of its own (a screenshot's image
@@ -362,7 +362,7 @@ public sealed class Searcher : IDisposable
             string? snippet = null;
             if (hasKeyword && keyword.Match.Segment == segmentId && keyword.Match.Snippet is not null &&
                 keyword.Match.Snippet.Contains('«'))
-                snippet = Excerpt(keyword.Match.Snippet, 400);
+                snippet = EncodingHelper.FixMojibake(Excerpt(keyword.Match.Snippet, 400));
             if (snippet is null && storedExcerpt is null && loc is null && hasKeyword &&
                 keyword.Match.Snippet is not null && keyword.Match.Snippet.Contains('«'))
             {
@@ -371,7 +371,7 @@ public sealed class Searcher : IDisposable
                     new[] { SqlValue.Int(keyword.Match.Segment) },
                     r => { matchedKind = r.NullableText(0); });
                 if (matchedKind != SegmentKind.Name.ToStorageString())
-                    snippet = Excerpt(keyword.Match.Snippet, 400);
+                    snippet = EncodingHelper.FixMojibake(Excerpt(keyword.Match.Snippet, 400));
             }
             var hit = new SearchHit(path, kind, score,
                 hasSemantic ? semantic.Z : null, hasSemantic ? semantic.Cosine : null,

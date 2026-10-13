@@ -118,6 +118,17 @@ public sealed class Counts
     public int Left { get; set; }
 }
 
+public sealed record FolderVectorStats(
+    string Folder,
+    int FileCount,
+    int SegmentCount,
+    int VectorCount,
+    long VectorBytesTotal
+)
+{
+    public double VectorMegabytes => Math.Round(VectorBytesTotal / (1024.0 * 1024.0), 2);
+}
+
 /// <summary>The on-disk index: one SQLite file with files, their segments (with fp16
 /// vectors), and an FTS5 table. Ports IndexStore.swift with the same schema.
 /// Implements IIndexerStore (declared in Indexer.cs) so the indexer can use it.</summary>
@@ -223,6 +234,71 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         if (!f.EndsWith('/'))
             f += "/";
         return p.StartsWith(f, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Computes indexed files, segments, and embedding vector disk sizes for a given folder.
+    /// </summary>
+    public FolderVectorStats GetFolderStats(string folder)
+    {
+        string prefix = NormalizePath(folder);
+        if (!prefix.EndsWith('/'))
+            prefix += "/";
+
+        int files = 0;
+        int segments = 0;
+        int vectors = 0;
+        long bytes = 0;
+
+        try
+        {
+            _db.Query(
+                "SELECT COUNT(DISTINCT f.id), COUNT(s.id), COUNT(s.vec), COALESCE(SUM(LENGTH(s.vec)), 0) " +
+                "FROM files f " +
+                "LEFT JOIN segments s ON s.file = f.id " +
+                "WHERE f.path >= ? AND f.path < ?",
+                [SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF")],
+                r =>
+                {
+                    files = (int)r.GetInt64(0);
+                    segments = (int)r.GetInt64(1);
+                    vectors = (int)r.GetInt64(2);
+                    bytes = r.GetInt64(3);
+                });
+        }
+        catch { }
+
+        return new FolderVectorStats(folder, files, segments, vectors, bytes);
+    }
+
+    /// <summary>
+    /// Computes overall indexed files, segments, and embedding vector disk sizes across all folders.
+    /// </summary>
+    public FolderVectorStats GetTotalStats()
+    {
+        int files = 0;
+        int segments = 0;
+        int vectors = 0;
+        long bytes = 0;
+
+        try
+        {
+            _db.Query(
+                "SELECT COUNT(DISTINCT f.id), COUNT(s.id), COUNT(s.vec), COALESCE(SUM(LENGTH(s.vec)), 0) " +
+                "FROM files f " +
+                "LEFT JOIN segments s ON s.file = f.id",
+                [],
+                r =>
+                {
+                    files = (int)r.GetInt64(0);
+                    segments = (int)r.GetInt64(1);
+                    vectors = (int)r.GetInt64(2);
+                    bytes = r.GetInt64(3);
+                });
+        }
+        catch { }
+
+        return new FolderVectorStats("Все папки", files, segments, vectors, bytes);
     }
 
     // ---------- Schema ----------

@@ -15,6 +15,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Button = System.Windows.Controls.Button;
 using Brushes = System.Windows.Media.Brushes;
+using Brush = System.Windows.Media.Brush;
 
 namespace DigUp.App;
 
@@ -89,21 +90,65 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         Topmost = _isPinned;
+        ApplyWidgetAppearance();
     }
 
-    /// <summary>Apply layout adjustments when search opens.</summary>
+    /// <summary>Apply layout adjustments and appearance when search opens.</summary>
     public void ApplyLook()
     {
         try
         {
             AdjustCardSize();
+            ApplyWidgetAppearance();
+        }
+        catch { }
+    }
+
+    private void ApplyWidgetAppearance()
+    {
+        try
+        {
+            WindowBlurHelper.SetBlur(this, _settings.WidgetBlur);
+
+            // Theme application
+            bool isDark = ThemeManager.IsDark(_settings.Theme);
+            ApplyTheme(isDark);
+        }
+        catch { }
+    }
+
+    private void ApplyTheme(bool isDark)
+    {
+        try
+        {
+            var bc = new BrushConverter();
+            if (isDark)
+            {
+                Root.Background = (Brush)bc.ConvertFrom("#242424")!;
+                Root.BorderBrush = (Brush)bc.ConvertFrom("#444444")!;
+                Query.Background = (Brush)bc.ConvertFrom("#333333")!;
+                Query.Foreground = Brushes.White;
+                Query.CaretBrush = Brushes.White;
+                Status.Foreground = (Brush)bc.ConvertFrom("#888888")!;
+            }
+            else
+            {
+                Root.Background = (Brush)bc.ConvertFrom("#F9F9F9")!;
+                Root.BorderBrush = (Brush)bc.ConvertFrom("#D0D0D0")!;
+                Query.Background = (Brush)bc.ConvertFrom("#FFFFFF")!;
+                Query.Foreground = (Brush)bc.ConvertFrom("#1A1A1A")!;
+                Query.CaretBrush = (Brush)bc.ConvertFrom("#1A1A1A")!;
+                Status.Foreground = (Brush)bc.ConvertFrom("#555555")!;
+            }
         }
         catch { }
     }
 
     private void FadeIn()
     {
-        var anim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(130)));
+        ApplyWidgetAppearance();
+        double target = Math.Clamp(_settings.WidgetOpacity, 0.6, 1.0);
+        var anim = new DoubleAnimation(0, target, new Duration(TimeSpan.FromMilliseconds(130)));
         Root.BeginAnimation(OpacityProperty, anim);
     }
 
@@ -120,7 +165,10 @@ public partial class MainWindow : Window
     {
         _isPinned = !_isPinned;
         Topmost = _isPinned;
-        BtnPin.Opacity = _isPinned ? 1.0 : 0.45;
+        BtnPin.Opacity = _isPinned ? 1.0 : 0.6;
+        BtnPin.Background = _isPinned
+            ? (Brush)new BrushConverter().ConvertFrom("#0078D4")!
+            : (Brush)new BrushConverter().ConvertFrom("#383838")!;
         BtnPin.ToolTip = _isPinned ? "Открепить от верха" : "Закрепить поверх всех окон";
     }
 
@@ -344,7 +392,7 @@ public partial class MainWindow : Window
         {
             Hit = h,
             Title = Short(h.Path, 100) + (h.Where.Length > 0 ? "  " + h.Where : ""),
-            Detail = h.Kind + (h.Excerpt is null ? "" : " — " + h.Excerpt),
+            Detail = h.Kind + (h.Excerpt is null ? "" : " — " + EncodingHelper.FixMojibake(h.Excerpt)),
             BadgeText = badgeText,
             BadgeBackground = bgBrush,
             BadgeBorder = borderBrush,
@@ -364,7 +412,7 @@ public partial class MainWindow : Window
         var h = item.Hit;
         PreviewTitle.Text = Short(h.Path, 100) + (h.Where.Length > 0 ? "  " + h.Where : "");
         PreviewKind.Text = KindText(h);
-        PreviewText.Text = h.Excerpt ?? "(нет текстового фрагмента — найдено по смыслу / изображению)";
+        PreviewText.Text = (h.Excerpt is not null ? EncodingHelper.FixMojibake(h.Excerpt) : null) ?? "(нет текстового фрагмента — найдено по смыслу / изображению)";
         PreviewImage.Source = null;
         // Thumbnails load off the UI thread; a late one for an old selection is dropped.
         int at = Results.SelectedIndex;

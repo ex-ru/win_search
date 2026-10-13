@@ -111,6 +111,36 @@ public sealed class Engine : IDisposable
         }
     }
 
+    public FolderVectorStats? GetFolderStats(string folder)
+    {
+        try
+        {
+            OpenStores();
+            return _store?.GetFolderStats(folder);
+        }
+        catch { return null; }
+    }
+
+    public FolderVectorStats? GetTotalStats()
+    {
+        try
+        {
+            OpenStores();
+            return _store?.GetTotalStats();
+        }
+        catch { return null; }
+    }
+
+    public long GetDatabaseFileSize()
+    {
+        try
+        {
+            string dbPath = Path.Combine(Settings.IndexDir, IndexStore.MainFile);
+            return IndexStore.SizeOf(dbPath);
+        }
+        catch { return 0; }
+    }
+
     public bool ModelsReady => ModelFiles.Missing(ModelFiles.InstalledDirectory).Count == 0;
 
     public void RequestIndex() => Task.Run(() => IndexPass());
@@ -236,7 +266,7 @@ public sealed class Engine : IDisposable
         }
         IReadOnlyList<float>? vec = TryEmbedQuery(query);
         var hits = searcher.Search(query, vec, limit: limit)
-            .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), Clean(h.Excerpt), h.Score))
+            .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score))
             .ToList();
         if (hits.Count == 0 && codeText is null && codeSearcher is not null)
         {
@@ -244,7 +274,7 @@ public sealed class Engine : IDisposable
             // query on a code folder doesn't come back empty without saying
             // why. (An explicit "code:" still searches code only.)
             hits = codeSearcher.Search(query, vec, limit: limit)
-                .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), Clean(h.Excerpt), h.Score))
+                .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score))
                 .ToList();
         }
         return hits;

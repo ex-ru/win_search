@@ -34,6 +34,21 @@ public partial class SettingsWindow : Window
         UiLanguage.ItemsSource = new[] { "Русский (RU)", "English (EN)" };
         UiLanguage.SelectedIndex = string.Equals(settings.Language, "en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
 
+        SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 60, 100);
+        TxtOpacityValue.Text = $"{(int)SliderOpacity.Value}%";
+        ChkWidgetBlur.IsChecked = _settings.WidgetBlur;
+
+        ComboTheme.ItemsSource = new[] { "Системная (как в Windows)", "Тёмная (Dark)", "Светлая (Light)" };
+        ComboTheme.SelectedIndex = _settings.Theme switch
+        {
+            "dark" => 1,
+            "light" => 2,
+            _ => 0
+        };
+
+        UpdateLanguageToggleButtons(_settings.Language);
+        UpdateFolderStats();
+
         Updates.IsChecked = settings.CheckUpdates;
         UpdateSource.Text = settings.UpdateSource;
         Startup.IsChecked = settings.StartWithWindows;
@@ -43,6 +58,7 @@ public partial class SettingsWindow : Window
     {
         Folders.ItemsSource = null;
         Folders.ItemsSource = _settings.Folders.ToList();
+        UpdateFolderStats();
     }
 
     private void OnAdd(object sender, RoutedEventArgs e)
@@ -201,6 +217,96 @@ public partial class SettingsWindow : Window
             p.ToLowerInvariant() switch { "ctrl" => "Ctrl", "alt" => "Alt", "win" => "Win", "space" => "Space", "shift" => "Shift", _ => p }));
     }
 
+    private void OnFoldersSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateFolderStats();
+    }
+
+    private void UpdateFolderStats()
+    {
+        if (_engine is null)
+        {
+            if (TxtFolderStats is not null) TxtFolderStats.Text = "Индексатор недоступен.";
+            return;
+        }
+
+        try
+        {
+            long dbBytes = _engine.GetDatabaseFileSize();
+            double dbMb = Math.Round(dbBytes / (1024.0 * 1024.0), 1);
+            if (TxtDbTotalSize is not null) TxtDbTotalSize.Text = $"База index.sqlite: {dbMb} МБ";
+
+            if (Folders.SelectedItem is string selectedFolder)
+            {
+                var stats = _engine.GetFolderStats(selectedFolder);
+                if (stats is not null && TxtFolderStats is not null)
+                {
+                    TxtFolderStats.Text = $"📁 {selectedFolder}\n" +
+                        $"Проиндексировано файлов: {stats.FileCount:N0} · Векторов: {stats.VectorCount:N0} · Объем эмбеддингов: {stats.VectorMegabytes:F2} МБ";
+                }
+            }
+            else
+            {
+                var total = _engine.GetTotalStats();
+                if (total is not null && TxtFolderStats is not null)
+                {
+                    TxtFolderStats.Text = $"📁 Суммарно по всем папкам:\n" +
+                        $"Файлов: {total.FileCount:N0} · Векторов: {total.VectorCount:N0} · Объем эмбеддингов: {total.VectorMegabytes:F2} МБ";
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void OnOpacitySliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtOpacityValue is not null)
+        {
+            TxtOpacityValue.Text = $"{(int)e.NewValue}%";
+        }
+    }
+
+    private void OnLangRuClick(object sender, RoutedEventArgs e) => SetLanguage("ru");
+    private void OnLangEnClick(object sender, RoutedEventArgs e) => SetLanguage("en");
+
+    private void SetLanguage(string lang)
+    {
+        _settings.Language = lang;
+        Loc.CurrentLanguage = lang;
+        UpdateLanguageToggleButtons(lang);
+        if (UiLanguage is not null)
+        {
+            UiLanguage.SelectedIndex = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        }
+    }
+
+    private void OnUiLanguageComboChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        string lang = UiLanguage.SelectedIndex == 1 ? "en" : "ru";
+        if (!string.Equals(_settings.Language, lang, StringComparison.OrdinalIgnoreCase))
+        {
+            SetLanguage(lang);
+        }
+    }
+
+    private void UpdateLanguageToggleButtons(string lang)
+    {
+        bool isRu = !string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase);
+        var activeBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#0078D4")!;
+        var inactiveBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#282828")!;
+
+        if (BtnLangRu is not null)
+        {
+            BtnLangRu.Background = isRu ? activeBrush : inactiveBrush;
+            BtnLangRu.Foreground = isRu ? System.Windows.Media.Brushes.White : (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#888888")!;
+        }
+        if (BtnLangEn is not null)
+        {
+            BtnLangEn.Background = !isRu ? activeBrush : inactiveBrush;
+            BtnLangEn.Foreground = !isRu ? System.Windows.Media.Brushes.White : (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#888888")!;
+        }
+    }
+
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
@@ -220,6 +326,14 @@ public partial class SettingsWindow : Window
         _settings.Editor = Editor.SelectedItem as string ?? "auto";
         _settings.Language = UiLanguage.SelectedIndex == 1 ? "en" : "ru";
         Loc.CurrentLanguage = _settings.Language;
+        _settings.WidgetOpacity = SliderOpacity.Value / 100.0;
+        _settings.WidgetBlur = ChkWidgetBlur.IsChecked == true;
+        _settings.Theme = ComboTheme.SelectedIndex switch
+        {
+            1 => ThemeManager.ThemeDark,
+            2 => ThemeManager.ThemeLight,
+            _ => ThemeManager.ThemeSystem
+        };
         _settings.CheckUpdates = Updates.IsChecked == true;
         if (!string.Equals(_settings.UpdateSource, updateSource, StringComparison.OrdinalIgnoreCase))
             _settings.LastUpdateCheck = null;

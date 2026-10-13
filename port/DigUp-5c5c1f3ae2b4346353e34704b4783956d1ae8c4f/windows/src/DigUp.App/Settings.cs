@@ -18,6 +18,12 @@ public sealed class Settings
     public double Dim { get; set; } = 0.35;
     /// <summary>Blur the screen behind search (Windows acrylic).</summary>
     public bool Blur { get; set; } = true;
+    /// <summary>Opacity of search widget: 0.6..1.0.</summary>
+    public double WidgetOpacity { get; set; } = 1.0;
+    /// <summary>Acrylic / blur effect behind search widget.</summary>
+    public bool WidgetBlur { get; set; } = false;
+    /// <summary>Interface theme: "system", "dark", or "light".</summary>
+    public string Theme { get; set; } = "system";
     public bool Code { get; set; }
     public bool CheckUpdates { get; set; } = true;
     public string UpdateSource { get; set; } = Environment.GetEnvironmentVariable("DIGUP_UPDATE_SOURCE") ?? "";

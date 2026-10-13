@@ -62,4 +62,60 @@ public sealed class V105FeaturesTests
         var ed = Editors.ForCode("auto", @"C:\test\sample.cs", 42);
         Assert.False(string.IsNullOrWhiteSpace(ed.Exe));
     }
+
+    [Fact]
+    public void EncodingHelper_Fixes_Windows1251_Mojibake()
+    {
+        string corrupted = "Ïî÷òîâûé ÿùèê: mt.beru@yandex.ru Ëîãèí: mt.beru Ïàðîëü: 1D(1WKlaesvv";
+        string fixedText = DigUp.Core.EncodingHelper.FixMojibake(corrupted);
+        Assert.Equal("Почтовый ящик: mt.beru@yandex.ru Логин: mt.beru Пароль: 1D(1WKlaesvv", fixedText);
+    }
+
+    [Fact]
+    public void Settings_Appearance_Defaults()
+    {
+        var settings = new Settings();
+        Assert.Equal(1.0, settings.WidgetOpacity);
+        Assert.False(settings.WidgetBlur);
+        Assert.Equal("system", settings.Theme);
+    }
+
+    [Fact]
+    public void ThemeManager_IsDark_Respects_Settings()
+    {
+        Assert.False(ThemeManager.IsDark("light"));
+        Assert.True(ThemeManager.IsDark("dark"));
+    }
+
+    [Fact]
+    public void DocExtractor_Extracts_DocxText()
+    {
+        string tempDocx = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_" + Guid.NewGuid().ToString("N") + ".docx");
+        try
+        {
+            using (var zip = System.IO.Compression.ZipFile.Open(tempDocx, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                var entry = zip.CreateEntry("word/document.xml");
+                using var stream = entry.Open();
+                using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8);
+                writer.Write("""
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:body>
+                        <w:p><w:r><w:t>Привет, это тестовый документ Word!</w:t></w:r></w:p>
+                        <w:p><w:r><w:t>Второй параграф текста.</w:t></w:r></w:p>
+                      </w:body>
+                    </w:document>
+                    """);
+            }
+
+            string text = DigUp.Core.DocExtractor.ExtractDocxText(tempDocx);
+            Assert.Contains("Привет, это тестовый документ Word!", text);
+            Assert.Contains("Второй параграф текста.", text);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempDocx)) System.IO.File.Delete(tempDocx);
+        }
+    }
 }

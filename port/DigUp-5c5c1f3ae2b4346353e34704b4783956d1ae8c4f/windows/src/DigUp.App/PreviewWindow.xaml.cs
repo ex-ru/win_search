@@ -21,6 +21,12 @@ public partial class PreviewWindow : Window
     private System.Windows.Threading.DispatcherTimer? _clock;
     private Engine.Hit? _currentHit;
 
+    // PDF pagination state
+    private string? _currentPdfPath;
+    private int _pdfCurrentPage = 1;
+    private int _pdfTotalPages = 1;
+    private readonly Dictionary<int, BitmapSource> _pdfPageCache = new();
+
     public Engine.Hit? CurrentHit => _currentHit;
 
     public PreviewWindow(string pdfiumDll, Action open, Action<int>? onNavigate = null)
@@ -31,11 +37,29 @@ public partial class PreviewWindow : Window
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
 
+        PreviewMouseWheel += (_, e) =>
+        {
+            if (_currentPdfPath is not null && _pdfTotalPages > 1)
+            {
+                if (e.Delta < 0) { NextPdfPage(); e.Handled = true; }
+                else if (e.Delta > 0) { PrevPdfPage(); e.Handled = true; }
+            }
+            else if (WordsScroll.Visibility == Visibility.Visible)
+            {
+                if (e.Delta < 0) WordsScroll.LineDown();
+                else WordsScroll.LineUp();
+            }
+        };
+
         KeyDown += (_, e) =>
         {
             if (e.Key is Key.Escape) { Close(); e.Handled = true; }
             else if (e.Key is Key.Space && !Words.IsFocused) { Close(); e.Handled = true; }
             else if (e.Key == Key.Enter && !Words.IsFocused) { _open(); e.Handled = true; }
+            else if (e.Key is Key.PageDown or Key.Right && _currentPdfPath is not null && !Words.IsFocused) { NextPdfPage(); e.Handled = true; }
+            else if (e.Key is Key.PageUp or Key.Left && _currentPdfPath is not null && !Words.IsFocused) { PrevPdfPage(); e.Handled = true; }
+            else if (e.Key is Key.PageDown && WordsScroll.Visibility == Visibility.Visible && !Words.IsFocused) { WordsScroll.PageDown(); e.Handled = true; }
+            else if (e.Key is Key.PageUp && WordsScroll.Visibility == Visibility.Visible && !Words.IsFocused) { WordsScroll.PageUp(); e.Handled = true; }
             else if (e.Key == Key.Down && !Words.IsFocused) { _onNavigate?.Invoke(1); e.Handled = true; }
             else if (e.Key == Key.Up && !Words.IsFocused) { _onNavigate?.Invoke(-1); e.Handled = true; }
             else if (e.Key == Key.E && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { OnOpenInExplorer(this, new RoutedEventArgs()); e.Handled = true; }
@@ -79,6 +103,9 @@ public partial class PreviewWindow : Window
         {
             switch (PreviewContent.For(hit, _pdfiumDll, query))
             {
+                case PreviewModel.Pdf pdf:
+                    ShowPdf(pdf.Path, pdf.InitialPage, pdf.TotalPages, pdf.InitialImage);
+                    break;
                 case PreviewModel.Image img:
                     ShowPicture(img.Path, temp: false);
                     break;
@@ -109,6 +136,7 @@ public partial class PreviewWindow : Window
         Words.Visibility = Visibility.Collapsed;
         WordsScroll.Visibility = Visibility.Collapsed;
         Transport.Visibility = Visibility.Collapsed;
+        PdfNav.Visibility = Visibility.Collapsed;
     }
 
     private void ShowPicture(string path, bool temp)
@@ -322,6 +350,114 @@ public partial class PreviewWindow : Window
         catch { }
     }
 
+    private void ShowPdf(string path, int initialPage, int totalPages, string initialImage)
+    {
+        _currentPdfPath = path;
+        _pdfCurrentPage = initialPage;
+        _pdfTotalPages = totalPages;
+        _pdfPageCache.Clear();
+
+        ShowPicture(initialImage, temp: true);
+        if (Picture.Source is BitmapSource bs)
+        {
+            _pdfPageCache[initialPage] = bs;
+        }
+
+        PdfPageInfo.Text = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
+        PdfNav.Visibility = _pdfTotalPages > 1 ? Visibility.Visible : Visibility.Collapsed;
+        UpdatePdfButtons();
+    }
+
+    private void UpdatePdfButtons()
+    {
+        BtnPdfPrev.IsEnabled = _pdfCurrentPage > 1;
+        BtnPdfNext.IsEnabled = _pdfCurrentPage < _pdfTotalPages;
+        BtnPdfPrev.Opacity = BtnPdfPrev.IsEnabled ? 1.0 : 0.4;
+        BtnPdfNext.Opacity = BtnPdfNext.IsEnabled ? 1.0 : 0.4;
+    }
+
+    private void OnPdfPrevPage(object sender, RoutedEventArgs e) => PrevPdfPage();
+    private void OnPdfNextPage(object sender, RoutedEventArgs e) => NextPdfPage();
+
+    private void PrevPdfPage()
+    {
+        if (_pdfCurrentPage > 1) LoadPdfPage(_pdfCurrentPage - 1);
+    }
+
+    private void NextPdfPage()
+    {
+        if (_pdfCurrentPage < _pdfTotalPages) LoadPdfPage(_pdfCurrentPage + 1);
+    }
+
+    private void LoadPdfPage(int page)
+    {
+        if (_currentPdfPath is null || page < 1 || page > _pdfTotalPages) return;
+        _pdfCurrentPage = page;
+        PdfPageInfo.Text = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
+        Kind.Text = $"PDF · страница {_pdfCurrentPage} из {_pdfTotalPages}";
+        UpdatePdfButtons();
+
+        if (_pdfPageCache.TryGetValue(page, out var cached))
+        {
+            Picture.Source = cached;
+            Picture.Visibility = Visibility.Visible;
+            return;
+        }
+
+        try
+        {
+            string png = Path.Combine(Path.GetTempPath(), "digup-prev-" + Guid.NewGuid().ToString("N") + ".png");
+            using var engine = new DigUp.Core.PdfiumEngine(_pdfiumDll);
+            using var doc = engine.Open(_currentPdfPath);
+            doc.RenderPageToPng(page - 1, 1600, png);
+
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 1600;
+            bmp.UriSource = new Uri(png);
+            bmp.EndInit();
+            bmp.Freeze();
+
+            try { File.Delete(png); } catch { }
+
+            _pdfPageCache[page] = bmp;
+            Picture.Source = bmp;
+            Picture.Visibility = Visibility.Visible;
+        }
+        catch { }
+    }
+
+    private void OnWindowMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                if (FindParent<System.Windows.Controls.Button>(dep) is not null ||
+                    FindParent<System.Windows.Controls.TextBox>(dep) is not null ||
+                    FindParent<System.Windows.Controls.Primitives.ScrollBar>(dep) is not null ||
+                    FindParent<System.Windows.Controls.MenuItem>(dep) is not null ||
+                    FindParent<System.Windows.Controls.Menu>(dep) is not null)
+                {
+                    return;
+                }
+            }
+
+            try { DragMove(); } catch { }
+        }
+    }
+
+    private static T? FindParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child != null)
+        {
+            if (child is T match) return match;
+            child = System.Windows.Media.VisualTreeHelper.GetParent(child);
+        }
+        return null;
+    }
+
     private void Cleanup()
     {
         StopClock();
@@ -329,6 +465,8 @@ public partial class PreviewWindow : Window
         try { Player.Source = null; } catch { }
         try { Player.Close(); } catch { }
         Picture.Source = null;
+        _currentPdfPath = null;
+        _pdfPageCache.Clear();
         if (_tempPng is not null)
         {
             try { File.Delete(_tempPng); } catch { }

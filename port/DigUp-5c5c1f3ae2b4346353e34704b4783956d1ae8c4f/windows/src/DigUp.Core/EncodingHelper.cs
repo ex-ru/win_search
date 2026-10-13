@@ -140,4 +140,70 @@ public static class EncodingHelper
         // Default to Windows-1251 for Cyrillic OS environments, or system ANSI
         return Windows1251;
     }
+
+    /// <summary>
+    /// Detects and repairs mojibake (e.g. Cyrillic Windows-1251 accidentally decoded as Latin-1 / Windows-1252,
+    /// such as "Ïî÷òîâûé ÿùèê" -> "Почтовый ящик").
+    /// </summary>
+    public static string FixMojibake(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text ?? string.Empty;
+
+        // Check for clusters of accented Latin chars typical of Windows-1251 decoded as Latin1
+        int mojibakeChars = 0;
+        int cyrillicChars = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c >= '\u00C0' && c <= '\u00FF' && c != '×')
+                mojibakeChars++;
+            else if ((c >= '\u0410' && c <= '\u044F') || c == '\u0401' || c == '\u0451')
+                cyrillicChars++;
+        }
+
+        if (mojibakeChars >= 3 && mojibakeChars > cyrillicChars)
+        {
+            try
+            {
+                byte[] raw = new byte[text.Length];
+                bool canMap = true;
+                for (int i = 0; i < text.Length; i++)
+                {
+                    char c = text[i];
+                    if (c <= 0xFF)
+                    {
+                        raw[i] = (byte)c;
+                    }
+                    else
+                    {
+                        canMap = false;
+                        break;
+                    }
+                }
+
+                if (!canMap)
+                {
+                    raw = Encoding.Latin1.GetBytes(text);
+                }
+
+                string candidate = Windows1251.GetString(raw);
+
+                int restoredCyrillic = 0;
+                for (int i = 0; i < candidate.Length; i++)
+                {
+                    char c = candidate[i];
+                    if ((c >= '\u0410' && c <= '\u044F') || c == '\u0401' || c == '\u0451')
+                        restoredCyrillic++;
+                }
+
+                if (restoredCyrillic >= 3 && restoredCyrillic >= mojibakeChars * 0.8)
+                {
+                    return candidate;
+                }
+            }
+            catch { }
+        }
+
+        return text;
+    }
 }

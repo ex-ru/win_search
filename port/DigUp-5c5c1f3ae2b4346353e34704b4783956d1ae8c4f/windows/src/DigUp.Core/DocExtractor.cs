@@ -19,12 +19,44 @@ public static class DocExtractor
         {
             "html" or "htm" => PlainTextFromHtml(ReadText(path)),
             "rtf" => PlainTextFromRtf(ReadText(path)),
-            // Binary formats need a real converter (OpenXml / LibreOffice /
-            // Word interop); reading them as text would index zip bytes.
-            "docx" or "doc" or "odt" => throw ExtractError.Unreadable(
-                $"{ext} converter not wired yet (needs DocumentFormat.OpenXml or equivalent)"),
+            "docx" => ExtractDocxText(path),
+            "doc" or "odt" => throw ExtractError.Unreadable(
+                $"{ext} converter not wired yet (needs external converter or LibreOffice)"),
             _ => ReadText(path),
         };
+    }
+
+    /// <summary>
+    /// Reads plain text from a Word .docx package (word/document.xml) without external libraries.
+    /// </summary>
+    public static string ExtractDocxText(string path)
+    {
+        try
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(path);
+            var entry = zip.GetEntry("word/document.xml");
+            if (entry is null) return string.Empty;
+
+            using var stream = entry.Open();
+            using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+            var doc = System.Xml.Linq.XDocument.Load(reader);
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var p in doc.Descendants().Where(e => e.Name.LocalName == "p"))
+            {
+                var texts = p.Descendants().Where(e => e.Name.LocalName == "t").Select(e => e.Value);
+                string pText = string.Concat(texts);
+                if (!string.IsNullOrWhiteSpace(pText))
+                {
+                    sb.AppendLine(pText.Trim());
+                }
+            }
+            return sb.ToString();
+        }
+        catch (System.Exception ex)
+        {
+            throw ExtractError.Unreadable($"failed to read docx: {ex.Message}");
+        }
     }
 
     internal static string ReadText(string path)

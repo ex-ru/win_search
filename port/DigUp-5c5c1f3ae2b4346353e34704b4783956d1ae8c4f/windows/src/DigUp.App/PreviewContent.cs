@@ -15,6 +15,8 @@ public abstract record PreviewModel
     public sealed record TempImage(string Path) : PreviewModel;
     /// <summary>Sound or video from seconds in.</summary>
     public sealed record Media(string Path, double Seconds, bool IsVideo) : PreviewModel;
+    /// <summary>PDF document: initial page, total pages, rendered initial PNG.</summary>
+    public sealed record Pdf(string Path, int InitialPage, int TotalPages, string InitialImage) : PreviewModel;
     /// <summary>Words: code around the match, a text file, or an excerpt.
     /// Highlight marks the relevant passage (offset/length, -1 when none).</summary>
     public sealed record Text(string Body, int Highlight = -1, int HighlightLength = 0) : PreviewModel;
@@ -23,9 +25,9 @@ public abstract record PreviewModel
 
 public static class PreviewContent
 {
-    private const long MaxTextBytes = 256 * 1024;
+    private const long MaxTextBytes = 8 * 1024 * 1024;
     private static readonly string[] TextExtensions =
-        [".txt", ".md", ".markdown", ".log", ".csv", ".tsv", ".json", ".xml", ".yml", ".yaml", ".ini", ".cfg"];
+        [".txt", ".md", ".markdown", ".log", ".csv", ".tsv", ".json", ".xml", ".yml", ".yaml", ".ini", ".cfg", ".sql", ".bat", ".ps1", ".sh"];
 
     /// <summary>The preview for <paramref name="hit"/>: pictures as pictures,
     /// PDFs as the matched page rendered, sound/video from their moment,
@@ -91,18 +93,20 @@ public static class PreviewContent
         try
         {
             int page = (int)(MainWindow.ParsePage(hit.Where) ?? 1);
-            string png = Path.Combine(Path.GetTempPath(), "digup-prev-" + Guid.NewGuid().ToString("N") + ".png");
             using var engine = new PdfiumEngine(pdfiumDll);
             using var doc = engine.Open(path);
+            int total = Math.Max(1, doc.PageCount);
+            int targetPage = Math.Clamp(page, 1, total);
+            string png = Path.Combine(Path.GetTempPath(), "digup-prev-" + Guid.NewGuid().ToString("N") + ".png");
             try
             {
-                doc.RenderPageToPng(Math.Max(0, page - 1), 1600, png);
+                doc.RenderPageToPng(targetPage - 1, 1600, png);
             }
             catch
             {
                 doc.RenderPageToPng(0, 1600, png);
             }
-            return new PreviewModel.TempImage(png);
+            return new PreviewModel.Pdf(path, targetPage, total, png);
         }
         catch
         {
@@ -120,7 +124,7 @@ public static class PreviewContent
             var sb = new System.Text.StringBuilder();
             for (int i = from; i <= to; i++)
                 sb.Append(i).Append(": ").AppendLine(lines[i - 1]);
-            string body = sb.ToString();
+            string body = EncodingHelper.FixMojibake(sb.ToString());
             var (at, length) = Passage(body, tokens);
             return new PreviewModel.Text(body, at, length);
         }
@@ -134,12 +138,25 @@ public static class PreviewContent
     {
         try
         {
-            if (File.Exists(path) && TextExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
-                && new FileInfo(path).Length <= MaxTextBytes)
+            if (File.Exists(path))
             {
-                string body = EncodingHelper.ReadTextAuto(path, (int)MaxTextBytes);
-                var (at, length) = Passage(body, tokens);
-                return new PreviewModel.Text(body, at, length);
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                if (ext == ".docx")
+                {
+                    string body = DocExtractor.ExtractDocxText(path);
+                    if (!string.IsNullOrWhiteSpace(body))
+                    {
+                        body = EncodingHelper.FixMojibake(body);
+                        var (at, length) = Passage(body, tokens);
+                        return new PreviewModel.Text(body, at, length);
+                    }
+                }
+                else if (TextExtensions.Contains(ext) && new FileInfo(path).Length <= MaxTextBytes)
+                {
+                    string body = EncodingHelper.FixMojibake(EncodingHelper.ReadTextAuto(path, (int)MaxTextBytes));
+                    var (at, length) = Passage(body, tokens);
+                    return new PreviewModel.Text(body, at, length);
+                }
             }
         }
         catch { }
@@ -150,7 +167,8 @@ public static class PreviewContent
     {
         if (string.IsNullOrWhiteSpace(hit.Excerpt))
             return new PreviewModel.None("(no words — found by what it shows or says)");
-        var (at, length) = Passage(hit.Excerpt, tokens);
-        return new PreviewModel.Text(hit.Excerpt, at, length);
+        string body = EncodingHelper.FixMojibake(hit.Excerpt);
+        var (at, length) = Passage(body, tokens);
+        return new PreviewModel.Text(body, at, length);
     }
 }

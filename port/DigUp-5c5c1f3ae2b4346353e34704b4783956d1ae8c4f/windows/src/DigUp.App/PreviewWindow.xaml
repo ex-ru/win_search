@@ -98,7 +98,8 @@
   </Window.Resources>
 
   <Border Background="#202020" CornerRadius="12" Padding="14"
-          BorderBrush="#444444" BorderThickness="1">
+          BorderBrush="#444444" BorderThickness="1"
+          MouseLeftButtonDown="OnWindowMouseDown">
     <Border.Effect>
       <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.75" Color="Black" />
     </Border.Effect>
@@ -165,6 +166,23 @@
         <MediaElement x:Name="Player" Stretch="Uniform" Visibility="Collapsed"
                       HorizontalAlignment="Center" VerticalAlignment="Center"
                       LoadedBehavior="Manual" UnloadedBehavior="Close" />
+
+        <!-- Floating PDF Page Navigation Overlay -->
+        <Border x:Name="PdfNav" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                Background="#E6262626" BorderBrush="#555555" BorderThickness="1"
+                CornerRadius="16" Padding="8,4" Margin="0,0,0,14">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.5" Color="Black" />
+          </Border.Effect>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="BtnPdfPrev" Content="◀" Width="30" Height="24" Padding="0" Margin="0,0,6,0"
+                    Click="OnPdfPrevPage" ToolTip="Предыдущая страница (PageUp / Колесо вверх)" Focusable="False" />
+            <TextBlock x:Name="PdfPageInfo" Text="Стр. 1 из 1" Foreground="White" FontSize="12"
+                       VerticalAlignment="Center" Margin="6,0" FontWeight="SemiBold" />
+            <Button x:Name="BtnPdfNext" Content="▶" Width="30" Height="24" Padding="0" Margin="6,0,0,0"
+                    Click="OnPdfNextPage" ToolTip="Следующая страница (PageDown / Колесо вниз)" Focusable="False" />
+          </StackPanel>
+        </Border>
       </Grid>
       <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled" x:Name="WordsScroll"
