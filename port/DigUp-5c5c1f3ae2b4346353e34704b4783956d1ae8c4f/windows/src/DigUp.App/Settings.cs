@@ -31,6 +31,8 @@ public sealed class Settings
     public string Editor { get; set; } = "auto";
     /// <summary>Hardware acceleration mode: "auto", "gpu_ext", "gpu_int", "cpu".</summary>
     public string HardwareMode { get; set; } = "auto";
+    /// <summary>Active embedding model: "gemma2", "bge-m3", "pplx-v2".</summary>
+    public string EmbeddingModel { get; set; } = "gemma2";
 
     /// <summary>True when there was no settings file: first run, show setup.</summary>
     public bool IsNew { get; set; } = true;

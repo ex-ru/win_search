@@ -1,9 +1,15 @@
 # Build and package DigUp for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.0.7",
-    [string]$OutputDir = ""
+    [string]$Version = "1.1.0",
+    [string]$OutputDir = "",
+    [switch]$Slim = $true,
+    [switch]$Full = $false
 )
+
+if ($Full) {
+    $Slim = $false
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -132,8 +138,13 @@ Get-ChildItem -LiteralPath $RunVulkan -Filter "*.dll" -File |
         Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
     }
 
-foreach ($name in $RequiredFfmpegTools) {
-    Copy-Item -LiteralPath (Join-Path $FfmpegTools $name) -Destination (Join-Path $StagingDir $name) -Force
+if (!$Slim) {
+    Write-Host "Bundling FFmpeg media tools (Full package mode)..." -ForegroundColor Yellow
+    foreach ($name in $RequiredFfmpegTools) {
+        Copy-Item -LiteralPath (Join-Path $FfmpegTools $name) -Destination (Join-Path $StagingDir $name) -Force
+    }
+} else {
+    Write-Host "Slim package mode: omitting bundled FFmpeg (will be fetched on-demand)." -ForegroundColor Green
 }
 
 $PdfiumTarget = Join-Path $StagingDir "pdfium.dll"
@@ -148,7 +159,10 @@ Copy-Item -LiteralPath $RepoLicenseSource -Destination (Join-Path $LicenseTarget
 
 # 5. Verification of packaged payload
 $RequiredFiles = @("DigUpApp.exe", "digup.exe", "digup-embed.exe", "DigUp.Core.dll", "e_sqlite3.dll") +
-    $RequiredNativeDlls + $RequiredFfmpegTools + @("licenses\LICENSE-LLVM-OpenMP", "licenses\LICENSE")
+    $RequiredNativeDlls + @("licenses\LICENSE-LLVM-OpenMP", "licenses\LICENSE")
+if (!$Slim) {
+    $RequiredFiles += $RequiredFfmpegTools
+}
 foreach ($req in $RequiredFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $StagingDir $req) -PathType Leaf)) {
         throw "Missing required packaged file: $req in $StagingDir"
@@ -288,7 +302,23 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "Velopack package generated successfully in $ReleasesDir" -ForegroundColor Green
 
-# 8. Compute SHA256 Checksums
+# 8. Package on-demand FFmpeg tools
+$FfmpegZip = Join-Path $ReleasesDir "ffmpeg-tools-win-x64.zip"
+if (!(Test-Path -LiteralPath $FfmpegZip -PathType Leaf)) {
+    Write-Host "Creating standalone FFmpeg on-demand package ($FfmpegZip)..." -ForegroundColor Yellow
+    $ffmpegTemp = Join-Path $OutputDir "ffmpeg_pkg_temp"
+    if (Test-Path $ffmpegTemp) { Remove-Item -LiteralPath $ffmpegTemp -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $ffmpegTemp | Out-Null
+    foreach ($name in $RequiredFfmpegTools) {
+        Copy-Item -LiteralPath (Join-Path $FfmpegTools $name) -Destination (Join-Path $ffmpegTemp $name) -Force
+    }
+    Add-Type -AssemblyName "System.IO.Compression.FileSystem"
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($ffmpegTemp, $FfmpegZip)
+    Remove-Item -LiteralPath $ffmpegTemp -Recurse -Force
+    Write-Host "Created $FfmpegZip" -ForegroundColor Green
+}
+
+# 9. Compute SHA256 Checksums
 Write-Host "Computing SHA256 hashes..." -ForegroundColor Yellow
 $HashFile = Join-Path $ReleasesDir "SHA256SUMS.txt"
 $Hashes = @()

@@ -13,7 +13,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.0.5",
+    [string]$Version = "1.1.0",
     [string]$Tag = "v$Version",
     [string]$Repo = "ex-ru/win_search",
     [switch]$Draft,

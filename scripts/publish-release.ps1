@@ -1,7 +1,7 @@
 # Publish DigUp Windows distribution packages to GitHub Releases
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.0.7",
+    [string]$Version = "1.1.0",
     [string]$Repo = "ex-ru/win_search",
     [string]$ReleasesDir = "",
     [string]$Token = $env:GITHUB_TOKEN

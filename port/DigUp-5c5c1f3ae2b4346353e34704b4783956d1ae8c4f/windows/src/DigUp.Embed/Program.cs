@@ -1,43 +1,29 @@
-// digup-embed.exe: EmbeddingGemma 2 on llama.cpp as a process.
-// JSON-lines protocol of worker/digup_worker.py and Sources/digup/WorkerService.swift:
+// digup-embed.exe: Multimodel embedding engine on llama.cpp as a process.
+// Supports EmbeddingGemma 2, BGE-M3, Perplexity Embed v2 and custom GGUF models.
+// JSON-lines protocol of worker/digup_worker.py:
 // one request object per stdin line, one reply object per stdout line. Logs go to stderr.
-// The first line printed is {"ready": ...} once loading was tried.
-//
-//   {"id": 1, "op": "info"}
-//   {"id": 2, "op": "text",  "inputs": ["...", ...]}
-//   {"id": 3, "op": "image", "inputs": ["C:\\a.jpg", ...], "budget": 280}
-//   {"id": 4, "op": "audio", "inputs": ["C:\\a.wav", ...]}
-//   {"id": 5, "op": "quit"}
-//
-// Reply: {"id": 2, "ok": true, "dim": 768, "count": N,
-//         "vectors": "<base64 float32 LE, N x dim>", "errors": [...]}.
-// A failed item gets a zero vector and a message in "errors";
-// a failed request gets {"ok": false, "error": "..."}.
-// Needs llama.dll + mtmd.dll (+ ggml*.dll) next to this exe:
-// build them with windows\scripts\build-llama-windows.ps1.
 
 using System.Text.Json;
 using DigUp.Embed;
 
 internal static class Program
 {
-    // Which vectors this pipeline makes. Mirrors LlamaEmbedder.vectorVersion:
-    // change it only when the vectors change, then every index embeds again.
     private const int VectorVersion = 1;
-    private const int Dim = 768;
     private const string BuildTag = "b11461";
-    private const string Model = "google/embeddinggemma-2";
-    private const string Revision = "bfcd298762cc34d0357ece5ebdd31791a3a374d8";
-    private const string Dtype = "text-q8_0+mmproj-q8_0";
-    private const string TextFile = "embeddinggemma-2-Q8_0.gguf";
-    private const string MediaFile = "mmproj-embeddinggemma-2-Q8_0.gguf";
+    private const string Revision = "main";
+    private const string Dtype = "q8_0";
     private static readonly int[] Budgets = [70, 140, 280, 560, 1120];
 
     private static Embedder? _embedder;
     private static bool _textOnly;
+    private static string _activeModelName = "google/embeddinggemma-2";
+    private static string _activeTextFile = "embeddinggemma-2-Q8_0.gguf";
+    private static string? _activeMediaFile = "mmproj-embeddinggemma-2-Q8_0.gguf";
 
     private static int Main(string[] args)
     {
+        Console.InputEncoding = System.Text.Encoding.UTF8;
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         _textOnly = args.Contains("--text-only");
 
         string backend = "auto";
@@ -48,15 +34,24 @@ internal static class Program
         }
         bool forceCpu = backend == "cpu" || args.Contains("--cpu");
 
-        if (!FindModelFiles(out string? textPath, out string? mediaPath) || textPath is null)
+        string modelKey = "gemma2";
+        int mIdx = Array.IndexOf(args, "--model");
+        if (mIdx >= 0 && mIdx + 1 < args.Length)
         {
-            Emit(new Dictionary<string, object?> { ["ready"] = false, ["error"] = MissingModelsMessage() });
+            modelKey = args[mIdx + 1].Trim();
+        }
+
+        ConfigureModel(modelKey);
+
+        if (!FindModelFiles(_activeTextFile, _activeMediaFile, out string? textPath, out string? mediaPath) || textPath is null)
+        {
+            Emit(new Dictionary<string, object?> { ["ready"] = false, ["error"] = MissingModelsMessage(_activeTextFile) });
             return 1;
         }
+
         if (!_textOnly && mediaPath is null)
         {
-            Emit(new Dictionary<string, object?> { ["ready"] = false, ["error"] = $"{MediaFile} (images and audio) isn't downloaded yet" });
-            return 1;
+            _textOnly = true; // Gracefully fallback to text-only if media projector is absent
         }
 
         try
@@ -81,19 +76,21 @@ internal static class Program
         }
 
         var e = _embedder;
-        Log($"ready in {e.LoadSeconds} s ({(_textOnly ? "text-only" : "full")}, backend={e.ActiveBackend}, llama.cpp {BuildTag}, vectors {VectorVersion})");
+        Log($"ready in {e.LoadSeconds} s ({(_textOnly ? "text-only" : "full")}, model={_activeModelName}, dim={e.Dim}, backend={e.ActiveBackend}, llama.cpp {BuildTag}, vectors {VectorVersion})");
         Emit(new Dictionary<string, object?> { ["ready"] = true, ["info"] = Info(e) });
 
         string? line;
         while ((line = Console.ReadLine()) is not null)
         {
-            // Be liberal in what we take: strip a BOM and edge space, so a
-            // client that writes UTF-8 with a preamble still parses.
-            line = line.Trim().TrimStart('﻿');
+            line = line.Trim().TrimStart('\uFEFF');
             if (line.Length == 0) continue;
             JsonDocument doc;
             try { doc = JsonDocument.Parse(line); }
-            catch { continue; } // a bad line is skipped, like WorkerService.swift
+            catch (Exception ex)
+            {
+                Emit(new Dictionary<string, object?> { ["id"] = null, ["ok"] = false, ["error"] = $"JSON parse error: {ex.Message}" });
+                continue;
+            }
             using (doc)
             {
                 var req = doc.RootElement;
@@ -115,18 +112,17 @@ internal static class Program
                             Emit(new Dictionary<string, object?> { ["id"] = IdOf(id), ["ok"] = true, ["info"] = Info(e) });
                             break;
                         case "text":
-                            ReplyVectors(id, e.EmbedTexts(inputs).Select(v => ((float[]?)v, (string?)null)).ToArray());
+                            ReplyVectors(id, e.EmbedTexts(inputs).Select(v => ((float[]?)v, (string?)null)).ToArray(), e.Dim);
                             break;
                         case "image":
                             int budget = req.TryGetProperty("budget", out var bProp) && bProp.TryGetInt32(out var b)
                                 ? b : 280;
                             if (!Budgets.Contains(budget))
                                 throw new InvalidOperationException($"budget must be one of {string.Join(",", Budgets)}");
-                            ReplyVectors(id, inputs.Select(p => e.EmbedImageFile(p, budget)).ToArray());
+                            ReplyVectors(id, inputs.Select(p => e.EmbedImageFile(p, budget)).ToArray(), e.Dim);
                             break;
                         case "audio":
-                            // Prepared WAVs are always 16 kHz mono (see AudioVideoExtractor).
-                            ReplyVectors(id, inputs.Select(p => e.EmbedAudioFile(p, 16000)).ToArray());
+                            ReplyVectors(id, inputs.Select(p => e.EmbedAudioFile(p, 16000)).ToArray(), e.Dim);
                             break;
                         default:
                             throw new InvalidOperationException($"unknown op {op ?? "(none)"}");
@@ -143,18 +139,60 @@ internal static class Program
         return 0;
     }
 
-    // One vector per input, or null plus why it has none (a bad file must not
-    // sink its neighbours). Nulls become zero vectors in the reply.
-    private static void ReplyVectors(string id, (float[]? Vector, string? Error)[] items)
+    private static void ConfigureModel(string modelKey)
     {
-        var flat = new float[items.Length * Dim];
+        switch (modelKey.ToLowerInvariant())
+        {
+            case "bge-m3":
+            case "bge":
+                _activeModelName = "BAAI/bge-m3";
+                _activeTextFile = "bge-m3-Q4_K_M.gguf";
+                _activeMediaFile = null;
+                _textOnly = true;
+                break;
+            case "pplx-v2":
+            case "perplexity":
+            case "pplx":
+                _activeModelName = "perplexity-ai/pplx-embed-v2";
+                _activeTextFile = "pplx-late-Q8_0.gguf";
+                _activeMediaFile = null;
+                _textOnly = true;
+                break;
+            case "nomic":
+            case "nomic-embed":
+                _activeModelName = "nomic-ai/nomic-embed-text-v1.5";
+                _activeTextFile = "nomic-embed-text-v1.5.Q8_0.gguf";
+                _activeMediaFile = null;
+                _textOnly = true;
+                break;
+            case "gemma2":
+            default:
+                if (File.Exists(modelKey))
+                {
+                    _activeModelName = Path.GetFileNameWithoutExtension(modelKey);
+                    _activeTextFile = modelKey;
+                    _activeMediaFile = null;
+                }
+                else
+                {
+                    _activeModelName = "google/embeddinggemma-2";
+                    _activeTextFile = "embeddinggemma-2-Q8_0.gguf";
+                    _activeMediaFile = "mmproj-embeddinggemma-2-Q8_0.gguf";
+                }
+                break;
+        }
+    }
+
+    private static void ReplyVectors(string id, (float[]? Vector, string? Error)[] items, int dim)
+    {
+        var flat = new float[items.Length * dim];
         var errors = new List<object?>(items.Length);
         for (int i = 0; i < items.Length; i++)
         {
             if (items[i].Vector is not null)
             {
-                if (items[i].Vector!.Length != Dim) { errors.Add($"bad vector ({items[i].Vector!.Length}, want {Dim})"); continue; }
-                Array.Copy(items[i].Vector!, 0, flat, i * Dim, Dim);
+                if (items[i].Vector!.Length != dim) { errors.Add($"bad vector ({items[i].Vector!.Length}, want {dim})"); continue; }
+                Array.Copy(items[i].Vector!, 0, flat, i * dim, dim);
             }
             errors.Add(items[i].Error is null ? null : (object)items[i].Error!);
         }
@@ -164,7 +202,7 @@ internal static class Program
         {
             ["id"] = IdOf(id),
             ["ok"] = true,
-            ["dim"] = Dim,
+            ["dim"] = dim,
             ["count"] = items.Length,
             ["vectors"] = Convert.ToBase64String(bytes),
             ["errors"] = errors,
@@ -173,11 +211,11 @@ internal static class Program
 
     private static Dictionary<string, object?> Info(Embedder e) => new()
     {
-        ["model"] = Model,
+        ["model"] = _activeModelName,
         ["revision"] = Revision,
         ["runtime"] = $"llama.cpp-vectors{VectorVersion}",
         ["dtype"] = Dtype,
-        ["dim"] = Dim,
+        ["dim"] = e.Dim,
         ["text_only"] = _textOnly,
         ["load_seconds"] = e.LoadSeconds,
         ["backend"] = e.ActiveBackend,
@@ -189,30 +227,48 @@ internal static class Program
         + " Build them with: powershell -File windows\\scripts\\build-llama-windows.ps1"
         + $" ({ex.Message})";
 
-    // $DIGUP_MODELS wins when set; else %LocalAppData%\DigUp\Models, then the
-    // Hugging Face cache. Only the text file is needed for --text-only.
-    private static bool FindModelFiles(out string? text, out string? media)
+    private static bool FindModelFiles(string textFile, string? mediaFile, out string? text, out string? media)
     {
         text = media = null;
+        if (File.Exists(textFile))
+        {
+            text = textFile;
+            if (mediaFile is not null && File.Exists(mediaFile)) media = mediaFile;
+            return true;
+        }
+
         var dirs = new List<string>();
         string? chosen = Environment.GetEnvironmentVariable("DIGUP_MODELS");
         if (!string.IsNullOrEmpty(chosen)) dirs.Add(chosen);
-        else
-        {
-            dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "Models"));
-            dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "huggingface"));
-        }
+
+        dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "Models"));
+        dirs.Add(Path.Combine(AppContext.BaseDirectory, "models"));
+        dirs.Add(Path.Combine(Directory.GetCurrentDirectory(), "models"));
+        dirs.Add(@"D:\_projects\win_search\models");
+        dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "huggingface"));
+
+        // Fallbacks for BGE-M3 filenames
+        string[] textCandidates = textFile.Contains("bge-m3")
+            ? [textFile, "bge-m3-Q4_K_M.gguf", "bge-m3-Q8_0.gguf", "bge-m3-FP16.gguf"]
+            : [textFile];
+
         foreach (string d in dirs)
         {
             try
             {
-                string t = Path.Combine(d, TextFile);
-                if (File.Exists(t))
+                foreach (string candidate in textCandidates)
                 {
-                    text = t;
-                    string m = Path.Combine(d, MediaFile);
-                    if (File.Exists(m)) media = m;
-                    return true;
+                    string t = Path.Combine(d, candidate);
+                    if (File.Exists(t))
+                    {
+                        text = t;
+                        if (mediaFile is not null)
+                        {
+                            string m = Path.Combine(d, mediaFile);
+                            if (File.Exists(m)) media = m;
+                        }
+                        return true;
+                    }
                 }
             }
             catch { }
@@ -220,11 +276,11 @@ internal static class Program
         return false;
     }
 
-    private static string MissingModelsMessage()
+    private static string MissingModelsMessage(string textFile)
     {
         var local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "Models");
-        return $"no model file ({TextFile}) in {local}."
-            + " Set DIGUP_MODELS to the folder with the EmbeddingGemma 2 files, or put them there.";
+        return $"no model file ({textFile}) found in {local} or models directory."
+            + " Place the GGUF file there or set DIGUP_MODELS.";
     }
 
     private static void Emit(Dictionary<string, object?> reply)
@@ -233,7 +289,6 @@ internal static class Program
         Console.Out.Flush();
     }
 
-    // The reply keeps the request id's own JSON shape (number or string).
     private static object IdOf(string raw)
     {
         try { return JsonDocument.Parse(raw).RootElement.Clone(); }

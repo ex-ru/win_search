@@ -22,16 +22,20 @@ public sealed class HnswIndex
     private int _maxLayer = -1;
     private readonly object _gate = new();
 
+    private int _dim;
+
     public int Count => _vectors.Count;
     public int MaxLayer => _maxLayer;
+    public int Dimension => _dim > 0 ? _dim : Vectors.Dimension;
 
-    public HnswIndex(int m = 16, int efConstruction = 64, int seed = 42)
+    public HnswIndex(int m = 16, int efConstruction = 64, int seed = 42, int dimension = 0)
     {
         _m = m;
         _m0 = 2 * m;
         _efConstruction = efConstruction;
         _mL = 1.0 / Math.Log(m);
         _random = new Random(seed);
+        _dim = dimension;
     }
 
     private int GenerateRandomLayer()
@@ -43,8 +47,9 @@ public sealed class HnswIndex
 
     public void Add(float[] vector)
     {
-        if (vector.Length != Vectors.Dimension)
-            throw new ArgumentException($"Vector dimension must be {Vectors.Dimension}", nameof(vector));
+        if (_dim == 0) _dim = vector.Length;
+        if (vector.Length != _dim)
+            throw new ArgumentException($"Vector dimension must be {_dim}", nameof(vector));
 
         lock (_gate)
         {

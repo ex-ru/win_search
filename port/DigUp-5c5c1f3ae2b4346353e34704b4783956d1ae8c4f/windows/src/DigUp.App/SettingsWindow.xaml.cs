@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using DigUp.Core;
 using MessageBox = System.Windows.MessageBox;
@@ -50,6 +51,7 @@ public partial class SettingsWindow : Window
 
         UpdateLanguageToggleButtons(_settings.Language);
         UpdateFolderStats();
+        InitModelOptions();
         InitHardwareOptions();
 
         Updates.IsChecked = settings.CheckUpdates;
@@ -356,6 +358,38 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void InitModelOptions()
+    {
+        try
+        {
+            var models = ModelCatalog.All;
+            ComboEmbeddingModel.ItemsSource = models;
+            var current = models.FirstOrDefault(m => string.Equals(m.Id, _settings.EmbeddingModel, StringComparison.OrdinalIgnoreCase)) ?? models[0];
+            ComboEmbeddingModel.SelectedItem = current;
+            UpdateModelStatus(current);
+        }
+        catch (Exception ex)
+        {
+            TxtModelStatus.Text = $"Ошибка каталога моделей: {ex.Message}";
+        }
+    }
+
+    private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ComboEmbeddingModel.SelectedItem is EmbeddingModelDef model)
+        {
+            UpdateModelStatus(model);
+        }
+    }
+
+    private void UpdateModelStatus(EmbeddingModelDef model)
+    {
+        bool downloaded = model.IsDownloaded();
+        string statusIcon = downloaded ? "✅ Установлена и готова к работе" : "⏳ Требуется загрузка весов (GGUF)";
+        TxtModelStatus.Text = $"{model.Name} — {statusIcon}";
+        TxtModelDetails.Text = $"{model.Description} (Размерность векторов: {model.Dimension} dim, файл: {model.TextFile})";
+    }
+
     private void ApplyCurrentSettings()
     {
         string updateSource = UpdateSource.Text.Trim();
@@ -376,6 +410,16 @@ public partial class SettingsWindow : Window
             2 => ThemeManager.ThemeLight,
             _ => ThemeManager.ThemeSystem
         };
+
+        if (ComboEmbeddingModel.SelectedItem is EmbeddingModelDef modelItem)
+        {
+            bool modelChanged = !string.Equals(_settings.EmbeddingModel, modelItem.Id, StringComparison.OrdinalIgnoreCase);
+            if (modelChanged)
+            {
+                _settings.EmbeddingModel = modelItem.Id;
+                _engine?.ResetEmbedderWorker();
+            }
+        }
 
         if (ComboHardware.SelectedItem is HardwareComboItem hwItem)
         {

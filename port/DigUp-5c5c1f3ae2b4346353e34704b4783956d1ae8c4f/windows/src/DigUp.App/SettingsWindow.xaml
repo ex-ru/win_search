@@ -349,6 +349,30 @@
           </StackPanel>
         </Border>
 
+        <!-- Section: Embedding Model Selector -->
+        <Border Style="{StaticResource CardStyle}">
+          <StackPanel>
+            <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Модель векторных эмбеддингов (Нейросеть поиска)" />
+            <TextBlock Foreground="#888888" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"
+                       Text="Выберите модель машинного обучения для семантического поиска. Поддерживается переключение между EmbeddingGemma 2, BGE-M3 и Perplexity Embed v2 с сохранением поиска по всем типам файлов." />
+
+            <TextBlock Text="Активная модель эмбеддингов:" Foreground="#CCCCCC" FontSize="12" Margin="0,0,0,4" />
+            <ComboBox x:Name="ComboEmbeddingModel" DisplayMemberPath="DisplayName" Margin="0,0,0,8" SelectionChanged="OnModelSelectionChanged" />
+
+            <Border Background="#1A2826" BorderBrush="#257E70" BorderThickness="1" CornerRadius="6" Padding="10,8">
+              <StackPanel>
+                <TextBlock Text="🧠 Характеристики и статус модели:" FontWeight="SemiBold" FontSize="12" Foreground="#80FFE8" />
+                <TextBlock x:Name="TxtModelStatus" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#E0E0E0" FontSize="12"
+                           Text="Загрузка каталога моделей…" />
+                <TextBlock x:Name="TxtModelDetails" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#AAAAAA" FontSize="11" />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Foreground="#777777" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="При смене модели векторные эмбеддинги будут автоматически пересчитаны при следующем сканировании. Поиск по всем типам файлов (документы, изображения, аудио, видео) полностью сохраняется." />
+          </StackPanel>
+        </Border>
+
         <!-- Section: Hardware Acceleration (CPU / GPU) -->
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>

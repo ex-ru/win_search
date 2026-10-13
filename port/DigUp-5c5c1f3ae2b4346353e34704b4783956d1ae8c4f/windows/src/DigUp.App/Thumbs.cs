@@ -113,6 +113,8 @@ public static class Thumbs
             if (File.Exists(f)) return f;
         }
         string next = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        return File.Exists(next) ? next : null;
+        if (File.Exists(next)) return next;
+        string localTool = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "tools", "ffmpeg", "ffmpeg.exe");
+        return File.Exists(localTool) ? localTool : null;
     }
 }

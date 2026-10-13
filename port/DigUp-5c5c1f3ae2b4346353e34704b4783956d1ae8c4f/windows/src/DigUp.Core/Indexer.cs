@@ -535,6 +535,7 @@ public sealed class Indexer : System.IDisposable
             if (_workers.Count == 0)
             {
                 var started = _makeEmbedder();
+                Vectors.Dimension = started.Info.Dim;
                 string fingerprint = $"{started.Info.VectorSource} | {_options.Fingerprint}";
                 try
                 {
@@ -548,6 +549,7 @@ public sealed class Indexer : System.IDisposable
 
                 _store.SetMeta("fingerprint", fingerprint);
                 _store.SetMeta("vector_source", started.Info.VectorSource);
+                _store.SetMeta("vector_dim", started.Info.Dim.ToString());
                 _workers.Add(started);
             }
             while (_workers.Count < WorkerCount)
@@ -674,8 +676,35 @@ public sealed class Indexer : System.IDisposable
                 var file = batch[item.Slot];
                 if (vectors[i].Vector == null)
                 {
-                    _store.Finish(file.Id, FileState.Failed, vectors[i].Error);
-                    results[item.Slot] = (FileState.Failed, vectors[i].Error);
+                    // Fallback for models without vision projector (e.g. text-only models):
+                    // Embed OCR text or file title so image remains searchable across all modalities!
+                    float[]? fallbackVec = null;
+                    string docTitle = System.IO.Path.GetFileName(file.Path);
+                    string textContent = item.Ocr.Length > 0 ? item.Ocr : System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                    try
+                    {
+                        var fv = worker.EmbedTexts(new[] { Prompts.Document(docTitle, textContent) });
+                        if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackVec = fv[0];
+                    }
+                    catch { }
+
+                    _store.AddSegment(file.Id, SegmentKind.Image, Modality.Image, vector: fallbackVec);
+                    if (item.Ocr.Length > 0)
+                    {
+                        _store.AddSegment(file.Id, SegmentKind.Ocr, Modality.Text,
+                            excerpt: Excerpt.Of(item.Ocr), text: item.Ocr);
+                    }
+
+                    var fallbackInfo = new System.Collections.Generic.Dictionary<string, string?>
+                    {
+                        ["width"] = item.Image.Width.ToString(),
+                        ["height"] = item.Image.Height.ToString(),
+                    };
+                    if (item.Image.Taken != null) fallbackInfo["taken"] = item.Image.Taken;
+                    if (screenshot) fallbackInfo["ocr_chars"] = item.Ocr.Length.ToString();
+
+                    _store.Finish(file.Id, FileState.Done, info: fallbackInfo);
+                    results[item.Slot] = (FileState.Done, screenshot ? $"ocr {item.Ocr.Length} chars" : null);
                     continue;
                 }
 
@@ -914,13 +943,28 @@ public sealed class Indexer : System.IDisposable
             return (FileState.Skipped, "silent or too short");
         }
 
-        var vectors = FullWorker().EmbedAudio(System.Linq.Enumerable.Select(pieces, p => p.Path).ToList());
+        var worker = FullWorker();
+        var vectors = worker.EmbedAudio(System.Linq.Enumerable.Select(pieces, p => p.Path).ToList());
+
+        float[]? fallbackAudioVec = null;
+        if (vectors.Length == 0 || vectors[0].Vector == null)
+        {
+            try
+            {
+                string title = System.IO.Path.GetFileName(file.Path);
+                var fv = worker.EmbedTexts(new[] { Prompts.Document(title, System.IO.Path.GetFileNameWithoutExtension(file.Path)) });
+                if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackAudioVec = fv[0];
+            }
+            catch { }
+        }
+
         _store.Transact(() =>
         {
             for (int i = 0; i < pieces.Count; i++)
             {
+                var vec = (vectors.Length > i && vectors[i].Vector != null) ? vectors[i].Vector : fallbackAudioVec;
                 _store.AddSegment(file.Id, SegmentKind.Audio, Modality.Audio,
-                    loc: pieces[i].StartSeconds, locEnd: pieces[i].EndSeconds, vector: vectors[i].Vector);
+                    loc: pieces[i].StartSeconds, locEnd: pieces[i].EndSeconds, vector: vec);
             }
 
             _store.Finish(file.Id, FileState.Done,
@@ -948,18 +992,35 @@ public sealed class Indexer : System.IDisposable
             System.Linq.Enumerable.Select(frames, f => f.Path).ToList(), _options.FrameBudget);
         var soundVectors = worker.EmbedAudio(
             System.Linq.Enumerable.Select(sound, p => p.Path).ToList());
+
+        float[]? fallbackVideoVec = null;
+        bool allFrameNull = frameVectors.Length == 0 || frameVectors.All(v => v.Vector == null);
+        bool allSoundNull = soundVectors.Length == 0 || soundVectors.All(v => v.Vector == null);
+        if (allFrameNull && allSoundNull)
+        {
+            try
+            {
+                string title = System.IO.Path.GetFileName(file.Path);
+                var fv = worker.EmbedTexts(new[] { Prompts.Document(title, System.IO.Path.GetFileNameWithoutExtension(file.Path)) });
+                if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackVideoVec = fv[0];
+            }
+            catch { }
+        }
+
         _store.Transact(() =>
         {
             for (int i = 0; i < frames.Count; i++)
             {
+                var vec = (frameVectors.Length > i && frameVectors[i].Vector != null) ? frameVectors[i].Vector : fallbackVideoVec;
                 _store.AddSegment(file.Id, SegmentKind.Frame, Modality.Image,
-                    loc: frames[i].StartSeconds, locEnd: frames[i].EndSeconds, vector: frameVectors[i].Vector);
+                    loc: frames[i].StartSeconds, locEnd: frames[i].EndSeconds, vector: vec);
             }
 
             for (int i = 0; i < sound.Count; i++)
             {
+                var vec = (soundVectors.Length > i && soundVectors[i].Vector != null) ? soundVectors[i].Vector : fallbackVideoVec;
                 _store.AddSegment(file.Id, SegmentKind.Audio, Modality.Audio,
-                    loc: sound[i].StartSeconds, locEnd: sound[i].EndSeconds, vector: soundVectors[i].Vector);
+                    loc: sound[i].StartSeconds, locEnd: sound[i].EndSeconds, vector: vec);
             }
 
             _store.Finish(file.Id, FileState.Done,

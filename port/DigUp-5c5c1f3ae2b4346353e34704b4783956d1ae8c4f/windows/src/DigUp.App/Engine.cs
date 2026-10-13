@@ -405,6 +405,12 @@ public sealed class Engine : IDisposable
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(_settings.EmbeddingModel))
+        {
+            args.Add("--model");
+            args.Add(_settings.EmbeddingModel);
+        }
+
         return new WorkerConfig(
             exe,
             args,
@@ -435,6 +441,7 @@ public sealed class Engine : IDisposable
                 try
                 {
                     _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true));
+                    Vectors.Dimension = _queryWorker.Info.Dim;
                 }
                 catch (Exception ex)
                 {
@@ -449,7 +456,7 @@ public sealed class Engine : IDisposable
         {
             string prompted = CodeQuery.TextOf(query) is not null ? Prompts.CodeQuery(query) : Prompts.Query(query);
             var rows = worker.EmbedTexts([prompted]);
-            return rows.Length > 0 && rows[0].Length == Vectors.Dimension ? rows[0] : null;
+            return rows.Length > 0 && rows[0].Length == worker.Info.Dim ? rows[0] : null;
         }
         catch
         {
@@ -510,11 +517,15 @@ public sealed class Engine : IDisposable
     private static string ExeNextTo(string name) =>
         Path.Combine(AppContext.BaseDirectory, name);
 
-    // Test override only (see CLI): the ship bundles its own FFmpeg.
     private static FFmpegPaths FindFFmpeg()
     {
         if (Environment.GetEnvironmentVariable("DIGUP_FFMPEG") is { Length: > 0 } dir)
             return new FFmpegPaths(Path.Combine(dir, "ffmpeg.exe"), Path.Combine(dir, "ffprobe.exe"));
+        if (File.Exists(ExeNextTo("ffmpeg.exe")))
+            return new FFmpegPaths(ExeNextTo("ffmpeg.exe"), ExeNextTo("ffprobe.exe"));
+        string localToolDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "tools", "ffmpeg");
+        if (File.Exists(Path.Combine(localToolDir, "ffmpeg.exe")))
+            return new FFmpegPaths(Path.Combine(localToolDir, "ffmpeg.exe"), Path.Combine(localToolDir, "ffprobe.exe"));
         return new FFmpegPaths(ExeNextTo("ffmpeg.exe"), ExeNextTo("ffprobe.exe"));
     }
 

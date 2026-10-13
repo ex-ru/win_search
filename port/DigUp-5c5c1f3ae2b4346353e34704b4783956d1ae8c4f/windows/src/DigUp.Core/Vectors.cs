@@ -8,16 +8,31 @@ namespace DigUp.Core;
 /// too, and scored as float32. Ports Vectors.swift.</summary>
 public static class Vectors
 {
-    public const int Dimension = 768;
-    public const int BytesPerVector = Dimension * 2;
+    private static int _dimension = 768;
 
-    /// <summary>L2-normalized float vector → 768 × float16 blob for the <c>vec</c> column.</summary>
+    /// <summary>Active vector dimension. Defaults to 768 (Gemma 2), dynamically set per loaded model (e.g. 1024 for BGE-M3 / Perplexity v2).</summary>
+    public static int Dimension
+    {
+        get => _dimension;
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Dimension must be positive");
+            _dimension = value;
+        }
+    }
+
+    public static int BytesPerVector => Dimension * 2;
+
+    /// <summary>L2-normalized float vector → float16 blob for the <c>vec</c> column.</summary>
     public static byte[] ToHalfBlob(IReadOnlyList<float> vector)
     {
-        if (vector.Count != Dimension)
-            throw new ArgumentOutOfRangeException(nameof(vector), $"expected {Dimension} floats");
-        var bytes = new byte[BytesPerVector];
-        for (int i = 0; i < Dimension; i++)
+        int dim = Dimension;
+        if (vector.Count != dim)
+            throw new ArgumentOutOfRangeException(nameof(vector), $"expected {dim} floats, got {vector.Count}");
+        int bytesPerVector = dim * 2;
+        var bytes = new byte[bytesPerVector];
+        for (int i = 0; i < dim; i++)
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * 2, 2),
                 BitConverter.HalfToUInt16Bits((Half)vector[i]));
         return bytes;
@@ -25,10 +40,12 @@ public static class Vectors
 
     public static float[] FromHalfBlob(byte[] blob)
     {
-        if (blob.Length != BytesPerVector)
-            throw new ArgumentOutOfRangeException(nameof(blob), $"expected {BytesPerVector} bytes");
-        var vector = new float[Dimension];
-        for (int i = 0; i < Dimension; i++)
+        int dim = Dimension;
+        int bytesPerVector = dim * 2;
+        if (blob.Length != bytesPerVector)
+            throw new ArgumentOutOfRangeException(nameof(blob), $"expected {bytesPerVector} bytes, got {blob.Length}");
+        var vector = new float[dim];
+        for (int i = 0; i < dim; i++)
             vector[i] = (float)BitConverter.UInt16BitsToHalf(
                 BinaryPrimitives.ReadUInt16LittleEndian(blob.AsSpan(i * 2, 2)));
         return vector;
@@ -37,7 +54,7 @@ public static class Vectors
     /// <summary>
     /// Hardware-accelerated (SIMD) dot product. Uses Vector&lt;float&gt; with 4-way unrolling
     /// mapping to AVX2, AVX-512, or ARM64 Neon.
-    /// Dimension 768 is a multiple of all standard SIMD widths (4, 8, 16).
+    /// Standard vector dimensions (768, 1024, 512) are multiples of all standard SIMD widths (4, 8, 16).
     /// </summary>
     public static float DotProduct(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
     {
@@ -103,28 +120,35 @@ public sealed class VectorStore : IDisposable
 
     private readonly MemoryMappedFile _file;
     private readonly MemoryMappedViewAccessor _accessor;
-    private readonly Half[] _scratch = new Half[BlockRows * Vectors.Dimension];
+    private readonly int _dim;
+    private readonly Half[] _scratch;
     private bool _disposed;
 
     public int Rows { get; }
+    public int Dimension => _dim;
+    public int BytesPerRow => _dim * 2;
 
-    private VectorStore(int rows, MemoryMappedFile file, MemoryMappedViewAccessor accessor)
+    private VectorStore(int rows, MemoryMappedFile file, MemoryMappedViewAccessor accessor, int dim)
     {
         Rows = rows;
         _file = file;
         _accessor = accessor;
+        _dim = dim;
+        _scratch = new Half[BlockRows * dim];
     }
 
-    public static VectorStore? Create(int rows)
+    public static VectorStore? Create(int rows, int? dimension = null)
     {
         if (rows <= 0)
             return null;
-        long capacity = (long)rows * Vectors.BytesPerVector;
+        int dim = dimension ?? Vectors.Dimension;
+        int bytesPerVector = dim * 2;
+        long capacity = (long)rows * bytesPerVector;
         var file = MemoryMappedFile.CreateNew(null, capacity, MemoryMappedFileAccess.ReadWrite);
         try
         {
             var accessor = file.CreateViewAccessor(0, capacity, MemoryMappedFileAccess.ReadWrite);
-            return new VectorStore(rows, file, accessor);
+            return new VectorStore(rows, file, accessor, dim);
         }
         catch
         {
@@ -135,17 +159,17 @@ public sealed class VectorStore : IDisposable
 
     public void SetRow(int row, byte[] blob)
     {
-        if (blob.Length != Vectors.BytesPerVector)
-            throw new ArgumentOutOfRangeException(nameof(blob));
+        if (blob.Length != BytesPerRow)
+            throw new ArgumentOutOfRangeException(nameof(blob), $"expected {BytesPerRow} bytes for dim {_dim}, got {blob.Length}");
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _accessor.WriteArray((long)row * Vectors.BytesPerVector, blob, 0, blob.Length);
+        _accessor.WriteArray((long)row * BytesPerRow, blob, 0, blob.Length);
     }
 
     public void GetRow(int row, Span<float> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var halves = new Half[Vectors.Dimension];
-        _accessor.ReadArray((long)row * Vectors.BytesPerVector, halves, 0, halves.Length);
+        var halves = new Half[_dim];
+        _accessor.ReadArray((long)row * BytesPerRow, halves, 0, halves.Length);
         for (int i = 0; i < halves.Length; i++)
             destination[i] = (float)halves[i];
     }
@@ -156,9 +180,9 @@ public sealed class VectorStore : IDisposable
     public void CopyBlockAsFloat(int startRow, int rowCount, float[] destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _accessor.ReadArray((long)startRow * Vectors.BytesPerVector,
-            _scratch, 0, rowCount * Vectors.Dimension);
-        for (int i = 0; i < rowCount * Vectors.Dimension; i++)
+        _accessor.ReadArray((long)startRow * BytesPerRow,
+            _scratch, 0, rowCount * _dim);
+        for (int i = 0; i < rowCount * _dim; i++)
             destination[i] = (float)_scratch[i];
     }
 

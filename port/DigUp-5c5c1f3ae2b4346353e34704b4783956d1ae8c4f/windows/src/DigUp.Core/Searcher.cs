@@ -166,6 +166,23 @@ public sealed class Searcher : IDisposable
         _store.Db.Query("SELECT id, kind FROM files",
             r => { _fileKind[r.GetInt64(0)] = FileKindStrings.Parse(r.NullableText(1)); });
         VectorSource = _store.Meta("vector_source");
+        string? dimMeta = _store.Meta("vector_dim");
+        if (int.TryParse(dimMeta, out int storedDim) && storedDim > 0)
+        {
+            Vectors.Dimension = storedDim;
+        }
+        else
+        {
+            // Auto-detect dimension from first stored vector blob if meta is absent
+            _store.Db.Query("SELECT vec FROM segments WHERE vec IS NOT NULL LIMIT 1", r =>
+            {
+                byte[]? b = r.NullableBlob(0);
+                if (b is not null && b.Length > 0 && b.Length % 2 == 0)
+                {
+                    Vectors.Dimension = b.Length / 2;
+                }
+            });
+        }
     }
 
     public List<SearchHit> Search(
@@ -204,7 +221,8 @@ public sealed class Searcher : IDisposable
 
         // Meaning: score every vector on this query's scale, keep each file's best segment.
         var best = new Dictionary<long, (double Z, double Cosine, int Row)>();
-        if (queryVector is not null && queryVector.Count == Vectors.Dimension && _rowFile.Count > 0)
+        int searchDim = _vectors?.Dimension ?? Vectors.Dimension;
+        if (queryVector is not null && queryVector.Count == searchDim && _rowFile.Count > 0)
         {
             float[] scores = Score(queryVector);
             double[] meaning = VectorMath.Meaning(scores, _rowModality, _rowSetsScale);
@@ -451,9 +469,10 @@ public sealed class Searcher : IDisposable
         var scores = new float[rows];
         if (_vectors is null || rows == 0)
             return scores;
+        int dim = _vectors.Dimension;
         float[] q = query is float[] arr ? arr : query.ToArray();
-        ReadOnlySpan<float> qSpan = q.AsSpan(0, Math.Min(q.Length, Vectors.Dimension));
-        var block = new float[VectorStore.BlockRows * Vectors.Dimension];
+        ReadOnlySpan<float> qSpan = q.AsSpan(0, Math.Min(q.Length, dim));
+        var block = new float[VectorStore.BlockRows * dim];
         int row = 0;
         while (row < rows)
         {
@@ -464,15 +483,15 @@ public sealed class Searcher : IDisposable
             {
                 Parallel.For(0, count, r =>
                 {
-                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
-                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, q.AsSpan(0, Vectors.Dimension));
+                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * dim, dim);
+                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, q.AsSpan(0, dim));
                 });
             }
             else
             {
                 for (int r = 0; r < count; r++)
                 {
-                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * Vectors.Dimension, Vectors.Dimension);
+                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * dim, dim);
                     scores[baseRow + r] = Vectors.DotProduct(rowSpan, qSpan);
                 }
             }

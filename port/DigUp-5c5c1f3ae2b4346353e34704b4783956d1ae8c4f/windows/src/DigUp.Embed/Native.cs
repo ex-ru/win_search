@@ -153,6 +153,7 @@ internal static class Native
     [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)] internal static extern bool llama_batch_ext_set_pos(IntPtr batch, int idx, [In] int[] pos);
     [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)] internal static extern int llama_process(IntPtr ctx, int type, IntPtr batch);
     [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)] internal static extern IntPtr llama_get_embeddings_seq(IntPtr ctx, int seq);
+    [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)] internal static extern IntPtr llama_get_embeddings_ith(IntPtr ctx, int i);
     [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)] internal static extern int llama_vocab_eos(IntPtr vocab);
     [DllImport(LlamaLib, CallingConvention = CallingConvention.Cdecl)]
     internal static extern int llama_tokenize(IntPtr vocab, byte[] text, int textLen,

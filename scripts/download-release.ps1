@@ -1,10 +1,11 @@
-# Download DigUp Windows distribution packages from GitHub Releases
-# PowerShell 5.1 & Core safe.
 param(
     [string]$Repo = "ex-ru/win_search",
     [string]$Tag = "latest",
     [string]$OutputDir = "",
-    [switch]$Portable = $false
+    [switch]$Portable = $false,
+    [switch]$Full = $false,
+    [switch]$IncludeTools = $false,
+    [switch]$IncludeModels = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,9 +18,10 @@ $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " DigUp Release Downloader" -ForegroundColor Cyan
+Write-Host " DigUp Release Downloader (Release 1.1.0)" -ForegroundColor Cyan
 Write-Host " Repository: $Repo" -ForegroundColor Cyan
 Write-Host " Target:     $OutputDir" -ForegroundColor Cyan
+Write-Host " Package:    $(if ($Portable) { 'Portable ZIP' } elseif ($Full) { 'Full Offline Setup (~290 MB)' } else { 'Slim Lightweight Setup (~75 MB)' })" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $apiUrl = if ($Tag -eq "latest") {
@@ -30,7 +32,7 @@ $apiUrl = if ($Tag -eq "latest") {
 
 Write-Host "Checking GitHub Releases at $apiUrl..." -ForegroundColor Yellow
 $headers = @{
-    "User-Agent" = "DigUp-Downloader/1.0"
+    "User-Agent" = "DigUp-Downloader/1.1"
     "Accept" = "application/vnd.github.v3+json"
 }
 
@@ -45,6 +47,8 @@ try {
 
 $targetPattern = if ($Portable) {
     "WinSearch.DigUp-win-Portable.zip"
+} elseif ($Full) {
+    "WinSearch.DigUp-win-Setup-Full.exe"
 } else {
     "WinSearch.DigUp-win-Setup.exe"
 }
@@ -102,6 +106,16 @@ if (Test-Path $sumsFile) {
         } else {
             Write-Warning "SHA256 verification mismatch! Expected $expectedHash, got $actualHash"
         }
+    }
+}
+
+if ($IncludeTools) {
+    $toolsAsset = $assets | Where-Object { $_.name -like "*ffmpeg-tools*" } | Select-Object -First 1
+    if ($toolsAsset) {
+        $toolsDest = Join-Path $OutputDir $toolsAsset.name
+        Write-Host "Downloading on-demand media tools: $($toolsAsset.name)..." -ForegroundColor Yellow
+        $wc.DownloadFile($toolsAsset.browser_download_url, $toolsDest)
+        Write-Host "Media tools package saved to: $toolsDest" -ForegroundColor Green
     }
 }
 

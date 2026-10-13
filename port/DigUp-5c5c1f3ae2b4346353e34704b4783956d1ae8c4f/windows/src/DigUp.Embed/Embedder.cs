@@ -13,7 +13,6 @@ internal sealed class Embedder : IDisposable
 {
     internal static readonly int[] Budgets = [70, 140, 280, 560, 1120];
     private const int MaxSeqs = 16;
-    private const int Dim = 768;
 
     private IntPtr _model, _ctx, _media, _batch, _vocab;
     private int _dimOut, _rowSize, _maxTokens;
@@ -21,6 +20,7 @@ internal sealed class Embedder : IDisposable
     private bool _dead;
     private readonly object _gate = new();
 
+    public int Dim => _dimOut;
     public string Revision { get; } = "bfcd298762cc34d0357ece5ebdd31791a3a374d8";
     public bool TextOnly { get; }
     public double LoadSeconds { get; private set; }
@@ -77,7 +77,8 @@ internal sealed class Embedder : IDisposable
             cp.NThreads = cp.NThreadsBatch = Environment.ProcessorCount;
             cp.KvUnified = true;
             cp.Embeddings = true;
-            cp.PoolingType = 1; // MEAN
+            bool isLateModel = textPath.Contains("late", StringComparison.OrdinalIgnoreCase) || textPath.Contains("pplx", StringComparison.OrdinalIgnoreCase);
+            cp.PoolingType = isLateModel ? 0 : 1; // 0 = NONE (token-level), 1 = MEAN
             _ctx = Native.llama_init_from_model(_model, cp);
             if (_ctx == IntPtr.Zero) throw new InvalidOperationException("can't create a llama.cpp context");
 
@@ -108,8 +109,8 @@ internal sealed class Embedder : IDisposable
                 if (_batch == IntPtr.Zero) throw new InvalidOperationException("can't make a batch");
                 _vocab = Native.llama_model_get_vocab(_model);
                 _dimOut = Native.llama_model_n_embd_out(_model);
+                if (_dimOut <= 0) _dimOut = Native.llama_model_n_embd_inp(_model);
                 _rowSize = Native.llama_model_n_embd_inp(_model);
-                if (_dimOut != Dim) throw new InvalidOperationException($"model says dim {_dimOut}, want {Dim}");
                 // First calls build the GPU pipelines: pay now, while the panel opens.
                 EmbedTexts(["task: search result | query: warm up"]);
                 EmbedTexts(["task: search result | query: warm up"]);
@@ -301,9 +302,34 @@ internal sealed class Embedder : IDisposable
     private float[] RunOne(int seq)
     {
         IntPtr p = Native.llama_get_embeddings_seq(_ctx, seq);
-        if (p == IntPtr.Zero) throw new InvalidOperationException($"no pooled embedding for input {seq}");
         float[] v = new float[_dimOut];
-        Marshal.Copy(p, v, 0, _dimOut);
+        if (p != IntPtr.Zero)
+        {
+            Marshal.Copy(p, v, 0, _dimOut);
+        }
+        else
+        {
+            // For token-based / late-interaction models without pooled seq embeddings:
+            // mean-pool the token embeddings from llama_get_embeddings_ith
+            int tokenCount = 0;
+            for (int i = 0; i < _tokens; i++)
+            {
+                IntPtr tp = Native.llama_get_embeddings_ith(_ctx, i);
+                if (tp == IntPtr.Zero) continue;
+                float[] tv = new float[_dimOut];
+                Marshal.Copy(tp, tv, 0, _dimOut);
+                for (int d = 0; d < _dimOut; d++) v[d] += tv[d];
+                tokenCount++;
+            }
+            if (tokenCount > 0)
+            {
+                for (int d = 0; d < _dimOut; d++) v[d] /= tokenCount;
+            }
+            else
+            {
+                throw new InvalidOperationException($"no pooled embedding for input {seq}");
+            }
+        }
         double sum = 0;
         for (int i = 0; i < v.Length; i++) sum += (double)v[i] * v[i];
         float s = sum > 0 ? (float)(1 / Math.Sqrt(sum)) : 0;
