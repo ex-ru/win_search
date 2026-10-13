@@ -61,7 +61,7 @@ public partial class App : System.Windows.Application
         DispatcherUnhandledException += (_, ex) =>
         {
             ErrorLog.Write("ui: " + ex.Exception.Message);
-            ShowNote("Something went wrong (" + FirstLine(ex.Exception.Message) + "). DigUp keeps running.");
+            ShowNote("Что-то пошло не так (" + FirstLine(ex.Exception.Message) + "). WAI продолжает работу.");
             ex.Handled = true;
         };
         TaskScheduler.UnobservedTaskException += (_, ex) =>
@@ -137,7 +137,7 @@ public partial class App : System.Windows.Application
                 }
                 else
                 {
-                    _tray?.ShowBalloonTip(8000, "DigUp",
+                    _tray?.ShowBalloonTip(8000, AppConstants.AppName,
                         "Finish the one-time setup to start searching (tray menu → Open search).",
                         WinForms.ToolTipIcon.Info);
                 }
@@ -182,7 +182,7 @@ public partial class App : System.Windows.Application
     /// <summary>Loud note (tray balloon): errors the user must see.</summary>
     public void ShowNote(string text)
     {
-        _tray?.ShowBalloonTip(8000, "DigUp", text, WinForms.ToolTipIcon.Warning);
+        _tray?.ShowBalloonTip(8000, AppConstants.AppName, text, WinForms.ToolTipIcon.Warning);
     }
 
     private static string FirstLine(string s) => s.Split('\n')[0].Trim();
@@ -235,7 +235,7 @@ public partial class App : System.Windows.Application
     {
         _tray = new WinForms.NotifyIcon
         {
-            Text = "DigUp: поиск по смыслу файлов",
+            Text = $"{AppConstants.AppName}: {Loc.AppSubtitle}",
             Icon = AppIcon.Tray,
             Visible = true,
         };
@@ -255,7 +255,7 @@ public partial class App : System.Windows.Application
 
         // About menu section
         var aboutMenu = new WinForms.ToolStripMenuItem(Loc.About);
-        aboutMenu.DropDownItems.Add("Версия: v1.0.7", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        aboutMenu.DropDownItems.Add($"Версия: v{AppConstants.Version}", null, (_, _) => SettingsWindow.ShowAboutDialog());
         aboutMenu.DropDownItems.Add("GitHub: github.com/ex-ru/win_search", null, (_, _) =>
         {
             try
@@ -294,7 +294,7 @@ public partial class App : System.Windows.Application
 
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => TogglePanel();
-        _tray.BalloonTipTitle = "DigUp";
+        _tray.BalloonTipTitle = AppConstants.AppName;
         if (_settings?.SetupDone == true)
         {
             _tray.ShowBalloonTip(4000, Loc.TrayReadyTitle, Loc.TrayReadyText(_settings.Hotkey), WinForms.ToolTipIcon.Info);
@@ -346,10 +346,10 @@ public partial class App : System.Windows.Application
         _hotkey?.Dispose();
         _hotkey = new Hotkey();
         if (!_hotkey.Register(_settings.Hotkey))
-            _tray?.ShowBalloonTip(5000, "DigUp",
+            _tray?.ShowBalloonTip(5000, AppConstants.AppName,
                 $"Hotkey {_settings.Hotkey} is taken by another app. Change it in Settings.", WinForms.ToolTipIcon.Warning);
         else if (_settings.Hotkey.Contains("shift") && _settings.Hotkey.Contains("alt"))
-            _tray?.ShowBalloonTip(5000, "DigUp",
+            _tray?.ShowBalloonTip(5000, AppConstants.AppName,
                 "That hotkey uses Shift+Alt, which Windows also uses to switch input language. Ctrl+Alt+Space is safe.",
                 WinForms.ToolTipIcon.Warning);
         if (!_hotkeyHooked)

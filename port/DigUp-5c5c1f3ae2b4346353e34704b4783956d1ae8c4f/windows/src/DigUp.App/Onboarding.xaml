@@ -1,7 +1,7 @@
 <Window x:Class="DigUp.App.Onboarding"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="DigUp setup" Width="520" Height="440"
+        Title="WAI setup" Width="520" Height="440"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
   <DockPanel Margin="18">
     <TextBlock x:Name="Heading" DockPanel.Dock="Top" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" Text="Find your files by meaning" />
@@ -12,11 +12,11 @@
     </StackPanel>
     <Grid>
       <StackPanel x:Name="P0" Visibility="Visible">
-        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Text="Pick the folders to search. DigUp reads pictures, PDFs, documents, recordings and videos in them — on your PC only, nothing uploaded." />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Text="Pick the folders to search. WAI reads pictures, PDFs, documents, recordings and videos in them — on your PC only, nothing uploaded." />
         <TextBlock TextWrapping="Wrap" Foreground="Gray" Text="Then press Ctrl+Alt+Space anywhere and describe what you look for." />
       </StackPanel>
       <StackPanel x:Name="P1" Visibility="Collapsed">
-        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Text="Which folders should DigUp search?" />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Text="Which folders should WAI search?" />
         <ListBox x:Name="Folders" Height="150" Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal">
           <Button Content="Add…" Width="90" Margin="0,0,8,0" Click="OnAdd" />
@@ -34,7 +34,7 @@
         <TextBlock x:Name="DlStatus" Foreground="Gray" Text="waiting…" />
       </StackPanel>
       <StackPanel x:Name="P4" Visibility="Collapsed">
-        <TextBlock FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" Text="You're set. DigUp is reading your files in the background (tray icon, bottom right)." />
+        <TextBlock FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" Text="You're set. WAI is reading your files in the background (tray icon, bottom right)." />
         <TextBlock TextWrapping="Wrap" Foreground="Gray" Text="Press Ctrl+Alt+Space in any app and describe what you look for. Change anything later in tray menu → Settings." />
       </StackPanel>
     </Grid>

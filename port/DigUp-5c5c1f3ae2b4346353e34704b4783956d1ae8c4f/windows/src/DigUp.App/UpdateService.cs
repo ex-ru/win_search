@@ -72,7 +72,7 @@ internal sealed class UpdateService : IDisposable
                     throw new InvalidOperationException("The update folder contains a release for a different application.");
                 await manager.DownloadUpdatesAsync(update, cancelToken: check.Token);
                 check.Token.ThrowIfCancellationRequested();
-                _notify($"DigUp {update.TargetFullRelease.Version} is downloaded. Quit and open DigUp to apply it.");
+                _notify($"{AppConstants.AppName} {update.TargetFullRelease.Version} is downloaded. Quit and open {AppConstants.AppName} to apply it.");
             }
             _settings.LastUpdateCheck = DateTimeOffset.UtcNow;
             _settings.Save();

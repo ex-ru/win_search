@@ -28,6 +28,10 @@ public sealed class ResultItemViewModel
     public required System.Windows.Media.Brush BadgeBackground { get; init; }
     public required System.Windows.Media.Brush BadgeBorder { get; init; }
     public required System.Windows.Media.Brush BadgeForeground { get; init; }
+    public required string RelevancePercent { get; init; }
+    public required string RelevanceTooltip { get; init; }
+    public required System.Windows.Media.Brush RelevanceBackground { get; init; }
+    public required System.Windows.Media.Brush RelevanceForeground { get; init; }
 }
 
 public partial class MainWindow : Window
@@ -72,6 +76,12 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.Space) { TogglePreview(); e.Handled = true; }
         };
+        Activated += (_, _) => UpdateWidgetOpacity();
+        Deactivated += (_, _) =>
+        {
+            UpdateWidgetOpacity();
+            try { _settings.Save(); } catch { }
+        };
         Loaded += (_, _) => { AdjustCardSize(); FadeIn(); };
         SizeChanged += (_, _) => AdjustCardSize();
     }
@@ -89,8 +99,25 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        Width = _settings.WindowWidth;
         Topmost = _isPinned;
         ApplyWidgetAppearance();
+    }
+
+    private void OnResizeRightDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        double newWidth = Math.Clamp(Width + e.HorizontalChange, MinWidth, MaxWidth);
+        Width = newWidth;
+        _settings.WindowWidth = newWidth;
+    }
+
+    private void OnResizeLeftDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        double newWidth = Math.Clamp(Width - e.HorizontalChange, MinWidth, MaxWidth);
+        double delta = newWidth - Width;
+        Left -= delta;
+        Width = newWidth;
+        _settings.WindowWidth = newWidth;
     }
 
     /// <summary>Apply layout adjustments and appearance when search opens.</summary>
@@ -108,15 +135,24 @@ public partial class MainWindow : Window
     {
         try
         {
-            Root.BeginAnimation(OpacityProperty, null);
-            double opacity = Math.Clamp(_settings.WidgetOpacity, 0.1, 1.0);
-            Root.Opacity = opacity;
-
+            UpdateWidgetOpacity();
             WindowBlurHelper.SetBlur(this, _settings.WidgetBlur);
 
             // Theme application
             bool isDark = ThemeManager.IsDark(_settings.Theme);
             ApplyTheme(isDark);
+        }
+        catch { }
+    }
+
+    private void UpdateWidgetOpacity()
+    {
+        try
+        {
+            Root.BeginAnimation(OpacityProperty, null);
+            double baseOpacity = Math.Clamp(_settings.WidgetOpacity, 0.5, 1.0);
+            double targetOpacity = IsActive ? Math.Clamp(baseOpacity + 0.20, 0.5, 1.0) : baseOpacity;
+            Root.Opacity = targetOpacity;
         }
         catch { }
     }
@@ -127,8 +163,10 @@ public partial class MainWindow : Window
         {
             if (BtnOpen is not null) BtnOpen.Content = Loc.Open;
             if (BtnInExplorer is not null) BtnInExplorer.Content = Loc.InExplorer;
-            if (BtnOpenWith is not null) BtnOpenWith.Content = Loc.IsRu ? "Выбрать программу…" : "Open with…";
+            if (BtnOpenWith is not null) BtnOpenWith.Content = Loc.OpenWith;
             if (BtnCopyPath is not null) BtnCopyPath.Content = Loc.CopyPath;
+            if (MascotSubtitle is not null) MascotSubtitle.Text = Loc.MascotSubtitle;
+            UpdateFilterCounts();
         }
         catch { }
     }
@@ -146,6 +184,39 @@ public partial class MainWindow : Window
                 Query.Foreground = Brushes.White;
                 Query.CaretBrush = Brushes.White;
                 Status.Foreground = (Brush)bc.ConvertFrom("#888888")!;
+
+                // Mascot & Logo
+                if (MascotBadge is not null)
+                {
+                    MascotBadge.Background = (Brush)bc.ConvertFrom("#1C384E")!;
+                    MascotBadge.BorderBrush = (Brush)bc.ConvertFrom("#256B9E")!;
+                }
+                if (MascotText is not null) MascotText.Foreground = (Brush)bc.ConvertFrom("#80D8FF")!;
+                if (MascotSubtitle is not null) MascotSubtitle.Foreground = (Brush)bc.ConvertFrom("#777777")!;
+
+                // Clear button
+                if (ClearButton is not null)
+                {
+                    ClearButton.Background = (Brush)bc.ConvertFrom("#444444")!;
+                    ClearButton.Foreground = (Brush)bc.ConvertFrom("#AAAAAA")!;
+                }
+
+                // Window Header buttons
+                var headerBtnBg = (Brush)bc.ConvertFrom("#383838")!;
+                if (BtnPin is not null) { BtnPin.Background = headerBtnBg; BtnPin.Foreground = Brushes.White; }
+                if (BtnMin is not null) { BtnMin.Background = headerBtnBg; BtnMin.Foreground = Brushes.White; }
+                if (BtnClose is not null) { BtnClose.Background = headerBtnBg; BtnClose.Foreground = Brushes.White; }
+
+                // Preview container & action buttons
+                if (PreviewImageBorder is not null) PreviewImageBorder.Background = (Brush)bc.ConvertFrom("#202020")!;
+                var actionBtnBg = (Brush)bc.ConvertFrom("#353535")!;
+                var actionBtnFg = Brushes.White;
+                var actionBtnBorder = (Brush)bc.ConvertFrom("#444444")!;
+                SetActionButtonStyle(BtnQuickLook, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnOpen, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnInExplorer, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnOpenWith, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnCopyPath, actionBtnBg, actionBtnFg, actionBtnBorder);
 
                 Resources["ResultTitleBrush"] = Brushes.White;
                 Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#AAAAAA")!;
@@ -165,6 +236,40 @@ public partial class MainWindow : Window
                 Query.CaretBrush = (Brush)bc.ConvertFrom("#0F172A")!;
                 Status.Foreground = (Brush)bc.ConvertFrom("#475569")!;
 
+                // Mascot & Logo (light blue badge with dark accent)
+                if (MascotBadge is not null)
+                {
+                    MascotBadge.Background = (Brush)bc.ConvertFrom("#E0F2FE")!;
+                    MascotBadge.BorderBrush = (Brush)bc.ConvertFrom("#7DD3FC")!;
+                }
+                if (MascotText is not null) MascotText.Foreground = (Brush)bc.ConvertFrom("#0284C7")!;
+                if (MascotSubtitle is not null) MascotSubtitle.Foreground = (Brush)bc.ConvertFrom("#64748B")!;
+
+                // Clear button
+                if (ClearButton is not null)
+                {
+                    ClearButton.Background = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                    ClearButton.Foreground = (Brush)bc.ConvertFrom("#475569")!;
+                }
+
+                // Window Header buttons
+                var headerBtnBg = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                var headerBtnFg = (Brush)bc.ConvertFrom("#1E293B")!;
+                if (BtnPin is not null) { BtnPin.Background = headerBtnBg; BtnPin.Foreground = headerBtnFg; }
+                if (BtnMin is not null) { BtnMin.Background = headerBtnBg; BtnMin.Foreground = headerBtnFg; }
+                if (BtnClose is not null) { BtnClose.Background = headerBtnBg; BtnClose.Foreground = headerBtnFg; }
+
+                // Preview container & action buttons
+                if (PreviewImageBorder is not null) PreviewImageBorder.Background = (Brush)bc.ConvertFrom("#F1F5F9")!;
+                var actionBtnBg = (Brush)bc.ConvertFrom("#F1F5F9")!;
+                var actionBtnFg = (Brush)bc.ConvertFrom("#0F172A")!;
+                var actionBtnBorder = (Brush)bc.ConvertFrom("#CBD5E1")!;
+                SetActionButtonStyle(BtnQuickLook, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnOpen, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnInExplorer, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnOpenWith, actionBtnBg, actionBtnFg, actionBtnBorder);
+                SetActionButtonStyle(BtnCopyPath, actionBtnBg, actionBtnFg, actionBtnBorder);
+
                 Resources["ResultTitleBrush"] = (Brush)bc.ConvertFrom("#0F172A")!;
                 Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#475569")!;
                 Resources["ResultBodyBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
@@ -176,6 +281,14 @@ public partial class MainWindow : Window
             }
         }
         catch { }
+    }
+
+    private static void SetActionButtonStyle(Button? btn, Brush bg, Brush fg, Brush border)
+    {
+        if (btn is null) return;
+        btn.Background = bg;
+        btn.Foreground = fg;
+        btn.BorderBrush = border;
     }
 
     private void FadeIn()
@@ -293,12 +406,12 @@ public partial class MainWindow : Window
         int codeCount = _allHits.Count(x => x.BadgeText == "CODE");
         int mediaCount = _allHits.Count(x => x.BadgeText is "ВИДЕО" or "АУДИО");
 
-        FilterAll.Content = allCount > 0 ? $"Все ({allCount})" : "Все";
-        FilterPdf.Content = pdfCount > 0 ? $"📄 PDF ({pdfCount})" : "📄 PDF";
-        FilterImg.Content = imgCount > 0 ? $"🖼️ Картинки ({imgCount})" : "🖼️ Картинки";
-        FilterDoc.Content = docCount > 0 ? $"📝 Текст / Док ({docCount})" : "📝 Текст / Док";
-        FilterCode.Content = codeCount > 0 ? $"💻 Код ({codeCount})" : "💻 Код";
-        FilterMedia.Content = mediaCount > 0 ? $"🎬 Медиа ({mediaCount})" : "🎬 Медиа";
+        FilterAll.Content = allCount > 0 ? $"{Loc.FilterAll} ({allCount})" : Loc.FilterAll;
+        FilterPdf.Content = pdfCount > 0 ? $"{Loc.FilterPdf} ({pdfCount})" : Loc.FilterPdf;
+        FilterImg.Content = imgCount > 0 ? $"{Loc.FilterImg} ({imgCount})" : Loc.FilterImg;
+        FilterDoc.Content = docCount > 0 ? $"{Loc.FilterDoc} ({docCount})" : Loc.FilterDoc;
+        FilterCode.Content = codeCount > 0 ? $"{Loc.FilterCode} ({codeCount})" : Loc.FilterCode;
+        FilterMedia.Content = mediaCount > 0 ? $"{Loc.FilterMedia} ({mediaCount})" : Loc.FilterMedia;
     }
 
     // The query box never waits: each keystroke starts a background search,
@@ -422,6 +535,17 @@ public partial class MainWindow : Window
         borderBrush.Freeze();
         fgBrush.Freeze();
 
+        int scorePct = Math.Clamp((int)Math.Round(h.Score * 100), 1, 99);
+        string relPercent = $"{scorePct}%";
+        string relTooltip = $"Точность совпадения: {scorePct}% (score: {h.Score:F3})";
+        string relBgHex = scorePct >= 75 ? "#1B3D2F" : (scorePct >= 50 ? "#1C3B4E" : "#2D3748");
+        string relFgHex = scorePct >= 75 ? "#4ADE80" : (scorePct >= 50 ? "#67E8F9" : "#94A3B8");
+
+        var relBgBrush = (SolidColorBrush)(bc.ConvertFrom(relBgHex) ?? Brushes.DarkSlateGray);
+        var relFgBrush = (SolidColorBrush)(bc.ConvertFrom(relFgHex) ?? Brushes.LightGray);
+        relBgBrush.Freeze();
+        relFgBrush.Freeze();
+
         return new ResultItemViewModel
         {
             Hit = h,
@@ -430,7 +554,11 @@ public partial class MainWindow : Window
             BadgeText = badgeText,
             BadgeBackground = bgBrush,
             BadgeBorder = borderBrush,
-            BadgeForeground = fgBrush
+            BadgeForeground = fgBrush,
+            RelevancePercent = relPercent,
+            RelevanceTooltip = relTooltip,
+            RelevanceBackground = relBgBrush,
+            RelevanceForeground = relFgBrush
         };
     }
 

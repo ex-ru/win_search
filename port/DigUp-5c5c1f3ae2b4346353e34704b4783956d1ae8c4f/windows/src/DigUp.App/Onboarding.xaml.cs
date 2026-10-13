@@ -46,7 +46,7 @@ public partial class Onboarding : Window
     {
         if (_step == 1 && _settings.Folders.Count == 0)
         {
-            System.Windows.MessageBox.Show(this, "Pick at least one folder first.", "DigUp setup",
+            System.Windows.MessageBox.Show(this, "Pick at least one folder first.", $"{AppConstants.AppName} setup",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             return;
         }
@@ -64,7 +64,7 @@ public partial class Onboarding : Window
 
     private void OnAdd(object sender, RoutedEventArgs e)
     {
-        using var dlg = new FolderBrowserDialog { Description = "Pick a folder for DigUp to search" };
+        using var dlg = new FolderBrowserDialog { Description = $"Pick a folder for {AppConstants.AppName} to search" };
         if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK &&
             !_settings.Folders.Contains(dlg.SelectedPath, StringComparer.OrdinalIgnoreCase))
         {

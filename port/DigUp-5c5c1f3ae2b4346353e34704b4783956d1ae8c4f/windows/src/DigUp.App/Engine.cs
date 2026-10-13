@@ -18,6 +18,7 @@ public sealed class Engine : IDisposable
     private Searcher? _searcher;
     private IndexStore? _codeStore;
     private Searcher? _codeSearcher;
+    private string? _activeStoreModel;
     private CancellationTokenSource? _run;
     private int _wanted; // indexing requested while one is running
     private bool _paused;
@@ -135,13 +136,20 @@ public sealed class Engine : IDisposable
     {
         try
         {
-            string dbPath = Path.Combine(Settings.IndexDir, IndexStore.MainFile);
+            string dbPath = Path.Combine(Settings.IndexDir, GetMainIndexFileName());
             return IndexStore.SizeOf(dbPath);
         }
         catch { return 0; }
     }
 
-    public bool ModelsReady => ModelFiles.Missing(ModelFiles.InstalledDirectory).Count == 0;
+    public bool ModelsReady
+    {
+        get
+        {
+            var def = ModelCatalog.Get(_settings.EmbeddingModel);
+            return def.IsDownloaded(ModelFiles.InstalledDirectory);
+        }
+    }
 
     public void RequestIndex() => Task.Run(() => IndexPass());
 
@@ -159,7 +167,8 @@ public sealed class Engine : IDisposable
             if (_settings.Folders.Count == 0) { Say("pick folders to search (tray menu → Settings)."); return; }
             if (!ModelsReady)
             {
-                Say("getting the model… (once, 865 MB)");
+                var def = ModelCatalog.Get(_settings.EmbeddingModel);
+                Say($"загрузка модели {def.Name}…");
                 EnsureModelsAsync(null, _run.Token).GetAwaiter().GetResult();
             }
             OpenStores();
@@ -216,27 +225,57 @@ public sealed class Engine : IDisposable
     public async Task EnsureModelsAsync(IProgress<(string File, double Frac)>? progress, CancellationToken ct)
     {
         string dir = ModelFiles.InstalledDirectory;
-        foreach (var file in ModelFiles.Missing(dir))
+        Directory.CreateDirectory(dir);
+        var def = ModelCatalog.Get(_settings.EmbeddingModel);
+
+        if (def.Id == "gemma2")
         {
-            ct.ThrowIfCancellationRequested();
-            Say($"getting {file.Name}…");
-            string? cached = ModelFiles.CachedCopy(file);
-            if (cached is not null)
+            foreach (var file in ModelFiles.Missing(dir))
             {
-                File.Copy(cached, Path.Combine(dir, file.Name));
-                if (ModelFiles.Sha256Of(Path.Combine(dir, file.Name)) != file.Sha256)
+                ct.ThrowIfCancellationRequested();
+                Say($"Загрузка {file.Name}…");
+                string? cached = ModelFiles.CachedCopy(file);
+                if (cached is not null)
                 {
-                    File.Delete(Path.Combine(dir, file.Name));
-                    throw new InvalidOperationException($"{file.Name} in the cache is broken; delete it and try again.");
+                    File.Copy(cached, Path.Combine(dir, file.Name));
+                    if (ModelFiles.Sha256Of(Path.Combine(dir, file.Name)) != file.Sha256)
+                    {
+                        File.Delete(Path.Combine(dir, file.Name));
+                        throw new InvalidOperationException($"{file.Name} in the cache is broken; delete it and try again.");
+                    }
+                    progress?.Report((file.Name, 1));
+                    continue;
                 }
-                progress?.Report((file.Name, 1));
-                continue;
+                var one = new Progress<double>(f => {
+                    progress?.Report((file.Name, f));
+                    Say($"Загрузка {file.Name}: {(int)(f * 100)}%");
+                });
+                try { await ModelFiles.DownloadAsync(file, dir, one, ct).ConfigureAwait(false); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    throw new InvalidOperationException($"couldn't download {file.Name} ({FirstLine(ex.Message)}). Check the net and try again.");
+                }
             }
-            var one = new Progress<double>(f => progress?.Report((file.Name, f)));
-            try { await ModelFiles.DownloadAsync(file, dir, one, ct).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+        }
+        else
+        {
+            string targetPath = Path.Combine(dir, def.TextFile);
+            if (!File.Exists(targetPath))
             {
-                throw new InvalidOperationException($"couldn't download {file.Name} ({FirstLine(ex.Message)}). Check the net and try again.");
+                ct.ThrowIfCancellationRequested();
+                Say($"Загрузка {def.Name}…");
+                var one = new Progress<double>(f => {
+                    progress?.Report((def.TextFile, f));
+                    Say($"Загрузка {def.Name}: {(int)(f * 100)}%");
+                });
+                try
+                {
+                    await ModelFiles.DownloadFileFromUrlAsync(def.DownloadUrl, dir, def.TextFile, def.EstimatedBytes, one, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    throw new InvalidOperationException($"couldn't download {def.TextFile} ({FirstLine(ex.Message)}). Check the net and try again.");
+                }
             }
         }
     }
@@ -292,15 +331,52 @@ public sealed class Engine : IDisposable
 
     private void Say(string s) { Status = s; Changed?.Invoke(); }
 
+    public string GetMainIndexFileName(string? model = null)
+    {
+        model ??= _settings.EmbeddingModel;
+        return model switch
+        {
+            "gemma2" => IndexStore.MainFile,
+            _ => $"index_{model}.db"
+        };
+    }
+
+    public string GetCodeIndexFileName(string? model = null)
+    {
+        model ??= _settings.EmbeddingModel;
+        return model switch
+        {
+            "gemma2" => IndexStore.CodeFile,
+            _ => $"code_{model}.db"
+        };
+    }
+
     private void OpenStores()
     {
+        string currentModel = _settings.EmbeddingModel;
+        if (_activeStoreModel != null && !string.Equals(_activeStoreModel, currentModel, StringComparison.OrdinalIgnoreCase))
+        {
+            lock (_searchGate)
+            {
+                _searcher?.Dispose(); _searcher = null;
+                _codeSearcher?.Dispose(); _codeSearcher = null;
+            }
+            _store?.Dispose(); _store = null;
+            _codeStore?.Dispose(); _codeStore = null;
+            DropQueryWorker();
+        }
+
+        _activeStoreModel = currentModel;
+        string mainFile = GetMainIndexFileName(currentModel);
+        string codeFile = GetCodeIndexFileName(currentModel);
+
         if (_store is null)
         {
             Directory.CreateDirectory(Settings.IndexDir);
-            _store = OpenIndex(Settings.IndexDir, IndexStore.MainFile);
+            _store = OpenIndex(Settings.IndexDir, mainFile);
         }
         if (_settings.Code && _codeStore is null)
-            _codeStore = OpenIndex(Settings.IndexDir, IndexStore.CodeFile);
+            _codeStore = OpenIndex(Settings.IndexDir, codeFile);
         if (!_settings.Code && _codeStore is not null)
         {
             lock (_searchGate)

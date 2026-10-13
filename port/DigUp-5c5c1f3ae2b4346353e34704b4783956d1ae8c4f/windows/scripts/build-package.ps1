@@ -1,4 +1,4 @@
-# Build and package DigUp for Windows (Velopack Setup.exe + Portable zip)
+# Build and package WAI (Windows AI Search) for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
     [string]$Version = "1.1.0",
@@ -85,7 +85,7 @@ if (!(Test-Path -LiteralPath $NuGetConfig -PathType Leaf)) {
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " Building DigUp Windows Distribution v$Version" -ForegroundColor Cyan
+Write-Host " Building WAI (Windows AI Search) Windows Distribution v$Version" -ForegroundColor Cyan
 Write-Host " Output: $OutputDir" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
@@ -287,8 +287,8 @@ $VpkArgs = @(
     "--packId", "WinSearch.DigUp",
     "--packVersion", $Version,
     "--runtime", "win-x64",
-    "--packTitle", "DigUp",
-    "--packAuthors", "DigUp Contributors",
+    "--packTitle", "WAI (Windows AI Search)",
+    "--packAuthors", "WAI Contributors",
     "--packDir", $StagingDir,
     "--mainExe", "DigUpApp.exe",
     "--outputDir", $ReleasesDir,

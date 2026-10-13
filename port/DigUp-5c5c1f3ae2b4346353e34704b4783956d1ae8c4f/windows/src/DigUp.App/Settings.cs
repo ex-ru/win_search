@@ -18,15 +18,22 @@ public sealed class Settings
     public double Dim { get; set; } = 0.35;
     /// <summary>Blur the screen behind search (Windows acrylic).</summary>
     public bool Blur { get; set; } = true;
-    /// <summary>Opacity of search widget: 0.6..1.0.</summary>
-    public double WidgetOpacity { get; set; } = 1.0;
+    private double _widgetOpacity = 1.0;
+    /// <summary>Opacity of search widget: 0.5..1.0.</summary>
+    public double WidgetOpacity
+    {
+        get => Math.Clamp(_widgetOpacity, 0.5, 1.0);
+        set => _widgetOpacity = Math.Clamp(value, 0.5, 1.0);
+    }
+    /// <summary>Width of the search window (remembered between sessions), 580..1400.</summary>
+    public double WindowWidth { get; set; } = 720;
     /// <summary>Acrylic / blur effect behind search widget.</summary>
     public bool WidgetBlur { get; set; } = false;
     /// <summary>Interface theme: "system", "dark", or "light".</summary>
     public string Theme { get; set; } = "system";
     public bool Code { get; set; }
     public bool CheckUpdates { get; set; } = true;
-    public string UpdateSource { get; set; } = Environment.GetEnvironmentVariable("DIGUP_UPDATE_SOURCE") ?? "";
+    public string UpdateSource { get; set; } = Environment.GetEnvironmentVariable("DIGUP_UPDATE_SOURCE") ?? AppConstants.DefaultUpdateSource;
     public DateTimeOffset? LastUpdateCheck { get; set; }
     public string Editor { get; set; } = "auto";
     /// <summary>Hardware acceleration mode: "auto", "gpu_ext", "gpu_int", "cpu".</summary>
@@ -63,6 +70,10 @@ public sealed class Settings
                 // Migrate to new default Ctrl+Space if old default was present
                 if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
                     s.Hotkey = "ctrl+space";
+                if (string.IsNullOrWhiteSpace(s.UpdateSource))
+                    s.UpdateSource = AppConstants.DefaultUpdateSource;
+                if (s.WindowWidth < 580)
+                    s.WindowWidth = 720;
                 return s;
             }
         }
@@ -92,7 +103,7 @@ public sealed class Settings
             try
             {
                 using var run = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-                return run?.GetValue("DigUp") is not null;
+                return run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("DigUp") is not null;
             }
             catch { return false; }
         }
@@ -103,9 +114,15 @@ public sealed class Settings
                 using var run = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
                 if (run is null) return;
                 if (value)
-                    run.SetValue("DigUp", "\"" + Environment.ProcessPath + "\"");
+                {
+                    run.SetValue(AppConstants.AppName, "\"" + Environment.ProcessPath + "\"");
+                    try { run.DeleteValue("DigUp", false); } catch { }
+                }
                 else
-                    run.DeleteValue("DigUp", false);
+                {
+                    try { run.DeleteValue(AppConstants.AppName, false); } catch { }
+                    try { run.DeleteValue("DigUp", false); } catch { }
+                }
             }
             catch { }
         }

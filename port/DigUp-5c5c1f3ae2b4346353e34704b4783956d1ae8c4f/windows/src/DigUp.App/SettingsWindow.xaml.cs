@@ -37,7 +37,7 @@ public partial class SettingsWindow : Window
         Editor.ItemsSource = Settings.Editors;
         Editor.SelectedItem = Settings.Editors.Contains(settings.Editor) ? settings.Editor : "auto";
 
-        SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 10, 100);
+        SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 50, 100);
         TxtOpacityValue.Text = $"{(int)SliderOpacity.Value}%";
         ChkWidgetBlur.IsChecked = _settings.WidgetBlur;
 
@@ -49,13 +49,16 @@ public partial class SettingsWindow : Window
             _ => 0
         };
 
+        TextAppVersion.Text = $"v{AppConstants.Version} Windows";
         UpdateLanguageToggleButtons(_settings.Language);
+        UpdateTextsForLanguage();
+        ApplyTheme(ThemeManager.IsDark(_settings.Theme));
         UpdateFolderStats();
         InitModelOptions();
         InitHardwareOptions();
 
         Updates.IsChecked = settings.CheckUpdates;
-        UpdateSource.Text = settings.UpdateSource;
+        UpdateSource.Text = string.IsNullOrWhiteSpace(settings.UpdateSource) ? AppConstants.DefaultUpdateSource : settings.UpdateSource;
         Startup.IsChecked = settings.StartWithWindows;
     }
 
@@ -167,17 +170,17 @@ public partial class SettingsWindow : Window
     public static void ShowAboutDialog(Window? owner = null)
     {
         string message =
-            "DigUp — Windows Port\n" +
-            "Версия: 1.0.7\n\n" +
+            $"{AppConstants.AppFullName}\n" +
+            $"Версия: {AppConstants.Version}\n\n" +
             "Быстрый локальный семантический и лексический поиск по файлам,\n" +
             "документам, коду и изображениям с поддержкой RAG и MCP.\n\n" +
-            "Репозиторий GitHub:\nhttps://github.com/ex-ru/win_search\n\n" +
+            $"Репозиторий GitHub:\n{AppConstants.RepoUrl}\n\n" +
             "Лицензия: MIT License\n\n" +
             "Открыть страницу проекта на GitHub?";
 
         var res = owner is not null
-            ? MessageBox.Show(owner, message, "О программе DigUp", MessageBoxButton.YesNo, MessageBoxImage.Information)
-            : MessageBox.Show(message, "О программе DigUp", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            ? MessageBox.Show(owner, message, $"О программе {AppConstants.AppName}", MessageBoxButton.YesNo, MessageBoxImage.Information)
+            : MessageBox.Show(message, $"О программе {AppConstants.AppName}", MessageBoxButton.YesNo, MessageBoxImage.Information);
 
         if (res == MessageBoxResult.Yes)
         {
@@ -285,11 +288,48 @@ public partial class SettingsWindow : Window
 
     private void UpdateTextsForLanguage()
     {
-        bool isRu = Loc.IsRu;
-        Title = isRu ? "DigUp — Настройки" : "DigUp — Settings";
-        if (BtnApply is not null) BtnApply.Content = isRu ? "Применить" : "Apply";
-        if (BtnCancel is not null) BtnCancel.Content = isRu ? "Отмена" : "Cancel";
-        if (BtnSave is not null) BtnSave.Content = isRu ? "Сохранить" : "Save";
+        Title = Loc.SettingsTitle;
+        if (TxtHeaderTitle is not null) TxtHeaderTitle.Text = Loc.SettingsHeader;
+        if (TxtBannerDesc is not null) TxtBannerDesc.Text = Loc.BannerInitialIndex;
+        if (TxtFoldersTitle is not null) TxtFoldersTitle.Text = Loc.FoldersTitle;
+        if (TxtFoldersDesc is not null) TxtFoldersDesc.Text = Loc.FoldersDesc;
+        if (BtnAddFolder is not null) BtnAddFolder.Content = Loc.AddFolder;
+        if (BtnRemoveFolder is not null) BtnRemoveFolder.Content = Loc.RemoveFolder;
+        if (TxtStatsHeader is not null) TxtStatsHeader.Text = Loc.StatsHeader;
+        if (TxtVectorsTitle is not null) TxtVectorsTitle.Text = Loc.VectorsTitle;
+        if (TxtVectorsDesc is not null) TxtVectorsDesc.Text = Loc.VectorsDesc;
+        if (BtnClearFolderVectors is not null) BtnClearFolderVectors.Content = Loc.ClearFolderVectors;
+        if (BtnClearAllVectors is not null) BtnClearAllVectors.Content = Loc.ClearAllVectors;
+        if (TxtVectorsNote is not null) TxtVectorsNote.Text = Loc.VectorsNote;
+        if (TxtModelTitle is not null) TxtModelTitle.Text = Loc.ModelTitle;
+        if (TxtModelDesc is not null) TxtModelDesc.Text = Loc.ModelDesc;
+        if (TxtModelActiveLabel is not null) TxtModelActiveLabel.Text = Loc.ModelActiveLabel;
+        if (TxtModelStatusHeader is not null) TxtModelStatusHeader.Text = Loc.ModelStatusHeader;
+        if (TxtModelNote is not null) TxtModelNote.Text = Loc.ModelNote;
+        if (TxtHwTitle is not null) TxtHwTitle.Text = Loc.HwTitle;
+        if (TxtHwDesc is not null) TxtHwDesc.Text = Loc.HwDesc;
+        if (TxtHwDeviceLabel is not null) TxtHwDeviceLabel.Text = Loc.HwDeviceLabel;
+        if (TxtHwStatusHeader is not null) TxtHwStatusHeader.Text = Loc.HwStatusHeader;
+        if (TxtHwNote is not null) TxtHwNote.Text = Loc.HwNote;
+        if (TxtAppearanceTitle is not null) TxtAppearanceTitle.Text = Loc.AppearanceTitle;
+        if (TxtAppearanceDesc is not null) TxtAppearanceDesc.Text = Loc.AppearanceDesc;
+        if (TxtOpacityLabel is not null) TxtOpacityLabel.Text = Loc.OpacityLabel;
+        if (ChkWidgetBlur is not null) ChkWidgetBlur.Content = Loc.WidgetBlur;
+        if (TxtThemeLabel is not null) TxtThemeLabel.Text = Loc.ThemeLabel;
+        if (TxtHotkeyTitle is not null) TxtHotkeyTitle.Text = Loc.HotkeyTitle;
+        if (TxtHotkeyDesc is not null) TxtHotkeyDesc.Text = Loc.HotkeyDesc;
+        if (TxtCodeTitle is not null) TxtCodeTitle.Text = Loc.CodeTitle;
+        if (Code is not null) Code.Content = Loc.CodeIndexCheck;
+        if (TxtCodeEditorLabel is not null) TxtCodeEditorLabel.Text = Loc.CodeEditorLabel;
+        if (TxtSystemTitle is not null) TxtSystemTitle.Text = Loc.SystemTitle;
+        if (Startup is not null) Startup.Content = Loc.StartupCheck;
+        if (Updates is not null) Updates.Content = Loc.UpdatesCheck;
+        if (TxtUpdateSourceLabel is not null) TxtUpdateSourceLabel.Text = Loc.UpdateSourceLabel;
+        if (TxtSystemNote is not null) TxtSystemNote.Text = Loc.SystemNote;
+        if (BtnAbout is not null) BtnAbout.Content = Loc.About;
+        if (BtnApply is not null) BtnApply.Content = Loc.Apply;
+        if (BtnCancel is not null) BtnCancel.Content = Loc.Cancel;
+        if (BtnSave is not null) BtnSave.Content = Loc.Save;
     }
 
     private void UpdateLanguageToggleButtons(string lang)
@@ -312,7 +352,7 @@ public partial class SettingsWindow : Window
 
     private void OnCancel(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        try { DialogResult = false; } catch { }
         Close();
     }
 
@@ -379,6 +419,37 @@ public partial class SettingsWindow : Window
         if (ComboEmbeddingModel.SelectedItem is EmbeddingModelDef model)
         {
             UpdateModelStatus(model);
+            if (!string.Equals(model.Id, _settings.EmbeddingModel, StringComparison.OrdinalIgnoreCase))
+            {
+                string title = Loc.IsRu ? "Смена модели эмбеддингов" : "Switch Embedding Model";
+                string dbName = _engine?.GetMainIndexFileName(model.Id) ?? $"index_{model.Id}.db";
+                string msg = Loc.IsRu
+                    ? $"Смена модели переключит векторный поиск на '{model.Name}'.\n\n" +
+                      $"• Для этой модели будет использоваться отдельная изолированная база ('{dbName}').\n" +
+                      $"• Все существующие индексы и векторы для предыдущей модели сохранятся и не будут удалены.\n" +
+                      $"• Если веса модели ещё не загружены, начнётся их автоматическая загрузка с отображением прогресса.\n\n" +
+                      $"Переключить модель на {model.Name}?"
+                    : $"Changing the model will switch vector search to '{model.Name}'.\n\n" +
+                      $"• An isolated index database ('{dbName}') will be used for this model.\n" +
+                      $"• Existing indices for previous models will be preserved without loss.\n" +
+                      $"• If model weights are missing, download will start automatically with progress.\n\n" +
+                      $"Switch active model to {model.Name}?";
+
+                var res = MessageBox.Show(this, msg, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (res != MessageBoxResult.Yes)
+                {
+                    ComboEmbeddingModel.SelectionChanged -= OnModelSelectionChanged;
+                    var prev = (ComboEmbeddingModel.ItemsSource as IEnumerable<EmbeddingModelDef>)?
+                        .FirstOrDefault(m => string.Equals(m.Id, _settings.EmbeddingModel, StringComparison.OrdinalIgnoreCase));
+                    if (prev is not null)
+                    {
+                        ComboEmbeddingModel.SelectedItem = prev;
+                        UpdateModelStatus(prev);
+                    }
+                    ComboEmbeddingModel.SelectionChanged += OnModelSelectionChanged;
+                    return;
+                }
+            }
         }
     }
 
@@ -443,6 +514,7 @@ public partial class SettingsWindow : Window
     {
         ApplyCurrentSettings();
         _onApplyCallback?.Invoke();
+        ApplyTheme(ThemeManager.IsDark(_settings.Theme));
         if (_mainWindow is not null)
         {
             _mainWindow.ApplyLook();
@@ -459,7 +531,26 @@ public partial class SettingsWindow : Window
             _mainWindow.ApplyLook();
             _mainWindow.UpdateLocalization();
         }
-        DialogResult = true;
+        try { DialogResult = true; } catch { }
         Close();
+    }
+
+    private void ApplyTheme(bool isDark)
+    {
+        try
+        {
+            var bc = new System.Windows.Media.BrushConverter();
+            if (isDark)
+            {
+                Background = (System.Windows.Media.Brush)bc.ConvertFrom("#1E1E1E")!;
+                Foreground = System.Windows.Media.Brushes.White;
+            }
+            else
+            {
+                Background = (System.Windows.Media.Brush)bc.ConvertFrom("#F8F9FA")!;
+                Foreground = (System.Windows.Media.Brush)bc.ConvertFrom("#0F172A")!;
+            }
+        }
+        catch { }
     }
 }

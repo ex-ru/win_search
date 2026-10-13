@@ -166,4 +166,74 @@ public static class ModelFiles
         File.Move(part, dest, overwrite: false);
         progress?.Report(1);
     }
+
+    /// <summary>Downloads any model file from a URL into target directory with resume support.</summary>
+    public static async Task DownloadFileFromUrlAsync(
+        string url,
+        string folder,
+        string fileName,
+        long expectedBytes,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        Directory.CreateDirectory(folder);
+        string dest = Path.Combine(folder, fileName);
+        if (File.Exists(dest))
+        {
+            progress?.Report(1);
+            return;
+        }
+
+        string part = dest + ".part";
+        long have = 0;
+        if (File.Exists(part))
+        {
+            have = new FileInfo(part).Length;
+            if (expectedBytes > 0 && have > expectedBytes)
+            {
+                File.Delete(part);
+                have = 0;
+            }
+        }
+
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("WAI/1.1");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (have > 0)
+            request.Headers.Range = new RangeHeaderValue(have, null);
+
+        using var response = await client
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        bool resumed = have > 0 && response.StatusCode == HttpStatusCode.PartialContent;
+        if (!resumed)
+            have = 0;
+
+        long total = response.Content.Headers.ContentLength ?? expectedBytes;
+        if (resumed && response.Content.Headers.ContentRange?.Length is long crLen)
+            total = crLen;
+
+        using var network = await response.Content
+            .ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var output = new FileStream(part, resumed ? FileMode.Append : FileMode.Create,
+            FileAccess.Write, FileShare.None, 1 << 17, useAsync: true);
+
+        var buffer = new byte[1 << 17];
+        int read;
+        while ((read = await network.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            have += read;
+            if (total > 0)
+                progress?.Report(Math.Clamp((double)have / total, 0.0, 1.0));
+        }
+        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+        output.Close();
+
+        File.Move(part, dest, overwrite: true);
+        progress?.Report(1);
+    }
 }
+
