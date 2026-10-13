@@ -24,8 +24,10 @@ internal sealed class Embedder : IDisposable
     public string Revision { get; } = "bfcd298762cc34d0357ece5ebdd31791a3a374d8";
     public bool TextOnly { get; }
     public double LoadSeconds { get; private set; }
+    public string ActiveBackend { get; private set; } = "cpu";
+    public string ActiveDevice { get; private set; } = "CPU";
 
-    public Embedder(string textPath, string? mediaPath, bool textOnly)
+    public Embedder(string textPath, string? mediaPath, bool textOnly, bool forceCpu = false)
     {
         TextOnly = textOnly;
         var started = DateTime.UtcNow;
@@ -36,10 +38,34 @@ internal sealed class Embedder : IDisposable
         if (!textOnly && mediaPath is null)
             throw new InvalidOperationException("mmproj file (images and audio) isn't downloaded yet");
 
+        bool useGpu = !forceCpu;
         var mp = Native.llama_model_default_params();
-        mp.NGpuLayers = 999;
-        _model = Native.llama_model_load_from_file(textPath, mp);
+        mp.NGpuLayers = useGpu ? 999 : 0;
+
+        try
+        {
+            _model = Native.llama_model_load_from_file(textPath, mp);
+        }
+        catch (Exception ex) when (useGpu)
+        {
+            Console.Error.WriteLine($"[digup-embed] GPU model loading failed ({ex.Message}), falling back to CPU mode...");
+            useGpu = false;
+            mp.NGpuLayers = 0;
+            _model = Native.llama_model_load_from_file(textPath, mp);
+        }
+
+        if (_model == IntPtr.Zero && useGpu)
+        {
+            Console.Error.WriteLine("[digup-embed] GPU model handle is null, falling back to CPU mode...");
+            useGpu = false;
+            mp.NGpuLayers = 0;
+            _model = Native.llama_model_load_from_file(textPath, mp);
+        }
+
         if (_model == IntPtr.Zero) throw new InvalidOperationException($"can't load {textPath}");
+
+        ActiveBackend = useGpu ? "gpu" : "cpu";
+        ActiveDevice = useGpu ? "GPU" : "CPU";
 
         try
         {
@@ -60,13 +86,22 @@ internal sealed class Embedder : IDisposable
                 if (mediaPath is not null && !textOnly)
                 {
                     var mprm = Native.mtmd_context_params_default();
-                    mprm.UseGpu = true;
+                    mprm.UseGpu = useGpu;
                     mprm.PrintTimings = false;
                     mprm.Warmup = true;
                     mprm.NThreads = Environment.ProcessorCount;
                     mprm.ImageMinTokens = 1; // never rescale: images arrive at final size
                     mprm.ImageMaxTokens = 1120;
-                    _media = Native.mtmd_init_from_file(mediaPath, _model, mprm);
+                    try
+                    {
+                        _media = Native.mtmd_init_from_file(mediaPath, _model, mprm);
+                    }
+                    catch (Exception ex) when (useGpu)
+                    {
+                        Console.Error.WriteLine($"[digup-embed] GPU mmproj loading failed ({ex.Message}), retrying on CPU...");
+                        mprm.UseGpu = false;
+                        _media = Native.mtmd_init_from_file(mediaPath, _model, mprm);
+                    }
                     if (_media == IntPtr.Zero) throw new InvalidOperationException($"can't load {mediaPath}");
                 }
                 _batch = Native.llama_batch_ext_init(_ctx);

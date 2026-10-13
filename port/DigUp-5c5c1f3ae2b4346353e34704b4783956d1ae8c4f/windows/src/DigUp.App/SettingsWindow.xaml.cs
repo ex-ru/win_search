@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using DigUp.Core;
 using MessageBox = System.Windows.MessageBox;
 
 namespace DigUp.App;
@@ -13,12 +14,16 @@ public partial class SettingsWindow : Window
 {
     private readonly Settings _settings;
     private readonly Engine? _engine;
+    private readonly MainWindow? _mainWindow;
+    private readonly Action? _onApplyCallback;
     private string _hotkey;
 
-    public SettingsWindow(Settings settings, Engine? engine = null)
+    public SettingsWindow(Settings settings, Engine? engine = null, MainWindow? mainWindow = null, Action? onApplyCallback = null)
     {
         _settings = settings;
         _engine = engine;
+        _mainWindow = mainWindow;
+        _onApplyCallback = onApplyCallback;
         _hotkey = string.IsNullOrWhiteSpace(settings.Hotkey) ? "ctrl+space" : settings.Hotkey;
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
@@ -31,10 +36,7 @@ public partial class SettingsWindow : Window
         Editor.ItemsSource = Settings.Editors;
         Editor.SelectedItem = Settings.Editors.Contains(settings.Editor) ? settings.Editor : "auto";
 
-        UiLanguage.ItemsSource = new[] { "Русский (RU)", "English (EN)" };
-        UiLanguage.SelectedIndex = string.Equals(settings.Language, "en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-
-        SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 60, 100);
+        SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 10, 100);
         TxtOpacityValue.Text = $"{(int)SliderOpacity.Value}%";
         ChkWidgetBlur.IsChecked = _settings.WidgetBlur;
 
@@ -48,6 +50,7 @@ public partial class SettingsWindow : Window
 
         UpdateLanguageToggleButtons(_settings.Language);
         UpdateFolderStats();
+        InitHardwareOptions();
 
         Updates.IsChecked = settings.CheckUpdates;
         UpdateSource.Text = settings.UpdateSource;
@@ -163,7 +166,7 @@ public partial class SettingsWindow : Window
     {
         string message =
             "DigUp — Windows Port\n" +
-            "Версия: 1.0.5\n\n" +
+            "Версия: 1.0.7\n\n" +
             "Быстрый локальный семантический и лексический поиск по файлам,\n" +
             "документам, коду и изображениям с поддержкой RAG и MCP.\n\n" +
             "Репозиторий GitHub:\nhttps://github.com/ex-ru/win_search\n\n" +
@@ -274,19 +277,17 @@ public partial class SettingsWindow : Window
         _settings.Language = lang;
         Loc.CurrentLanguage = lang;
         UpdateLanguageToggleButtons(lang);
-        if (UiLanguage is not null)
-        {
-            UiLanguage.SelectedIndex = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-        }
+        UpdateTextsForLanguage();
+        _mainWindow?.UpdateLocalization();
     }
 
-    private void OnUiLanguageComboChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void UpdateTextsForLanguage()
     {
-        string lang = UiLanguage.SelectedIndex == 1 ? "en" : "ru";
-        if (!string.Equals(_settings.Language, lang, StringComparison.OrdinalIgnoreCase))
-        {
-            SetLanguage(lang);
-        }
+        bool isRu = Loc.IsRu;
+        Title = isRu ? "DigUp — Настройки" : "DigUp — Settings";
+        if (BtnApply is not null) BtnApply.Content = isRu ? "Применить" : "Apply";
+        if (BtnCancel is not null) BtnCancel.Content = isRu ? "Отмена" : "Cancel";
+        if (BtnSave is not null) BtnSave.Content = isRu ? "Сохранить" : "Save";
     }
 
     private void UpdateLanguageToggleButtons(string lang)
@@ -313,7 +314,49 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void OnSave(object sender, RoutedEventArgs e)
+    public sealed record HardwareComboItem(string Id, string Title);
+
+    private void InitHardwareOptions()
+    {
+        try
+        {
+            var hwInfo = HardwareDetector.Detect();
+            var items = new List<HardwareComboItem>();
+
+            // 1. Auto
+            var (_, _, autoSummary) = HardwareDetector.ResolveBackend("auto", hwInfo);
+            items.Add(new HardwareComboItem("auto", $"Автоопределение (Рекомендуется — {autoSummary})"));
+
+            // 2. Discrete GPU (if available)
+            if (hwInfo.DiscreteGpu != null)
+            {
+                var d = hwInfo.DiscreteGpu;
+                items.Add(new HardwareComboItem("gpu_ext", $"Дискретная видеокарта: {d.Name} ({d.VramMb} МБ VRAM)"));
+            }
+
+            // 3. Integrated GPU (if available)
+            if (hwInfo.IntegratedGpu != null)
+            {
+                var ig = hwInfo.IntegratedGpu;
+                items.Add(new HardwareComboItem("gpu_int", $"Встроенная графика: {ig.Name}"));
+            }
+
+            // 4. CPU Only
+            items.Add(new HardwareComboItem("cpu", $"Только процессор (CPU, {hwInfo.CpuCores} потоков)"));
+
+            ComboHardware.ItemsSource = items;
+            var selected = items.FirstOrDefault(x => string.Equals(x.Id, _settings.HardwareMode, StringComparison.OrdinalIgnoreCase)) ?? items[0];
+            ComboHardware.SelectedItem = selected;
+
+            TxtHardwareStatus.Text = hwInfo.Summary;
+        }
+        catch (Exception ex)
+        {
+            TxtHardwareStatus.Text = $"Ошибка детектора: {ex.Message}";
+        }
+    }
+
+    private void ApplyCurrentSettings()
     {
         string updateSource = UpdateSource.Text.Trim();
         if (updateSource.Length > 0 && !Path.IsPathFullyQualified(updateSource) && !updateSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -324,8 +367,7 @@ public partial class SettingsWindow : Window
         _settings.Hotkey = _hotkey;
         _settings.Code = Code.IsChecked == true;
         _settings.Editor = Editor.SelectedItem as string ?? "auto";
-        _settings.Language = UiLanguage.SelectedIndex == 1 ? "en" : "ru";
-        Loc.CurrentLanguage = _settings.Language;
+        _settings.Language = Loc.CurrentLanguage;
         _settings.WidgetOpacity = SliderOpacity.Value / 100.0;
         _settings.WidgetBlur = ChkWidgetBlur.IsChecked == true;
         _settings.Theme = ComboTheme.SelectedIndex switch
@@ -334,12 +376,45 @@ public partial class SettingsWindow : Window
             2 => ThemeManager.ThemeLight,
             _ => ThemeManager.ThemeSystem
         };
+
+        if (ComboHardware.SelectedItem is HardwareComboItem hwItem)
+        {
+            bool modeChanged = !string.Equals(_settings.HardwareMode, hwItem.Id, StringComparison.OrdinalIgnoreCase);
+            _settings.HardwareMode = hwItem.Id;
+            if (modeChanged)
+            {
+                _engine?.ResetEmbedderWorker();
+            }
+        }
+
         _settings.CheckUpdates = Updates.IsChecked == true;
         if (!string.Equals(_settings.UpdateSource, updateSource, StringComparison.OrdinalIgnoreCase))
             _settings.LastUpdateCheck = null;
         _settings.UpdateSource = updateSource;
         _settings.StartWithWindows = Startup.IsChecked == true;
         _settings.Save();
+    }
+
+    private void OnApply(object sender, RoutedEventArgs e)
+    {
+        ApplyCurrentSettings();
+        _onApplyCallback?.Invoke();
+        if (_mainWindow is not null)
+        {
+            _mainWindow.ApplyLook();
+            _mainWindow.UpdateLocalization();
+        }
+    }
+
+    private void OnSave(object sender, RoutedEventArgs e)
+    {
+        ApplyCurrentSettings();
+        _onApplyCallback?.Invoke();
+        if (_mainWindow is not null)
+        {
+            _mainWindow.ApplyLook();
+            _mainWindow.UpdateLocalization();
+        }
         DialogResult = true;
         Close();
     }

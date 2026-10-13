@@ -40,6 +40,14 @@ internal static class Program
     {
         _textOnly = args.Contains("--text-only");
 
+        string backend = "auto";
+        int bIdx = Array.IndexOf(args, "--backend");
+        if (bIdx >= 0 && bIdx + 1 < args.Length)
+        {
+            backend = args[bIdx + 1].ToLowerInvariant().Trim();
+        }
+        bool forceCpu = backend == "cpu" || args.Contains("--cpu");
+
         if (!FindModelFiles(out string? textPath, out string? mediaPath) || textPath is null)
         {
             Emit(new Dictionary<string, object?> { ["ready"] = false, ["error"] = MissingModelsMessage() });
@@ -53,7 +61,7 @@ internal static class Program
 
         try
         {
-            _embedder = new Embedder(textPath, mediaPath, _textOnly);
+            _embedder = new Embedder(textPath, mediaPath, _textOnly, forceCpu);
         }
         catch (DllNotFoundException ex)
         {
@@ -73,7 +81,7 @@ internal static class Program
         }
 
         var e = _embedder;
-        Log($"ready in {e.LoadSeconds} s ({(_textOnly ? "text-only" : "full")}, llama.cpp {BuildTag}, vectors {VectorVersion})");
+        Log($"ready in {e.LoadSeconds} s ({(_textOnly ? "text-only" : "full")}, backend={e.ActiveBackend}, llama.cpp {BuildTag}, vectors {VectorVersion})");
         Emit(new Dictionary<string, object?> { ["ready"] = true, ["info"] = Info(e) });
 
         string? line;
@@ -172,6 +180,8 @@ internal static class Program
         ["dim"] = Dim,
         ["text_only"] = _textOnly,
         ["load_seconds"] = e.LoadSeconds,
+        ["backend"] = e.ActiveBackend,
+        ["device"] = e.ActiveDevice,
     };
 
     private static string NativeError(DllNotFoundException ex) =>

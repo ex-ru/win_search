@@ -201,13 +201,34 @@
 
       <!-- Action buttons & hint -->
       <Grid Grid.Row="4" Margin="4,12,4,2">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
           <Button Content="Открыть" Width="95" Margin="0,0,8,0" Click="OnOpen" Focusable="False" />
           <Button Content="В проводнике" Width="115" Margin="0,0,8,0" Click="OnOpenInExplorer" Focusable="False" ToolTip="Показать файл в проводнике с выделением" />
           <Button Content="Сохранить как…" Width="125" Margin="0,0,8,0" Click="OnSaveAs" Focusable="False" ToolTip="Сохранить копию файла" />
           <Button Content="Закрыть" Width="90" Click="OnClose" Focusable="False" />
         </StackPanel>
-        <TextBlock Foreground="#777777" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right"
+
+        <!-- PDF Page Navigation in Action Bar -->
+        <Border Grid.Column="1" x:Name="PdfToolbar" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#2C2C2C" BorderBrush="#0078D4" BorderThickness="1"
+                CornerRadius="8" Padding="8,3" Margin="8,0">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="BtnPdfPrevBar" Content="◀" Width="28" Height="24" Padding="0" Margin="0,0,6,0"
+                    Click="OnPdfPrevPage" ToolTip="Предыдущая страница (PageUp / Колесо вверх)" Focusable="False" />
+            <TextBlock x:Name="PdfPageInfoBar" Text="Стр. 1 из 1" Foreground="#80D8FF" FontSize="12"
+                       VerticalAlignment="Center" Margin="6,0" FontWeight="SemiBold" />
+            <Button x:Name="BtnPdfNextBar" Content="▶" Width="28" Height="24" Padding="0" Margin="6,0,0,0"
+                    Click="OnPdfNextPage" ToolTip="Следующая страница (PageDown / Колесо вниз)" Focusable="False" />
+          </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Column="2" Foreground="#777777" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right"
                    Text="Пробел / Esc: закрыть · ↑ / ↓: след. документ · Enter: открыть" />
       </Grid>
     </Grid>

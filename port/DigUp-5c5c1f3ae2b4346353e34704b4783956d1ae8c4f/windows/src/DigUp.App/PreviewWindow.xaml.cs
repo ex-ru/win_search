@@ -137,6 +137,7 @@ public partial class PreviewWindow : Window
         WordsScroll.Visibility = Visibility.Collapsed;
         Transport.Visibility = Visibility.Collapsed;
         PdfNav.Visibility = Visibility.Collapsed;
+        if (PdfToolbar is not null) PdfToolbar.Visibility = Visibility.Collapsed;
     }
 
     private void ShowPicture(string path, bool temp)
@@ -363,17 +364,36 @@ public partial class PreviewWindow : Window
             _pdfPageCache[initialPage] = bs;
         }
 
-        PdfPageInfo.Text = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
-        PdfNav.Visibility = _pdfTotalPages > 1 ? Visibility.Visible : Visibility.Collapsed;
+        string pageText = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
+        PdfPageInfo.Text = pageText;
+        if (PdfPageInfoBar is not null) PdfPageInfoBar.Text = pageText;
+
+        // Navigation is always visible for PDF documents
+        PdfNav.Visibility = Visibility.Visible;
+        if (PdfToolbar is not null) PdfToolbar.Visibility = Visibility.Visible;
         UpdatePdfButtons();
     }
 
     private void UpdatePdfButtons()
     {
-        BtnPdfPrev.IsEnabled = _pdfCurrentPage > 1;
-        BtnPdfNext.IsEnabled = _pdfCurrentPage < _pdfTotalPages;
-        BtnPdfPrev.Opacity = BtnPdfPrev.IsEnabled ? 1.0 : 0.4;
-        BtnPdfNext.Opacity = BtnPdfNext.IsEnabled ? 1.0 : 0.4;
+        bool canPrev = _pdfCurrentPage > 1;
+        bool canNext = _pdfCurrentPage < _pdfTotalPages;
+
+        BtnPdfPrev.IsEnabled = canPrev;
+        BtnPdfNext.IsEnabled = canNext;
+        BtnPdfPrev.Opacity = canPrev ? 1.0 : 0.35;
+        BtnPdfNext.Opacity = canNext ? 1.0 : 0.35;
+
+        if (BtnPdfPrevBar is not null)
+        {
+            BtnPdfPrevBar.IsEnabled = canPrev;
+            BtnPdfPrevBar.Opacity = canPrev ? 1.0 : 0.35;
+        }
+        if (BtnPdfNextBar is not null)
+        {
+            BtnPdfNextBar.IsEnabled = canNext;
+            BtnPdfNextBar.Opacity = canNext ? 1.0 : 0.35;
+        }
     }
 
     private void OnPdfPrevPage(object sender, RoutedEventArgs e) => PrevPdfPage();
@@ -393,7 +413,9 @@ public partial class PreviewWindow : Window
     {
         if (_currentPdfPath is null || page < 1 || page > _pdfTotalPages) return;
         _pdfCurrentPage = page;
-        PdfPageInfo.Text = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
+        string pageText = $"Стр. {_pdfCurrentPage} из {_pdfTotalPages}";
+        PdfPageInfo.Text = pageText;
+        if (PdfPageInfoBar is not null) PdfPageInfoBar.Text = pageText;
         Kind.Text = $"PDF · страница {_pdfCurrentPage} из {_pdfTotalPages}";
         UpdatePdfButtons();
 

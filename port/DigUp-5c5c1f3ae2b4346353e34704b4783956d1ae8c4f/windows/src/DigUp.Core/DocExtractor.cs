@@ -138,18 +138,223 @@ public static class DocExtractor
     }
 
     /// <summary>
-    /// Minimal RTF fallback: paragraph breaks survive, control words and group
-    /// braces are dropped. Full fidelity needs a real converter.
+    /// Extracts plain text from RTF content:
+    /// - Strips metadata, font, color, and picture hex-dump groups (pict, object, fonttbl, etc.)
+    /// - Decodes Windows-1251 Cyrillic hex escapes (\'hh) and unicode (\uN)
+    /// - Preserves paragraph line breaks and tabs
+    /// - Cleans mojibake and redundant whitespace
     /// </summary>
     public static string PlainTextFromRtf(string rtf)
     {
-        string text = rtf.Replace(@"\par", "\n").Replace(@"\line", "\n").Replace(@"\tab", "\t");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\\[a-zA-Z]+\d*[ ]?", string.Empty);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\\[^a-zA-Z]", string.Empty);
-        text = text.Replace("{", string.Empty).Replace("}", string.Empty);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"[ \t]+", " ");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*\n\s*", "\n");
-        return text.Trim();
+        if (string.IsNullOrWhiteSpace(rtf)) return string.Empty;
+
+        // 1. Detect code page from \ansicpgN (default to 1251 for Cyrillic / Russian documents)
+        int codePage = 1251;
+        var cpgMatch = System.Text.RegularExpressions.Regex.Match(rtf, @"\\ansicpg(\d+)");
+        if (cpgMatch.Success && int.TryParse(cpgMatch.Groups[1].Value, out int cp))
+        {
+            codePage = cp;
+        }
+
+        System.Text.Encoding docEncoding;
+        try
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            docEncoding = System.Text.Encoding.GetEncoding(codePage);
+        }
+        catch
+        {
+            docEncoding = System.Text.Encoding.GetEncoding(1251);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        var hexBytes = new System.Collections.Generic.List<byte>();
+
+        void FlushHex()
+        {
+            if (hexBytes.Count > 0)
+            {
+                sb.Append(docEncoding.GetString(hexBytes.ToArray()));
+                hexBytes.Clear();
+            }
+        }
+
+        int len = rtf.Length;
+        int i = 0;
+        int depth = 0;
+        int skipUntilDepth = -1;
+        int ucSkip = 1;
+
+        while (i < len)
+        {
+            char c = rtf[i];
+
+            if (c == '{')
+            {
+                depth++;
+                i++;
+                continue;
+            }
+
+            if (c == '}')
+            {
+                FlushHex();
+                if (skipUntilDepth >= 0 && depth <= skipUntilDepth)
+                {
+                    skipUntilDepth = -1;
+                }
+                depth--;
+                i++;
+                continue;
+            }
+
+            if (skipUntilDepth >= 0)
+            {
+                // Inside an ignored destination group (e.g. pict, fonttbl, stylesheet, object)
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                i++;
+                if (i >= len) break;
+                char next = rtf[i];
+
+                if (next is '{' or '}' or '\\')
+                {
+                    FlushHex();
+                    sb.Append(next);
+                    i++;
+                    continue;
+                }
+
+                if (next == '~')
+                {
+                    FlushHex();
+                    sb.Append(' ');
+                    i++;
+                    continue;
+                }
+
+                if (next == '_')
+                {
+                    FlushHex();
+                    sb.Append('-');
+                    i++;
+                    continue;
+                }
+
+                if (next == '\'')
+                {
+                    // Hex byte escape: \'hh
+                    i++;
+                    if (i + 1 < len)
+                    {
+                        string hex = rtf.Substring(i, 2);
+                        if (byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out byte b))
+                        {
+                            hexBytes.Add(b);
+                            i += 2;
+                            continue;
+                        }
+                    }
+                    continue;
+                }
+
+                if (next == '*')
+                {
+                    // Ignorable destination group {\*...}
+                    skipUntilDepth = depth;
+                    i++;
+                    continue;
+                }
+
+                // Control word: letters followed by optional signed integer
+                int wordStart = i;
+                while (i < len && char.IsLetter(rtf[i])) i++;
+                string word = rtf.Substring(wordStart, i - wordStart);
+
+                int paramStart = i;
+                if (i < len && (rtf[i] == '-' || char.IsDigit(rtf[i])))
+                {
+                    i++;
+                    while (i < len && char.IsDigit(rtf[i])) i++;
+                }
+                string paramStr = rtf.Substring(paramStart, i - paramStart);
+
+                // Optional delimiter space
+                if (i < len && rtf[i] == ' ') i++;
+
+                FlushHex();
+
+                // Ignorable destination groups
+                if (word is "pict" or "object" or "fonttbl" or "colortbl" or "stylesheet" or "info"
+                    or "xmlnstbl" or "themedata" or "datastore" or "filetbl" or "generator" or "header" or "footer")
+                {
+                    skipUntilDepth = depth;
+                    continue;
+                }
+
+                if (word is "par" or "line" or "row")
+                {
+                    sb.Append('\n');
+                }
+                else if (word is "tab")
+                {
+                    sb.Append('\t');
+                }
+                else if (word == "u" && int.TryParse(paramStr, out int uVal))
+                {
+                    if (uVal < 0) uVal += 65536;
+                    try
+                    {
+                        sb.Append((char)uVal);
+                    }
+                    catch { }
+
+                    // Skip uc fallback characters
+                    for (int skip = 0; skip < ucSkip && i < len; skip++)
+                    {
+                        if (rtf[i] == '\\' && i + 3 < len && rtf[i + 1] == '\'')
+                        {
+                            i += 4;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                }
+                else if (word == "uc" && int.TryParse(paramStr, out int ucVal))
+                {
+                    ucSkip = Math.Max(0, ucVal);
+                }
+
+                continue;
+            }
+
+            // Normal text character
+            if (c is '\r' or '\n')
+            {
+                FlushHex();
+                i++;
+                continue;
+            }
+
+            FlushHex();
+            sb.Append(c);
+            i++;
+        }
+
+        FlushHex();
+
+        string text = sb.ToString();
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"[ \t\u00A0]+", " ");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n\s*\n\s*\n+", "\n\n");
+        text = text.Trim();
+
+        return EncodingHelper.FixMojibake(text);
     }
 
     /// <summary>

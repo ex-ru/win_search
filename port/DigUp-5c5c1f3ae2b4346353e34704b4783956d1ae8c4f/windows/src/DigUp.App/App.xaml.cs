@@ -38,6 +38,16 @@ public partial class App : System.Windows.Application
     private WinForms.NotifyIcon? _tray;
     private MainWindow? _panel;
     private Engine? _engine;
+    private SettingsWindow? _settingsWindow;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
     private Hotkey? _hotkey;
     private FileSystemWatcherRunner? _watcher;
     private Settings? _settings;
@@ -195,8 +205,30 @@ public partial class App : System.Windows.Application
             };
             return;
         }
-        if (_panel.IsVisible) _panel.Hide();
-        else { _panel.ApplyLook(); _panel.Show(); _panel.Activate(); _panel.FocusQuery(); }
+        if (_panel.IsVisible && _panel.IsActive)
+        {
+            _panel.Hide();
+        }
+        else
+        {
+            _panel.ApplyLook();
+            _panel.Show();
+            _panel.WindowState = WindowState.Normal;
+            try
+            {
+                var helper = new WindowInteropHelper(_panel);
+                IntPtr hWnd = helper.Handle;
+                if (hWnd != IntPtr.Zero)
+                {
+                    SetForegroundWindow(hWnd);
+                    BringWindowToTop(hWnd);
+                    SwitchToThisWindow(hWnd, true);
+                }
+            }
+            catch { }
+            _panel.Activate();
+            _panel.FocusQuery();
+        }
     }
 
     private void MakeTray()
@@ -223,7 +255,7 @@ public partial class App : System.Windows.Application
 
         // About menu section
         var aboutMenu = new WinForms.ToolStripMenuItem(Loc.About);
-        aboutMenu.DropDownItems.Add("Версия: v1.0.5", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        aboutMenu.DropDownItems.Add("Версия: v1.0.7", null, (_, _) => SettingsWindow.ShowAboutDialog());
         aboutMenu.DropDownItems.Add("GitHub: github.com/ex-ru/win_search", null, (_, _) =>
         {
             try
@@ -272,14 +304,31 @@ public partial class App : System.Windows.Application
     private void OpenSettings()
     {
         if (_settings is null || _engine is null) return;
-        var win = new SettingsWindow(_settings, _engine);
-        if (win.ShowDialog() == true)
+        if (_settingsWindow is not null && _settingsWindow.IsLoaded)
+        {
+            _settingsWindow.WindowState = WindowState.Normal;
+            _settingsWindow.Activate();
+            return;
+        }
+
+        var win = new SettingsWindow(_settings, _engine, _panel, () =>
         {
             RegisterHotkey();
             ResetWatcher();
             _engine.ApplySettings();
             _updates?.Restart();
-        }
+        });
+        _settingsWindow = win;
+        win.Closed += (_, _) =>
+        {
+            _settingsWindow = null;
+            RegisterHotkey();
+            ResetWatcher();
+            _engine.ApplySettings();
+            _updates?.Restart();
+        };
+        win.Show();
+        win.Activate();
     }
 
     private void ResetWatcher()
@@ -309,7 +358,11 @@ public partial class App : System.Windows.Application
             ComponentDispatcher.ThreadPreprocessMessage += (ref MSG msg, ref bool handled) =>
             {
                 const int WM_HOTKEY = 0x0312;
-                if (msg.message == WM_HOTKEY) TogglePanel();
+                if (msg.message == WM_HOTKEY)
+                {
+                    TogglePanel();
+                    handled = true;
+                }
             };
         }
     }

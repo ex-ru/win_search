@@ -266,8 +266,9 @@
     <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
       <Button Content="О программе (About)…" DockPanel.Dock="Left" Click="OnAboutClick" Focusable="False" />
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-        <Button Content="Отмена" Width="100" Margin="0,0,10,0" Click="OnCancel" />
-        <Button Content="Сохранить" Width="120" IsDefault="True" Click="OnSave" Style="{StaticResource PrimaryButtonStyle}" />
+        <Button x:Name="BtnApply" Content="Применить" Width="105" Margin="0,0,10,0" Click="OnApply" ToolTip="Применить настройки к окну поиска не закрывая это окно" />
+        <Button x:Name="BtnCancel" Content="Отмена" Width="95" Margin="0,0,10,0" Click="OnCancel" />
+        <Button x:Name="BtnSave" Content="Сохранить" Width="110" IsDefault="True" Click="OnSave" Style="{StaticResource PrimaryButtonStyle}" />
       </StackPanel>
     </DockPanel>
 
@@ -291,7 +292,7 @@
             </Border>
             <!-- Version badge -->
             <Border Background="#2E4A62" CornerRadius="4" Padding="8,4">
-              <TextBlock Text="v1.0.6 Windows" FontSize="11" Foreground="#80D8FF" FontWeight="SemiBold" />
+              <TextBlock Text="v1.0.7 Windows" FontSize="11" Foreground="#80D8FF" FontWeight="SemiBold" />
             </Border>
           </StackPanel>
         </DockPanel>
@@ -348,6 +349,29 @@
           </StackPanel>
         </Border>
 
+        <!-- Section: Hardware Acceleration (CPU / GPU) -->
+        <Border Style="{StaticResource CardStyle}">
+          <StackPanel>
+            <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Аппаратное ускорение (CPU / GPU для эмбеддингов)" />
+            <TextBlock Foreground="#888888" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"
+                       Text="Выбор устройства для локальной генерации векторных эмбеддингов (поиск по смыслу). Поддерживаются дискретные и встроенные видеокарты всех производителей и процессорные вычисления." />
+
+            <TextBlock Text="Вычислительное устройство:" Foreground="#CCCCCC" FontSize="12" Margin="0,0,0,4" />
+            <ComboBox x:Name="ComboHardware" DisplayMemberPath="Title" Margin="0,0,0,8" />
+
+            <Border Background="#1A2733" BorderBrush="#256B9E" BorderThickness="1" CornerRadius="6" Padding="10,8">
+              <StackPanel>
+                <TextBlock Text="🖥 Обнаруженное оборудование:" FontWeight="SemiBold" FontSize="12" Foreground="#80D8FF" />
+                <TextBlock x:Name="TxtHardwareStatus" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#E0E0E0" FontSize="12"
+                           Text="Определение оборудования…" />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Foreground="#777777" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="Поддерживаются дискретные NVIDIA (CUDA/Vulkan), AMD Radeon (Vulkan), Intel Arc (Vulkan), встроенные Intel Iris Xe/UHD и AMD Radeon APU. В случае сбоя GPU происходит безопасный откат на CPU." />
+          </StackPanel>
+        </Border>
+
         <!-- Section 3: Appearance and Translucency -->
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
@@ -359,7 +383,7 @@
               <TextBlock Text="Прозрачность виджета поиска:" Foreground="#CCCCCC" FontSize="13" VerticalAlignment="Center" />
               <TextBlock x:Name="TxtOpacityValue" Text="100%" Foreground="#80D8FF" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
             </DockPanel>
-            <Slider x:Name="SliderOpacity" Minimum="60" Maximum="100" Value="100" SmallChange="5" LargeChange="10"
+            <Slider x:Name="SliderOpacity" Minimum="10" Maximum="100" Value="100" SmallChange="5" LargeChange="10"
                     TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,0,0,10"
                     ValueChanged="OnOpacitySliderChanged" />
 
@@ -391,15 +415,7 @@
           </StackPanel>
         </Border>
 
-        <!-- Section 6: Interface Language -->
-        <Border Style="{StaticResource CardStyle}">
-          <StackPanel>
-            <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Язык интерфейса / Interface Language" />
-            <ComboBox x:Name="UiLanguage" Margin="0,0,0,4" SelectionChanged="OnUiLanguageComboChanged" />
-          </StackPanel>
-        </Border>
-
-        <!-- Section 7: System & Updates -->
+        <!-- Section 6: System & Updates -->
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
             <TextBlock FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Система и обновления" />

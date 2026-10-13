@@ -29,6 +29,8 @@ public sealed class Settings
     public string UpdateSource { get; set; } = Environment.GetEnvironmentVariable("DIGUP_UPDATE_SOURCE") ?? "";
     public DateTimeOffset? LastUpdateCheck { get; set; }
     public string Editor { get; set; } = "auto";
+    /// <summary>Hardware acceleration mode: "auto", "gpu_ext", "gpu_int", "cpu".</summary>
+    public string HardwareMode { get; set; } = "auto";
 
     /// <summary>True when there was no settings file: first run, show setup.</summary>
     public bool IsNew { get; set; } = true;

@@ -151,6 +151,16 @@ public static class PreviewContent
                         return new PreviewModel.Text(body, at, length);
                     }
                 }
+                else if (ext == ".rtf" && new FileInfo(path).Length <= MaxTextBytes)
+                {
+                    string rawRtf = File.ReadAllText(path);
+                    string body = DocExtractor.PlainTextFromRtf(rawRtf);
+                    if (!string.IsNullOrWhiteSpace(body))
+                    {
+                        var (at, length) = Passage(body, tokens);
+                        return new PreviewModel.Text(body, at, length);
+                    }
+                }
                 else if (TextExtensions.Contains(ext) && new FileInfo(path).Length <= MaxTextBytes)
                 {
                     string body = EncodingHelper.FixMojibake(EncodingHelper.ReadTextAuto(path, (int)MaxTextBytes));

@@ -364,11 +364,60 @@ public sealed class Engine : IDisposable
         return indexer;
     }
 
+    public void ResetEmbedderWorker()
+    {
+        DropQueryWorker();
+    }
+
+    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly)
+    {
+        var hwInfo = HardwareDetector.Detect();
+        var (backend, deviceIdx, _) = HardwareDetector.ResolveBackend(_settings.HardwareMode, hwInfo);
+
+        var args = new List<string>();
+        var env = new Dictionary<string, string>();
+
+        if (backend == "cpu")
+        {
+            args.Add("--backend");
+            args.Add("cpu");
+        }
+        else if (backend == "vulkan")
+        {
+            args.Add("--backend");
+            args.Add("vulkan");
+            if (deviceIdx >= 0)
+            {
+                env["GGML_VULKAN_DEVICE"] = deviceIdx.ToString();
+                args.Add("--device");
+                args.Add(deviceIdx.ToString());
+            }
+        }
+        else if (backend == "cuda")
+        {
+            args.Add("--backend");
+            args.Add("cuda");
+            if (deviceIdx >= 0)
+            {
+                env["CUDA_VISIBLE_DEVICES"] = deviceIdx.ToString();
+                args.Add("--device");
+                args.Add(deviceIdx.ToString());
+            }
+        }
+
+        return new WorkerConfig(
+            exe,
+            args,
+            Environment: env.Count > 0 ? env : null,
+            LogPath: Path.Combine(Settings.Dir, "worker.log"),
+            TextOnly: textOnly);
+    }
+
     private IEmbedder MakeEmbedder(string indexDir)
     {
         string exe = ExeNextTo("digup-embed.exe");
         if (!File.Exists(exe)) return new WordsOnly();
-        return new WorkerClient(new WorkerConfig(exe, [], LogPath: Path.Combine(Settings.Dir, "worker.log")));
+        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false));
     }
 
     private IReadOnlyList<float>? TryEmbedQuery(string query)
@@ -385,8 +434,7 @@ public sealed class Engine : IDisposable
                 // (the search simply goes words-only that once).
                 try
                 {
-                    _queryWorker = new WorkerClient(new WorkerConfig(exe, [], TextOnly: true,
-                        LogPath: Path.Combine(Settings.Dir, "worker.log")));
+                    _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true));
                 }
                 catch (Exception ex)
                 {
@@ -422,8 +470,7 @@ public sealed class Engine : IDisposable
             {
                 string exe = ExeNextTo("digup-embed.exe");
                 if (!File.Exists(exe) || _queryWorker is not null) return;
-                _queryWorker = new WorkerClient(new WorkerConfig(exe, [], TextOnly: true,
-                    LogPath: Path.Combine(Settings.Dir, "worker.log")));
+                _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true));
             }
             _queryWorker.EmbedTexts([Prompts.Query("warmup")]);
         }

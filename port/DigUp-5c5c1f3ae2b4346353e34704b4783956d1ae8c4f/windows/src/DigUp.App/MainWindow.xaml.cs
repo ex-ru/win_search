@@ -104,15 +104,31 @@ public partial class MainWindow : Window
         catch { }
     }
 
-    private void ApplyWidgetAppearance()
+    public void ApplyWidgetAppearance()
     {
         try
         {
+            Root.BeginAnimation(OpacityProperty, null);
+            double opacity = Math.Clamp(_settings.WidgetOpacity, 0.1, 1.0);
+            Root.Opacity = opacity;
+
             WindowBlurHelper.SetBlur(this, _settings.WidgetBlur);
 
             // Theme application
             bool isDark = ThemeManager.IsDark(_settings.Theme);
             ApplyTheme(isDark);
+        }
+        catch { }
+    }
+
+    public void UpdateLocalization()
+    {
+        try
+        {
+            if (BtnOpen is not null) BtnOpen.Content = Loc.Open;
+            if (BtnInExplorer is not null) BtnInExplorer.Content = Loc.InExplorer;
+            if (BtnOpenWith is not null) BtnOpenWith.Content = Loc.IsRu ? "Выбрать программу…" : "Open with…";
+            if (BtnCopyPath is not null) BtnCopyPath.Content = Loc.CopyPath;
         }
         catch { }
     }
@@ -130,15 +146,33 @@ public partial class MainWindow : Window
                 Query.Foreground = Brushes.White;
                 Query.CaretBrush = Brushes.White;
                 Status.Foreground = (Brush)bc.ConvertFrom("#888888")!;
+
+                Resources["ResultTitleBrush"] = Brushes.White;
+                Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#AAAAAA")!;
+                Resources["ResultBodyBrush"] = (Brush)bc.ConvertFrom("#DDDDDD")!;
+                Resources["CardBackgroundBrush"] = (Brush)bc.ConvertFrom("#2C2C2C")!;
+                Resources["CardBorderBrush"] = (Brush)bc.ConvertFrom("#444444")!;
+                Resources["KeycapBackgroundBrush"] = (Brush)bc.ConvertFrom("#333333")!;
+                Resources["KeycapBorderBrush"] = (Brush)bc.ConvertFrom("#555555")!;
+                Resources["KeycapForegroundBrush"] = (Brush)bc.ConvertFrom("#DDDDDD")!;
             }
             else
             {
-                Root.Background = (Brush)bc.ConvertFrom("#F9F9F9")!;
-                Root.BorderBrush = (Brush)bc.ConvertFrom("#D0D0D0")!;
+                Root.Background = (Brush)bc.ConvertFrom("#F8F9FA")!;
+                Root.BorderBrush = (Brush)bc.ConvertFrom("#D1D5DB")!;
                 Query.Background = (Brush)bc.ConvertFrom("#FFFFFF")!;
-                Query.Foreground = (Brush)bc.ConvertFrom("#1A1A1A")!;
-                Query.CaretBrush = (Brush)bc.ConvertFrom("#1A1A1A")!;
-                Status.Foreground = (Brush)bc.ConvertFrom("#555555")!;
+                Query.Foreground = (Brush)bc.ConvertFrom("#0F172A")!;
+                Query.CaretBrush = (Brush)bc.ConvertFrom("#0F172A")!;
+                Status.Foreground = (Brush)bc.ConvertFrom("#475569")!;
+
+                Resources["ResultTitleBrush"] = (Brush)bc.ConvertFrom("#0F172A")!;
+                Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#475569")!;
+                Resources["ResultBodyBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
+                Resources["CardBackgroundBrush"] = (Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["CardBorderBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["KeycapBackgroundBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["KeycapBorderBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["KeycapForegroundBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
             }
         }
         catch { }
@@ -147,7 +181,7 @@ public partial class MainWindow : Window
     private void FadeIn()
     {
         ApplyWidgetAppearance();
-        double target = Math.Clamp(_settings.WidgetOpacity, 0.6, 1.0);
+        double target = Math.Clamp(_settings.WidgetOpacity, 0.1, 1.0);
         var anim = new DoubleAnimation(0, target, new Duration(TimeSpan.FromMilliseconds(130)));
         Root.BeginAnimation(OpacityProperty, anim);
     }
@@ -532,23 +566,49 @@ public partial class MainWindow : Window
         if (File.Exists(p1)) return p1;
         string p2 = Path.Combine(AppContext.BaseDirectory, "native", "x64", "pdfium.dll");
         if (File.Exists(p2)) return p2;
+        string p2b = Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native", "pdfium.dll");
+        if (File.Exists(p2b)) return p2b;
         string p3 = @"D:\_projects\win_search\run-vulkan\pdfium.dll";
         if (File.Exists(p3)) return p3;
         string p4 = @"D:\_projects\win_search\port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\native\x64\pdfium.dll";
         if (File.Exists(p4)) return p4;
+        string p5 = @"D:\_projects\win_search\dist\staging\pdfium.dll";
+        if (File.Exists(p5)) return p5;
         return p1;
     }
 
     private readonly List<PreviewWindow> _openPreviews = [];
 
-    /// <summary>Space: show the selected file itself, or hide it again. Shift+Space opens a new standalone preview window.</summary>
+    /// <summary>Space: show the selected file itself, or hide it again. Multi-select (Ctrl+Click) opens multiple preview windows. Shift+Space opens a new standalone preview window.</summary>
     private void TogglePreview()
     {
         try
         {
+            if (Results.SelectedItems.Count > 1)
+            {
+                // Multi-select with Ctrl or Shift: open previews for all selected documents cascading
+                int offset = 0;
+                foreach (var obj in Results.SelectedItems)
+                {
+                    if (obj is ResultItemViewModel item)
+                    {
+                        var cascadeWin = new PreviewWindow(FindPdfium(), OpenSelected, (delta) => NavigateSelection(delta));
+                        _openPreviews.Add(cascadeWin);
+                        cascadeWin.Closed += (_, _) => _openPreviews.Remove(cascadeWin);
+                        cascadeWin.ShowHit(item.Hit, Query.Text);
+                        cascadeWin.WindowStartupLocation = WindowStartupLocation.Manual;
+                        cascadeWin.Left = Math.Max(40, (SystemParameters.WorkArea.Width - 980) / 2 + offset);
+                        cascadeWin.Top = Math.Max(40, (SystemParameters.WorkArea.Height - 720) / 2 + offset);
+                        cascadeWin.Show();
+                        offset += 32;
+                    }
+                }
+                return;
+            }
+
             if (Results.SelectedIndex < 0 || Results.SelectedIndex >= _currentItems.Count) return;
             var currentHit = _currentItems[Results.SelectedIndex].Hit;
-            bool forceNew = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            bool forceNew = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) || Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
 
             // If an active (non-minimized) preview is currently showing and not pinned, update or close it
             if (!forceNew && _preview is not null && _preview.IsLoaded && _preview.WindowState != WindowState.Minimized && !_preview.IsPinned)
@@ -587,6 +647,12 @@ public partial class MainWindow : Window
                     catch { }
                 });
             };
+            if (forceNew && _openPreviews.Count > 1)
+            {
+                win.WindowStartupLocation = WindowStartupLocation.Manual;
+                win.Left = Math.Max(40, (SystemParameters.WorkArea.Width - 980) / 2 + (_openPreviews.Count - 1) * 32);
+                win.Top = Math.Max(40, (SystemParameters.WorkArea.Height - 720) / 2 + (_openPreviews.Count - 1) * 32);
+            }
             win.ShowHit(currentHit, Query.Text);
             win.Show();
             win.Focus();

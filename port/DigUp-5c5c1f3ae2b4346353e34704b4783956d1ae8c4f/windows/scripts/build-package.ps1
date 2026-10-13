@@ -1,7 +1,7 @@
 # Build and package DigUp for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.0.5",
+    [string]$Version = "1.0.7",
     [string]$OutputDir = ""
 )
 
