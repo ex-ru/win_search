@@ -15,16 +15,15 @@ public class ImageDecoderTests
 {
     private static string GetProbeImagePath()
     {
-        // Try locating testbed/Screenshot-probe.png relative to test execution dir
-        string baseDir = AppContext.BaseDirectory;
-        string candidate = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "..", "testbed", "Screenshot-probe.png"));
-        if (File.Exists(candidate))
-            return candidate;
-
-        // Fallback to absolute workspace location if available
-        string workspaceCandidate = @"D:\_projects\win_search\testbed\Screenshot-probe.png";
-        if (File.Exists(workspaceCandidate))
-            return workspaceCandidate;
+        string dir = AppContext.BaseDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            string candidate = Path.Combine(dir, "testbed", "Screenshot-probe.png");
+            if (File.Exists(candidate)) return candidate;
+            string? parent = Path.GetDirectoryName(dir);
+            if (parent == dir || string.IsNullOrEmpty(parent)) break;
+            dir = parent;
+        }
 
         throw new FileNotFoundException("Cannot find Screenshot-probe.png for testing");
     }

@@ -700,12 +700,18 @@ public partial class MainWindow : Window
         if (File.Exists(p2)) return p2;
         string p2b = Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native", "pdfium.dll");
         if (File.Exists(p2b)) return p2b;
-        string p3 = @"D:\_projects\win_search\run-vulkan\pdfium.dll";
-        if (File.Exists(p3)) return p3;
-        string p4 = @"D:\_projects\win_search\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\native\x64\pdfium.dll";
-        if (File.Exists(p4)) return p4;
-        string p5 = @"D:\_projects\win_search\dist\staging\pdfium.dll";
-        if (File.Exists(p5)) return p5;
+
+        // Traverse upwards looking for native\x64\pdfium.dll in dev / build trees
+        string dir = AppContext.BaseDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            string candidate = Path.Combine(dir, "native", "x64", "pdfium.dll");
+            if (File.Exists(candidate)) return candidate;
+            string? parent = Path.GetDirectoryName(dir);
+            if (parent == dir || string.IsNullOrEmpty(parent)) break;
+            dir = parent;
+        }
+
         return p1;
     }
 

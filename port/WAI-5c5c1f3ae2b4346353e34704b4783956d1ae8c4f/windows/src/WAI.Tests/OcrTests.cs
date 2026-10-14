@@ -24,7 +24,15 @@ public class OcrTests
 
         if (!File.Exists(samplePath))
         {
-            samplePath = @"D:\_projects\win_search\testbed\Скриншот-счет.png";
+            string dir = AppContext.BaseDirectory;
+            while (!string.IsNullOrEmpty(dir))
+            {
+                string candidate = Path.Combine(dir, "testbed", "Скриншот-счет.png");
+                if (File.Exists(candidate)) { samplePath = candidate; break; }
+                string? parent = Path.GetDirectoryName(dir);
+                if (parent == dir || string.IsNullOrEmpty(parent)) break;
+                dir = parent;
+            }
         }
 
         Assert.True(File.Exists(samplePath), $"Sample file not found at {samplePath}");
@@ -67,7 +75,7 @@ public class OcrTests
     public void TesseractOcrEngine_GracefullyHandlesMissingExecutable()
     {
         var tess = new TesseractOcrEngine(customTesseractExe: @"C:\non_existent_path\tesseract.exe");
-        string result = tess.Recognize(@"D:\_projects\win_search\testbed\Screenshot-probe.png");
+        string result = tess.Recognize("dummy_probe.png");
         Assert.Equal(string.Empty, result);
     }
 

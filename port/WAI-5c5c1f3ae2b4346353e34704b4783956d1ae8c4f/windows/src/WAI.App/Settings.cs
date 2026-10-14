@@ -72,8 +72,8 @@ public sealed class Settings
                 if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
                     s.Hotkey = "ctrl+space";
                 if (string.IsNullOrWhiteSpace(s.UpdateSource) ||
-                    s.UpdateSource.Contains("dist\\releases", StringComparison.OrdinalIgnoreCase) ||
-                    s.UpdateSource.StartsWith("D:\\_projects\\", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(s.UpdateSource, "dist\\releases", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(s.UpdateSource, "dist/releases", StringComparison.OrdinalIgnoreCase))
                 {
                     s.UpdateSource = AppConstants.DefaultUpdateSource;
                 }

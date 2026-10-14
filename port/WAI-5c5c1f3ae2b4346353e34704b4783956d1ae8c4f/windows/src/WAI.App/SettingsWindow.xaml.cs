@@ -679,8 +679,8 @@ public partial class SettingsWindow : Window
     {
         string updateSource = UpdateSource.Text.Trim();
         if (string.IsNullOrWhiteSpace(updateSource) ||
-            updateSource.Contains("dist\\releases", StringComparison.OrdinalIgnoreCase) ||
-            updateSource.StartsWith(@"D:\_projects\", StringComparison.OrdinalIgnoreCase))
+            string.Equals(updateSource, "dist\\releases", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(updateSource, "dist/releases", StringComparison.OrdinalIgnoreCase))
         {
             updateSource = AppConstants.DefaultUpdateSource;
         }

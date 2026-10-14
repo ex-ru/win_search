@@ -31,7 +31,7 @@ public class ModelBenchmarkTests
             if (parent == dir || string.IsNullOrEmpty(parent)) break;
             dir = parent;
         }
-        return @"D:\_projects\win_search";
+        return AppContext.BaseDirectory;
     }
 
     private sealed record QueryEvalItem(

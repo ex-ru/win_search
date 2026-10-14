@@ -244,7 +244,6 @@ internal static class Program
         dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI", "Models"));
         dirs.Add(Path.Combine(AppContext.BaseDirectory, "models"));
         dirs.Add(Path.Combine(Directory.GetCurrentDirectory(), "models"));
-        dirs.Add(@"D:\_projects\win_search\models");
         dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "huggingface"));
 
         // Fallbacks for BGE-M3 filenames
