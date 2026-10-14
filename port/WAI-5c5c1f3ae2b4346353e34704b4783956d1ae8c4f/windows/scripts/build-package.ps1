@@ -1,7 +1,7 @@
 # Build and package WAI (Windows AI Search) for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.1.1",
+    [string]$Version = "1.1.2",
     [string]$OutputDir = "",
     [switch]$Slim = $true,
     [switch]$Full = $false
@@ -23,7 +23,7 @@ while ($RepoRoot -and !(Test-Path (Join-Path $RepoRoot ".git"))) {
     $RepoRoot = $parent
 }
 if (!(Test-Path (Join-Path $RepoRoot ".git"))) {
-    $RepoRoot = "D:\_projects\win_search"
+    $RepoRoot = Split-Path -Parent (Split-Path -Parent $WindowsDir)
 }
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 
