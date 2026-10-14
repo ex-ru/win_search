@@ -73,8 +73,8 @@ internal sealed class Embedder : IDisposable
             var cp = Native.llama_context_default_params();
             cp.NCtx = cp.NBatch = cp.NUbatch = (uint)_maxTokens;
             cp.NSeqMax = MaxSeqs;
-            // Use the whole CPU for the parts that run there (the GPU does the rest).
-            cp.NThreads = cp.NThreadsBatch = Environment.ProcessorCount;
+            int threads = Math.Clamp(Environment.ProcessorCount, 1, 8);
+            cp.NThreads = cp.NThreadsBatch = threads;
             cp.KvUnified = true;
             cp.Embeddings = true;
             bool isLateModel = textPath.Contains("late", StringComparison.OrdinalIgnoreCase) || textPath.Contains("pplx", StringComparison.OrdinalIgnoreCase);

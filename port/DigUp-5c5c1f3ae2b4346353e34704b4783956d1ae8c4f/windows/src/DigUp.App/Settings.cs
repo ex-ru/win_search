@@ -50,6 +50,7 @@ public sealed class Settings
     public static string Dir =>
         Environment.GetEnvironmentVariable("DIGUP_HOME") is { Length: > 0 } home ? home :
         System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp");
+    public static string LogsDir => System.IO.Path.Combine(Dir, "logs");
     public static string Path => System.IO.Path.Combine(Dir, "settings.json");
     public static string IndexDir =>
         Environment.GetEnvironmentVariable("DIGUP_INDEX") is { Length: > 0 } d ? d

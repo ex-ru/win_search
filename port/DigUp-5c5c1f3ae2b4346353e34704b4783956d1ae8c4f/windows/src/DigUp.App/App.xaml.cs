@@ -57,21 +57,27 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        ErrorLog.Write($"=== WAI v{AppConstants.Version} Starting (PID={Environment.ProcessId}, OS={Environment.OSVersion}, 64bit={Environment.Is64BitProcess}) ===");
+        ErrorLog.Write($"Logs directory: {Settings.LogsDir}");
+
         // No silent deaths: anything escaping to the top is logged and shown.
         DispatcherUnhandledException += (_, ex) =>
         {
-            ErrorLog.Write("ui: " + ex.Exception.Message);
+            ErrorLog.WriteException("ui unhandled", ex.Exception);
             ShowNote("Что-то пошло не так (" + FirstLine(ex.Exception.Message) + "). WAI продолжает работу.");
             ex.Handled = true;
         };
         TaskScheduler.UnobservedTaskException += (_, ex) =>
         {
-            ErrorLog.Write("task: " + ex.Exception.Message);
+            ErrorLog.WriteException("task unobserved", ex.Exception);
             ex.SetObserved();
         };
         AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
         {
-            ErrorLog.Write("fatal: " + (ex.ExceptionObject as Exception)?.Message);
+            if (ex.ExceptionObject is Exception exc)
+                ErrorLog.WriteException("fatal appdomain", exc);
+            else
+                ErrorLog.Write("fatal appdomain: " + ex.ExceptionObject);
         };
 
         _single = new Mutex(true, @"Local\DigUp-Windows-v1", out bool first);
@@ -252,6 +258,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add(indexItem);
 
         menu.Items.Add(Loc.Settings, null, (_, _) => OpenSettings());
+        menu.Items.Add(Loc.OpenLogsBtn, null, (_, _) => ErrorLog.OpenLogsFolder());
 
         // About menu section
         var aboutMenu = new WinForms.ToolStripMenuItem(Loc.About);

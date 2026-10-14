@@ -242,7 +242,9 @@ public partial class SettingsWindow : Window
         {
             long dbBytes = _engine.GetDatabaseFileSize();
             double dbMb = Math.Round(dbBytes / (1024.0 * 1024.0), 1);
-            if (TxtDbTotalSize is not null) TxtDbTotalSize.Text = $"База index.sqlite: {dbMb} МБ";
+            if (TxtDbTotalSize is not null) TxtDbTotalSize.Text = $"База index: {dbMb} МБ";
+
+            var (doneFiles, totalFiles, pendingFiles, _) = _engine.GetDetailedProgress();
 
             if (Folders.SelectedItem is string selectedFolder)
             {
@@ -250,7 +252,7 @@ public partial class SettingsWindow : Window
                 if (stats is not null && TxtFolderStats is not null)
                 {
                     TxtFolderStats.Text = $"📁 {selectedFolder}\n" +
-                        $"Проиндексировано файлов: {stats.FileCount:N0} · Векторов: {stats.VectorCount:N0} · Объем эмбеддингов: {stats.VectorMegabytes:F2} МБ";
+                        $"Файлов в базе: {stats.FileCount:N0} · Векторов: {stats.VectorCount:N0} · Объем эмбеддингов: {stats.VectorMegabytes:F2} МБ";
                 }
             }
             else
@@ -258,12 +260,61 @@ public partial class SettingsWindow : Window
                 var total = _engine.GetTotalStats();
                 if (total is not null && TxtFolderStats is not null)
                 {
-                    TxtFolderStats.Text = $"📁 Суммарно по всем папкам:\n" +
-                        $"Файлов: {total.FileCount:N0} · Векторов: {total.VectorCount:N0} · Объем эмбеддингов: {total.VectorMegabytes:F2} МБ";
+                    TxtFolderStats.Text = $"📁 Суммарно в базе поиска:\n" +
+                        $"Индексируемых файлов: {totalFiles:N0} (готово: {doneFiles:N0}, в очереди: {pendingFiles:N0}) · Векторов: {total.VectorCount:N0} · Объем: {total.VectorMegabytes:F2} МБ";
+                }
+            }
+
+            // Check for orphaned vectors of removed folders
+            var orphaned = _engine.GetOrphanedStats();
+            if (CardOrphaned is not null)
+            {
+                if (orphaned is not null && orphaned.Files > 0)
+                {
+                    CardOrphaned.Visibility = Visibility.Visible;
+                    if (TxtOrphanedTitle is not null) TxtOrphanedTitle.Text = Loc.OrphanedTitle;
+                    if (TxtOrphanedInfo is not null)
+                    {
+                        TxtOrphanedInfo.Text = Loc.OrphanedInfo(orphaned.Files, orphaned.Vectors, $"{orphaned.VectorMegabytes:F2} МБ");
+                    }
+                    if (BtnPurgeOrphaned is not null) BtnPurgeOrphaned.Content = Loc.PurgeOrphanedBtn;
+                }
+                else
+                {
+                    CardOrphaned.Visibility = Visibility.Collapsed;
                 }
             }
         }
         catch { }
+    }
+
+    private void OnPurgeOrphaned(object sender, RoutedEventArgs e)
+    {
+        if (_engine is null) return;
+        var orphaned = _engine.GetOrphanedStats();
+        if (orphaned is null || orphaned.Files == 0) return;
+
+        var res = MessageBox.Show(this,
+            Loc.PurgeConfirmText(orphaned.Files, $"{orphaned.VectorMegabytes:F2} МБ"),
+            Loc.PurgeConfirmTitle,
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (res == MessageBoxResult.Yes)
+        {
+            int purged = _engine.PurgeOrphaned();
+            UpdateFolderStats();
+            MessageBox.Show(this,
+                $"Очищено {purged} файлов и векторов удаленных папок из базы.",
+                "Готово",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
+    private void OnOpenLogs(object sender, RoutedEventArgs e)
+    {
+        ErrorLog.OpenLogsFolder();
     }
 
     private void OnOpacitySliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -326,6 +377,10 @@ public partial class SettingsWindow : Window
         if (Updates is not null) Updates.Content = Loc.UpdatesCheck;
         if (TxtUpdateSourceLabel is not null) TxtUpdateSourceLabel.Text = Loc.UpdateSourceLabel;
         if (TxtSystemNote is not null) TxtSystemNote.Text = Loc.SystemNote;
+        if (TxtOrphanedTitle is not null) TxtOrphanedTitle.Text = Loc.OrphanedTitle;
+        if (BtnPurgeOrphaned is not null) BtnPurgeOrphaned.Content = Loc.PurgeOrphanedBtn;
+        if (BtnOpenLogs is not null) BtnOpenLogs.Content = Loc.OpenLogsBtn;
+        if (TxtLogsDesc is not null) TxtLogsDesc.Text = Loc.LogsDesc;
         if (BtnAbout is not null) BtnAbout.Content = Loc.About;
         if (BtnApply is not null) BtnApply.Content = Loc.Apply;
         if (BtnCancel is not null) BtnCancel.Content = Loc.Cancel;

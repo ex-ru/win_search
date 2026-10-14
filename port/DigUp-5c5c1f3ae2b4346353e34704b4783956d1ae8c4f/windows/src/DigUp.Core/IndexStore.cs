@@ -126,6 +126,10 @@ public sealed record FolderVectorStats(
     long VectorBytesTotal
 )
 {
+    public int Files => FileCount;
+    public int Segments => SegmentCount;
+    public int Vectors => VectorCount;
+    public long Bytes => VectorBytesTotal;
     public double VectorMegabytes => Math.Round(VectorBytesTotal / (1024.0 * 1024.0), 2);
 }
 
@@ -299,6 +303,107 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         catch { }
 
         return new FolderVectorStats("Все папки", files, segments, vectors, bytes);
+    }
+
+    /// <summary>
+    /// Computes indexed files, segments, and embedding vector disk sizes for files whose path
+    /// is NOT inside any of the currently active roots.
+    /// </summary>
+    public FolderVectorStats GetOrphanedStats(IReadOnlyList<string> activeRoots)
+    {
+        var prefixes = new List<string>();
+        foreach (var root in activeRoots)
+        {
+            string p = NormalizePath(root);
+            prefixes.Add(p.EndsWith('/') ? p : p + "/");
+        }
+
+        int files = 0;
+        int segments = 0;
+        int vectors = 0;
+        long bytes = 0;
+
+        try
+        {
+            _db.Query(
+                "SELECT f.id, f.path " +
+                "FROM files f",
+                [],
+                r =>
+                {
+                    string path = r.NullableText(1) ?? "";
+                    bool inside = false;
+                    foreach (var p in prefixes)
+                    {
+                        if (path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                        {
+                            inside = true;
+                            break;
+                        }
+                    }
+                    if (!inside)
+                    {
+                        long fileId = r.GetInt64(0);
+                        files++;
+                        _db.Query(
+                            "SELECT COUNT(s.id), COUNT(s.vec), COALESCE(SUM(LENGTH(s.vec)), 0) " +
+                            "FROM segments s WHERE s.file = ?",
+                            [SqlValue.Int(fileId)],
+                            sr =>
+                            {
+                                segments += (int)sr.GetInt64(0);
+                                vectors += (int)sr.GetInt64(1);
+                                bytes += sr.GetInt64(2);
+                            });
+                    }
+                });
+        }
+        catch { }
+
+        return new FolderVectorStats("Неактивные / удаленные папки", files, segments, vectors, bytes);
+    }
+
+    /// <summary>
+    /// Deletes all files and vectors whose path is NOT under any of activeRoots,
+    /// returning the number of files purged.
+    /// </summary>
+    public int PurgeOrphaned(IReadOnlyList<string> activeRoots)
+    {
+        int count = Prune(activeRoots);
+        try { _db.Execute("VACUUM;"); } catch { }
+        return count;
+    }
+
+    /// <summary>
+    /// Returns the exact count of files in the current scope: Done/Partial, Total, and Pending.
+    /// </summary>
+    public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetFileCounts()
+    {
+        int done = 0;
+        int total = 0;
+        int pending = 0;
+        int vectors = 0;
+
+        try
+        {
+            _db.Query("SELECT state, COUNT(*) FROM files WHERE 1" + _scopeSql + " GROUP BY state", _scopeValues, r =>
+            {
+                string state = r.NullableText(0) ?? "";
+                int count = (int)r.GetInt64(1);
+                total += count;
+                if (state is "done" or "partial") done += count;
+                else if (state == "pending") pending += count;
+            });
+
+            string inScope = _scope is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + _scopeSql + ")";
+            _db.Query("SELECT COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, _scopeValues, r =>
+            {
+                vectors = (int)r.GetInt64(0);
+            });
+        }
+        catch { }
+
+        return (done, total, pending, vectors);
     }
 
     // ---------- Schema ----------

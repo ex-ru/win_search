@@ -65,6 +65,24 @@ public static class Loc
     public static string RemoveFolder => IsRu ? "Удалить" : "Remove";
     public static string StatsHeader => IsRu ? "📊 Статистика эмбеддингов:" : "📊 Embeddings statistics:";
 
+    // Orphaned Vectors
+    public static string OrphanedTitle => IsRu ? "Сохраненные векторы неактивных / удаленных папок" : "Cached vectors of inactive / removed folders";
+    public static string OrphanedInfo(int files, int vectors, string size) => IsRu
+        ? $"В базе сохранено: {files} файлов ({vectors} векторов, {size}). Векторы сохранены и ускорят поиск при повторном добавлении папок."
+        : $"Preserved in index: {files} files ({vectors} vectors, {size}). Kept to speed up indexing if folders are re-added.";
+    public static string PurgeOrphanedBtn => IsRu ? "🗑️ Очистить кэш удаленных папок" : "🗑️ Clear removed folders cache";
+    public static string PurgeConfirmTitle => IsRu ? "Очистка кэша неактивных папок" : "Purge inactive folder cache";
+    public static string PurgeConfirmText(int files, string size) => IsRu
+        ? $"Вы действительно хотите удалить сохраненные векторы неактивных папок ({files} файлов, {size})?\nПри повторном добавлении этих папок потребуется повторная индексация."
+        : $"Are you sure you want to delete cached vectors for inactive folders ({files} files, {size})?\nIf re-added later, they will need to be re-indexed.";
+
+    // Logs
+    public static string LogsTitle => IsRu ? "Диагностические логи" : "Diagnostic logs";
+    public static string LogsDesc => IsRu
+        ? "Логи работы WAI, GPU/Vulkan и фонового процесса индексации хранятся локально в папке логов."
+        : "Operational logs for WAI, GPU/Vulkan, and background indexing are stored in the logs folder.";
+    public static string OpenLogsBtn => IsRu ? "📂 Открыть папку с логами" : "📂 Open logs folder";
+
     // Vectors
     public static string VectorsTitle => IsRu ? "Векторный индекс и эмбеддинги" : "Vector index and embeddings";
     public static string VectorsDesc => IsRu

@@ -276,10 +276,11 @@ public sealed class Indexer : System.IDisposable
             }
         });
 
-        // Folders the user removed in Settings are outside every root above:
-        // FilesUnder never loads them, so without this they would haunt
-        // search results forever. Gone hardware keeps its files (see Prune).
-        summary.Removed += _store.Prune(roots);
+        // Folders the user removed in Settings are kept cached in the database.
+        // Scope filters them out of search results, but their embeddings are preserved
+        // so re-adding the folder doesn't require re-indexing from scratch.
+        // Users can explicitly clean them up via PurgeOrphaned().
+        // summary.Removed += _store.Prune(roots);
 
         return summary;
     }

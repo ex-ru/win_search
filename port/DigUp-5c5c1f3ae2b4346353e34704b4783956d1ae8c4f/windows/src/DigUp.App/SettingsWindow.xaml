@@ -328,6 +328,18 @@
                            Text="Загрузка статистики…" />
               </StackPanel>
             </Border>
+
+            <!-- Orphaned / Inactive Folders Vectors Cache -->
+            <Border x:Name="CardOrphaned" Background="#221C14" BorderBrush="#8A631E" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,8,0,0" Visibility="Collapsed">
+              <StackPanel>
+                <DockPanel>
+                  <TextBlock x:Name="TxtOrphanedTitle" Text="💾 Сохраненный кэш удаленных папок" FontWeight="SemiBold" FontSize="12" Foreground="#FFD54F" />
+                  <Button x:Name="BtnPurgeOrphaned" Content="🗑️ Очистить кэш" HorizontalAlignment="Right" Click="OnPurgeOrphaned" Style="{StaticResource DangerButtonStyle}" Padding="8,4" FontSize="11" />
+                </DockPanel>
+                <TextBlock x:Name="TxtOrphanedInfo" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#FFE082" FontSize="12"
+                           Text="В базе сохранены векторы неактивных папок..." />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </Border>
 
@@ -446,9 +458,18 @@
             <CheckBox x:Name="Startup" Content="Запускать WAI при старте Windows" />
             <CheckBox x:Name="Updates" Content="Проверять обновления программы раз в день" />
             <TextBlock x:Name="TxtUpdateSourceLabel" Text="Источник пакетов обновлений (GitHub Releases или локальная папка):" Foreground="#BBBBBB" Margin="0,4,0,4" />
-            <TextBox x:Name="UpdateSource" ToolTip="Оставьте пустым для обновлений с https://github.com/ex-ru/win_search/releases или укажите локальную папку." />
-            <TextBlock x:Name="TxtSystemNote" Foreground="#777777" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+            <TextBox x:Name="UpdateSource" Margin="0,0,0,6" ToolTip="Оставьте пустым для обновлений с https://github.com/ex-ru/win_search/releases или укажите локальную папку." />
+            <TextBlock x:Name="TxtSystemNote" Foreground="#777777" FontSize="11" Margin="0,2,0,8" TextWrapping="Wrap"
                        Text="WAI работает per-user: не требует прав администратора, данные хранятся в %LocalAppData%\WAI." />
+
+            <!-- Diagnostic Logs -->
+            <Border Background="#1C2228" BorderBrush="#334455" BorderThickness="1" CornerRadius="6" Padding="10,8">
+              <DockPanel>
+                <Button x:Name="BtnOpenLogs" Content="📂 Открыть папку с логами" DockPanel.Dock="Left" Click="OnOpenLogs" Padding="12,6" Margin="0,0,12,0" />
+                <TextBlock x:Name="TxtLogsDesc" Foreground="#A0B0C0" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                           Text="Диагностические логи WAI, GPU/Vulkan и процесса индексации" />
+              </DockPanel>
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>

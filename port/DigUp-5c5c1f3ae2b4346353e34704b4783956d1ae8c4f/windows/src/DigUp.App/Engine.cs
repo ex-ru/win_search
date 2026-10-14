@@ -64,25 +64,95 @@ public sealed class Engine : IDisposable
         {
             OpenStores();
             if (_store is null) return (0, 0);
-            int pending = _store.PendingCount();
-            var counts = _store.Counts();
-            int indexed = counts.Vectors;
-            if (_codeStore is not null)
-            {
-                pending += _codeStore.PendingCount();
-                var codeCounts = _codeStore.Counts();
-                indexed += codeCounts.Vectors;
-            }
+
             if (IsIndexing && ProgressTotal > 0)
             {
                 int remaining = Math.Max(0, ProgressTotal - ProgressDone);
                 return (ProgressDone, remaining);
             }
-            return (indexed, pending);
+
+            var (done, _, pending, _) = _store.GetFileCounts();
+            if (_codeStore is not null)
+            {
+                var (cDone, _, cPending, _) = _codeStore.GetFileCounts();
+                done += cDone;
+                pending += cPending;
+            }
+            return (done, pending);
         }
         catch
         {
             return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
+        }
+    }
+
+    public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetDetailedProgress()
+    {
+        try
+        {
+            OpenStores();
+            if (_store is null) return (0, 0, 0, 0);
+            var (done, total, pending, vectors) = _store.GetFileCounts();
+            if (_codeStore is not null)
+            {
+                var (cDone, cTotal, cPending, cVec) = _codeStore.GetFileCounts();
+                done += cDone;
+                total += cTotal;
+                pending += cPending;
+                vectors += cVec;
+            }
+            return (done, total, pending, vectors);
+        }
+        catch
+        {
+            return (0, 0, 0, 0);
+        }
+    }
+
+    /// <summary>
+    /// Computes files and vectors in the database belonging to folders that were removed from settings.
+    /// </summary>
+    public FolderVectorStats? GetOrphanedStats()
+    {
+        try
+        {
+            OpenStores();
+            if (_store is null) return null;
+            var s = _store.GetOrphanedStats(_settings.Folders);
+            if (_codeStore is not null)
+            {
+                var cs = _codeStore.GetOrphanedStats(_settings.Folders);
+                return new FolderVectorStats(
+                    "Неактивные / удаленные папки",
+                    s.Files + cs.Files,
+                    s.Segments + cs.Segments,
+                    s.Vectors + cs.Vectors,
+                    s.Bytes + cs.Bytes);
+            }
+            return s;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Purges all indexed files and vectors belonging to folders no longer in settings.
+    /// </summary>
+    public int PurgeOrphaned()
+    {
+        try
+        {
+            OpenStores();
+            int purged = _store?.PurgeOrphaned(_settings.Folders) ?? 0;
+            if (_codeStore is not null)
+                purged += _codeStore.PurgeOrphaned(_settings.Folders);
+            Say($"очищено {purged} файлов удаленных папок из базы");
+            Changed?.Invoke();
+            return purged;
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("PurgeOrphaned: " + ex);
+            return 0;
         }
     }
 
@@ -491,7 +561,7 @@ public sealed class Engine : IDisposable
             exe,
             args,
             Environment: env.Count > 0 ? env : null,
-            LogPath: Path.Combine(Settings.Dir, "worker.log"),
+            LogPath: Path.Combine(Settings.LogsDir, "worker.log"),
             TextOnly: textOnly);
     }
 
