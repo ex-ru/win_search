@@ -33,8 +33,14 @@ if (-not (Test-Path $ReleasesDir)) {
     throw "Каталог $ReleasesDir не найден. Сначала соберите пакеты через build-package.ps1."
 }
 
-$SetupExe = Join-Path $ReleasesDir "WinSearch.WAI-win-Setup.exe"
-$PortableZip = Join-Path $ReleasesDir "WinSearch.WAI-win-Portable.zip"
+$SetupExe = Join-Path $ReleasesDir "WinSearch.DigUp-win-Setup.exe"
+if (-not (Test-Path $SetupExe)) {
+    $SetupExe = Get-ChildItem -Path $ReleasesDir -Filter "*win-Setup.exe" | Select-Object -First 1 -ExpandProperty FullName
+}
+$PortableZip = Join-Path $ReleasesDir "WinSearch.DigUp-win-Portable.zip"
+if (-not (Test-Path $PortableZip)) {
+    $PortableZip = Get-ChildItem -Path $ReleasesDir -Filter "*win-Portable.zip" | Select-Object -First 1 -ExpandProperty FullName
+}
 $ReleasesJson = Join-Path $ReleasesDir "releases.win.json"
 $ShaFile = Join-Path $ReleasesDir "SHA256SUMS.txt"
 
@@ -59,8 +65,8 @@ $ReleaseNotes = @"
 
 ### Что нового:
 1. **Дистрибутивы и установка**:
-   - Автономный установщик: `WinSearch.WAI-win-Setup.exe` (per-user, no-admin, автозапуск).
-   - Портативная версия: `WinSearch.WAI-win-Portable.zip` (распакуй и запусти).
+   - Автономный установщик: `WinSearch.DigUp-win-Setup.exe` (WAI per-user, no-admin, автозапуск, плавное обновление версий 1.0.x / 1.1.x).
+   - Портативная версия: `WinSearch.DigUp-win-Portable.zip` (распакуй и запусти).
    - Поддержка отслеживания больших пакетов через Git LFS.
 2. **Окно предпросмотра (Quick Look)**:
    - Устранена полоса в заголовке окна (прозрачный DWM-фрейм).

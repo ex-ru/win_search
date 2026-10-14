@@ -42,7 +42,7 @@
    - Нарезка ключевых кадров и извлечение аудио через встроенный неблокирующий конвейер FFmpeg.
 6. **Полная приватность и локальность (No-Admin, Per-User):**
    - Никаких сетевых запросов при поиске. Все данные хранятся локально в `%LocalAppData%\WAI`.
-   - Установщик **Velopack** (`WinSearch.WAI-win-Setup.exe`) и переносимый архив (`WinSearch.WAI-win-Portable.zip`) со встроенным PDFium.
+   - Установщик **Velopack** (`WinSearch.DigUp-win-Setup.exe`) и переносимый архив (`WinSearch.DigUp-win-Portable.zip`) со встроенным PDFium.
    - Фоновая проверка обновлений из локальной папки: путь задаётся в Settings; скачанный пакет применяется при следующем запуске.
    - Глобальный хоткей `Ctrl + Alt + Space` для мгновенного вызова поиска из любого окна.
 
@@ -114,8 +114,8 @@ powershell -ExecutionPolicy Bypass -File port\WAI-5c5c1f3ae2b4346353e34704b47839
 ```
 
 Готовые пакеты размещаются в каталоге `dist/releases/`:
-- `WinSearch.WAI-win-Setup.exe` — установщик для пользователя (no-admin), программа хранится отдельно от данных в `%LocalAppData%\WinSearch.WAI`;
-- `WinSearch.WAI-win-Portable.zip` — переносимая версия;
+- `WinSearch.DigUp-win-Setup.exe` — установщик для пользователя (no-admin), программа хранится отдельно от данных в `%LocalAppData%\WinSearch.DigUp`;
+- `WinSearch.DigUp-win-Portable.zip` — переносимая версия;
 - `SHA256SUMS.txt` — контрольные суммы релизных файлов.
 
 Источник обновлений для этого рабочего каталога — абсолютный путь к `dist/releases`; `Start-WAI.ps1` передаёт его приложению. В Settings можно изменить путь и включить/выключить ежедневную проверку. Обновления доступны в пакетах Velopack; распакованная сборка `run-vulkan` предназначена для разработки. Модели загружаются отдельно при первом запуске и не включены в архив.

@@ -43,6 +43,7 @@ public sealed record EmbeddingModelDef(
         if (!string.IsNullOrEmpty(envModels)) dirs.Add(envModels);
 
         dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI", "Models"));
+        dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "Models"));
         dirs.Add(Path.Combine(AppContext.BaseDirectory, "models"));
         dirs.Add(Path.Combine(Directory.GetCurrentDirectory(), "models"));
 

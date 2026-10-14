@@ -57,6 +57,7 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        CleanupDuplicateInstallations();
         ErrorLog.Write($"=== WAI v{AppConstants.Version} Starting (PID={Environment.ProcessId}, OS={Environment.OSVersion}, 64bit={Environment.Is64BitProcess}) ===");
         ErrorLog.Write($"Logs directory: {Settings.LogsDir}");
 
@@ -391,4 +392,53 @@ public partial class App : System.Windows.Application
             };
         }
     }
+
+    private static void CleanupDuplicateInstallations()
+    {
+        try
+        {
+            string currentBase = AppContext.BaseDirectory;
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string badWaiDir = Path.Combine(localAppData, "WinSearch.WAI");
+
+            // If we are not running directly from WinSearch.WAI (e.g. running from WinSearch.DigUp or dev build)
+            if (!currentBase.StartsWith(badWaiDir, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                        @"Software\Microsoft\Windows\CurrentVersion\Uninstall\WinSearch.WAI", writable: false);
+                    if (key != null)
+                    {
+                        Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                            @"Software\Microsoft\Windows\CurrentVersion\Uninstall\WinSearch.WAI", throwOnMissingSubKey: false);
+                    }
+                }
+                catch { }
+
+                if (Directory.Exists(badWaiDir))
+                {
+                    try { Directory.Delete(badWaiDir, recursive: true); } catch { }
+                }
+            }
+
+            // Also clean up obsolete 1.0.0 "DigUp" uninstall registry key if present
+            try
+            {
+                using var keyDigUp = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DigUp", writable: false);
+                if (keyDigUp != null)
+                {
+                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                        @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DigUp", throwOnMissingSubKey: false);
+                }
+            }
+            catch { }
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("CleanupDuplicateInstallations: " + ex.Message);
+        }
+    }
 }
+

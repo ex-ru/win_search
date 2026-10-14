@@ -58,8 +58,66 @@ public sealed class Settings
 
     public static readonly string[] Editors = ["auto", "code", "cursor", "devenv", "notepad++", "subl", "idea64"];
 
+    public static void MigrateLegacyDataIfNeeded()
+    {
+        try
+        {
+            string legacyDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp");
+            if (!Directory.Exists(legacyDir)) return;
+
+            Directory.CreateDirectory(Dir);
+
+            // 1. Settings migration: if WAI doesn't have settings.json, copy from DigUp
+            if (!File.Exists(Path))
+            {
+                string legacySettings = System.IO.Path.Combine(legacyDir, "settings.json");
+                if (File.Exists(legacySettings))
+                {
+                    try { File.Copy(legacySettings, Path, overwrite: false); } catch { }
+                }
+            }
+
+            // 2. Index / Vectors migration: if WAI has no sqlite index, copy from DigUp
+            string legacyIndex = System.IO.Path.Combine(legacyDir, "index.noindex");
+            if (Directory.Exists(legacyIndex))
+            {
+                bool hasIndex = Directory.Exists(IndexDir) && Directory.EnumerateFiles(IndexDir, "*.sqlite").Any();
+                if (!hasIndex)
+                {
+                    Directory.CreateDirectory(IndexDir);
+                    foreach (string file in Directory.EnumerateFiles(legacyIndex))
+                    {
+                        string targetFile = System.IO.Path.Combine(IndexDir, System.IO.Path.GetFileName(file));
+                        if (!File.Exists(targetFile))
+                        {
+                            try { File.Copy(file, targetFile, overwrite: false); } catch { }
+                        }
+                    }
+                }
+            }
+
+            // 3. Models migration: copy any GGUF models not yet present in WAI\Models
+            string legacyModels = System.IO.Path.Combine(legacyDir, "Models");
+            string targetModels = System.IO.Path.Combine(Dir, "Models");
+            if (Directory.Exists(legacyModels))
+            {
+                Directory.CreateDirectory(targetModels);
+                foreach (string file in Directory.EnumerateFiles(legacyModels, "*.gguf"))
+                {
+                    string targetFile = System.IO.Path.Combine(targetModels, System.IO.Path.GetFileName(file));
+                    if (!File.Exists(targetFile))
+                    {
+                        try { File.Copy(file, targetFile, overwrite: false); } catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
     public static Settings Load()
     {
+        MigrateLegacyDataIfNeeded();
         try
         {
             if (File.Exists(Path))

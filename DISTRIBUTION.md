@@ -13,7 +13,7 @@
 
 ### Технические причины:
 1. **Лимит GitHub на размер файла (100 МБ)**:
-   - Размер автономного инсталлятора `WinSearch.WAI-win-Setup.exe` составляет **~291 МБ**, а портативного архива `WinSearch.WAI-win-Portable.zip` — **~284 МБ** (включают рантаймы Vulkan, llama.cpp, AVX-варианты CPU, OCR, PDFium и SQLite).
+   - Размер автономного инсталлятора `WinSearch.DigUp-win-Setup.exe` составляет **~291 МБ**, а портативного архива `WinSearch.DigUp-win-Portable.zip` — **~284 МБ** (включают рантаймы Vulkan, llama.cpp, AVX-варианты CPU, OCR, PDFium и SQLite).
    - При попытке отправить файлы такого размера в обычный Git сервер GitHub немедленно отклоняет push (`File exceeds GitHub's file size limit of 100.00 MB`).
 2. **Исключение в `.gitignore`**:
    - В `.gitignore` явно прописаны строки:
@@ -35,7 +35,7 @@
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download-release.ps1
 ```
-*(Скрипт автоматически опрашивает GitHub Releases API, находит свежую версию, скачивает `WinSearch.WAI-win-Setup.exe` в `dist\releases\` и сверяет контрольную сумму SHA256).*
+*(Скрипт автоматически опрашивает GitHub Releases API, находит свежую версию, скачивает `WinSearch.DigUp-win-Setup.exe` в `dist\releases\` и сверяет контрольную сумму SHA256).*
 
 Для скачивания портативной версии:
 ```powershell

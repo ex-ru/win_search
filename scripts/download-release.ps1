@@ -46,15 +46,15 @@ try {
 }
 
 $targetPattern = if ($Portable) {
-    "WinSearch.WAI-win-Portable.zip"
+    "*win-Portable.zip"
 } elseif ($Full) {
-    "WinSearch.WAI-win-Setup-Full.exe"
+    "*win-Setup-Full.exe"
 } else {
-    "WinSearch.WAI-win-Setup.exe"
+    "*win-Setup.exe"
 }
 
 $assets = @($release.assets)
-$targetAsset = $assets | Where-Object { $_.name -like "*$targetPattern*" -or $_.name -eq $targetPattern } | Select-Object -First 1
+$targetAsset = $assets | Where-Object { $_.name -like $targetPattern -or $_.name -like "*$targetPattern*" } | Select-Object -First 1
 
 if (!$targetAsset) {
     # Fallback to any exe or zip asset

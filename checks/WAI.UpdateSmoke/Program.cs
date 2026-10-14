@@ -20,7 +20,7 @@ Func<string, UpdateManager> factory = source =>
 {
     managerCreations++;
     return new UpdateManager(source, options: null,
-        locator: new TestVelopackLocator("WinSearch.WAI", args[1], cache, new NullVelopackLogger()));
+        locator: new TestVelopackLocator("WinSearch.DigUp", args[1], cache, new NullVelopackLogger()));
 };
 // Exercise the application's service, including its settings and notification path.
 var serviceType = typeof(Settings).Assembly.GetType("WAI.App.UpdateService", throwOnError: true)!;
@@ -31,7 +31,7 @@ await (Task)check.Invoke(service, null)!;
 await (Task)check.Invoke(service, null)!;
 using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(feed, "releases.win.json")));
 var asset = manifest.RootElement.GetProperty("Assets").EnumerateArray()
-    .Where(a => a.GetProperty("PackageId").GetString() == "WinSearch.WAI" && a.GetProperty("Type").GetString() == "Full")
+    .Where(a => a.GetProperty("PackageId").GetString() == "WinSearch.DigUp" && a.GetProperty("Type").GetString() == "Full")
     .OrderByDescending(a => Version.Parse(a.GetProperty("Version").GetString()!)).First();
 string package = Path.Combine(cache, asset.GetProperty("FileName").GetString()!);
 bool checksumMatches = File.Exists(package) &&

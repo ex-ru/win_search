@@ -1,16 +1,15 @@
 {
   "passed": true,
-  "source": "D:\\_projects\\win_search\\dist\\releases",
-  "installedVersion": "1.0.1",
-  "targetVersion": "1.0.2",
-  "package": "D:\\_projects\\win_search\\state\\fix-smoke\\update\\packages\\WinSearch.WAI-1.0.2-full.nupkg",
+  "source": "d:\\_projects\\win_search\\dist\\releases",
+  "installedVersion": "1.1.1",
+  "targetVersion": "1.1.2",
+  "package": "d:\\_projects\\win_search\\state\\fix-smoke\\update\\packages\\WinSearch.DigUp-1.1.2-full.nupkg",
   "checksumMatches": true,
-  "LastUpdateCheck": "2026-10-12T20:55:58.9383138+03:00",
+  "LastUpdateCheck": "2026-10-14T21:12:51.0755623+00:00",
   "managerCreations": 1,
   "notifications": [
-    "WAI 1.0.2 is downloaded. Quit and open WAI to apply it."
+    "WAI 1.1.2 is downloaded. Quit and open WAI to apply it."
   ],
-  "applied": true,
-  "note": "Velopack startup automatically applied 1.0.1 -> 1.0.2 in an isolated portable directory; app DLL matches release staging.",
-  "appliedVersion": "1.0.2"
+  "applied": false,
+  "note": "Local download verified through the real app service; applying waits for the next packaged app launch."
 }
