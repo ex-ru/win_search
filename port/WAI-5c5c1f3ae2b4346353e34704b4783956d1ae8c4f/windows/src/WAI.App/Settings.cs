@@ -38,6 +38,8 @@ public sealed class Settings
     public string Editor { get; set; } = "auto";
     /// <summary>Hardware acceleration mode: "auto", "gpu_ext", "gpu_int", "cpu".</summary>
     public string HardwareMode { get; set; } = "auto";
+    /// <summary>Encode short search queries on CPU (AVX2/AVX-512) for instant response without GPU startup latency.</summary>
+    public bool QueryFastPathCpu { get; set; } = true;
     /// <summary>Active embedding model: "gemma2", "bge-m3", "pplx-v2".</summary>
     public string EmbeddingModel { get; set; } = "gemma2";
 

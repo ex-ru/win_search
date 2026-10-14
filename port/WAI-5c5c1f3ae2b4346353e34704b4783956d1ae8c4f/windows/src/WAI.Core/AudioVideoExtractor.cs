@@ -265,6 +265,7 @@ public static class AudioVideoExtractor
         using (var process = new System.Diagnostics.Process { StartInfo = StartInfo(paths.FFmpegExe, BuildPcmArgs(path)) })
         {
             process.Start();
+            JobObjectManager.AssignProcess(process);
             var stderrTask = process.StandardError.ReadToEndAsync();
             var stdout = process.StandardOutput.BaseStream;
             byte[] chunk = new byte[64 * 1024];
@@ -444,6 +445,7 @@ public static class AudioVideoExtractor
     {
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
         process.Start();
+        JobObjectManager.AssignProcess(process);
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync(ct);
@@ -455,6 +457,7 @@ public static class AudioVideoExtractor
     {
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
         process.Start();
+        JobObjectManager.AssignProcess(process);
         var stderrTask = process.StandardError.ReadToEndAsync();
         using var memory = new System.IO.MemoryStream();
         await process.StandardOutput.BaseStream.CopyToAsync(memory, ct);

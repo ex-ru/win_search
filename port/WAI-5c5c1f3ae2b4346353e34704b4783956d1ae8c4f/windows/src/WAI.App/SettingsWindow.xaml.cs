@@ -52,6 +52,7 @@ public partial class SettingsWindow : Window
         Updates.IsChecked = settings.CheckUpdates;
         UpdateSource.Text = string.IsNullOrWhiteSpace(settings.UpdateSource) ? AppConstants.DefaultUpdateSource : settings.UpdateSource;
         Startup.IsChecked = settings.StartWithWindows;
+        CheckQueryFastPathCpu.IsChecked = settings.QueryFastPathCpu;
     }
 
     private void RefreshFolders()
@@ -371,6 +372,8 @@ public partial class SettingsWindow : Window
         if (TxtHwDeviceLabel is not null) TxtHwDeviceLabel.Text = Loc.HwDeviceLabel;
         if (TxtHwStatusHeader is not null) TxtHwStatusHeader.Text = Loc.HwStatusHeader;
         if (TxtHwNote is not null) TxtHwNote.Text = Loc.HwNote;
+        if (TxtCheckQueryFastPathCpu is not null) TxtCheckQueryFastPathCpu.Text = Loc.HwQueryFastPath;
+        if (CheckQueryFastPathCpu is not null) CheckQueryFastPathCpu.ToolTip = Loc.HwQueryFastPathTooltip;
         if (TxtAppearanceTitle is not null) TxtAppearanceTitle.Text = Loc.AppearanceTitle;
         if (TxtAppearanceDesc is not null) TxtAppearanceDesc.Text = Loc.AppearanceDesc;
         if (TxtOpacityLabel is not null) TxtOpacityLabel.Text = Loc.OpacityLabel;
@@ -721,6 +724,13 @@ public partial class SettingsWindow : Window
             {
                 _engine?.ResetEmbedderWorker();
             }
+        }
+
+        bool fastPath = CheckQueryFastPathCpu.IsChecked == true;
+        if (_settings.QueryFastPathCpu != fastPath)
+        {
+            _settings.QueryFastPathCpu = fastPath;
+            _engine?.ResetEmbedderWorker();
         }
 
         _settings.CheckUpdates = Updates.IsChecked == true;

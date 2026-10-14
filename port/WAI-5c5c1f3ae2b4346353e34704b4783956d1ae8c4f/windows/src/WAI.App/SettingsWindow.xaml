@@ -417,6 +417,10 @@
             <TextBlock x:Name="TxtHwDeviceLabel" Text="Вычислительное устройство:" Foreground="#CCCCCC" FontSize="12" Margin="0,0,0,4" />
             <ComboBox x:Name="ComboHardware" DisplayMemberPath="Title" Margin="0,0,0,8" />
 
+            <CheckBox x:Name="CheckQueryFastPathCpu" Margin="0,0,0,8" VerticalContentAlignment="Center">
+              <TextBlock x:Name="TxtCheckQueryFastPathCpu" Text="Мгновенный старт поиска на CPU (Query Fast-Path)" Foreground="#E0E0E0" FontSize="12" />
+            </CheckBox>
+
             <Border Background="#1A2733" BorderBrush="#256B9E" BorderThickness="1" CornerRadius="6" Padding="10,8">
               <StackPanel>
                 <TextBlock x:Name="TxtHwStatusHeader" Text="🖥 Обнаруженное оборудование:" FontWeight="SemiBold" FontSize="12" Foreground="#80D8FF" />

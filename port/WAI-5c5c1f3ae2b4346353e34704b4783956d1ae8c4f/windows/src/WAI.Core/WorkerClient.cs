@@ -229,6 +229,7 @@ public sealed class WorkerClient : IEmbedder
             {
                 throw WorkerError.NotFound($"could not start: {config.Executable}");
             }
+            JobObjectManager.AssignProcess(_process);
         }
         catch (System.Exception error) when (error is not WorkerError)
         {

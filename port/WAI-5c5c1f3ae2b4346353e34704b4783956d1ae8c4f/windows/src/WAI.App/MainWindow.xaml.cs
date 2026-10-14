@@ -170,6 +170,10 @@ public partial class MainWindow : Window
             if (MascotSubtitle is not null) MascotSubtitle.Text = Loc.MascotSubtitle;
             if (Query is not null) Query.ToolTip = Loc.SearchTooltip;
             if (ClearButton is not null) ClearButton.ToolTip = Loc.ClearQueryTooltip;
+            if (SemanticPillText is not null) SemanticPillText.Text = Loc.SearchingMeaning;
+            if (SemanticPill is not null) SemanticPill.ToolTip = Loc.IsRu
+                ? "Прямые совпадения найдены. Выполняется семантический поиск по смыслу…"
+                : "Direct keyword matches found. Searching by meaning…";
             UpdateFilterCounts();
         }
         catch { }
@@ -424,6 +428,8 @@ public partial class MainWindow : Window
     {
         int gen = Interlocked.Increment(ref _searchGen);
         string q = Query.Text.Trim();
+        ClearButton.Visibility = q.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
         if (q.Length == 0)
         {
             _allHits.Clear();
@@ -431,6 +437,7 @@ public partial class MainWindow : Window
             Results.ItemsSource = null;
             PreviewImage.Source = null;
             PreviewText.Text = string.Empty;
+            SemanticPill.Visibility = Visibility.Collapsed;
             UpdateFilterCounts();
             ShowPreview();
             FollowPreview();
@@ -438,30 +445,95 @@ public partial class MainWindow : Window
         }
         Task.Run(() =>
         {
-            List<Engine.Hit> hits;
-            try { hits = _engine.Search(q, limit: 50); }
+            // Phase 1: Instant lexical search (< 5 ms)
+            List<Engine.Hit> lexicalHits;
+            try
+            {
+                lexicalHits = _engine.SearchLexical(q, limit: 50);
+            }
             catch (Exception ex)
             {
                 Dispatcher.Invoke(() =>
                 {
                     if (gen == _searchGen)
                     {
-                        ErrorLog.Write("search: " + ex);
+                        ErrorLog.Write("search lexical: " + ex);
                         Status.Text = "search stopped: " + ex.Message.Split('\n')[0];
+                        SemanticPill.Visibility = Visibility.Collapsed;
                     }
                 });
                 return;
             }
+
+            // Immediately show Phase 1 results and activate "Ищем по смыслу…" indicator
+            Dispatcher.Invoke(() =>
+            {
+                if (gen != _searchGen) return;
+
+                if (lexicalHits.Count > 0)
+                {
+                    _allHits = lexicalHits.Select(CreateItem).ToList();
+                    UpdateFilterCounts();
+                    ApplyCurrentFilter();
+                    Status.Text = Loc.LexicalHitsSuffix(lexicalHits.Count);
+                }
+                else
+                {
+                    Status.Text = Loc.SearchingMeaning;
+                }
+
+                // Show semantic searching indicator pill
+                SemanticPillText.Text = Loc.SearchingMeaning;
+                SemanticPill.Visibility = Visibility.Visible;
+            });
+
+            // Phase 2: Vector embedding and hybrid re-ranking
+            List<Engine.Hit> semanticHits;
+            try
+            {
+                var vec = _engine.EmbedQuery(q);
+                if (gen != _searchGen) return;
+
+                semanticHits = _engine.SearchWithVector(q, vec, limit: 50);
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (gen == _searchGen)
+                    {
+                        ErrorLog.Write("search semantic: " + ex);
+                        SemanticPill.Visibility = Visibility.Collapsed;
+                    }
+                });
+                return;
+            }
+
+            // Render final semantic / hybrid results
             Dispatcher.Invoke(() =>
             {
                 if (gen != _searchGen) return; // a newer keystroke won
-                _allHits = hits.Select(CreateItem).ToList();
+
+                SemanticPill.Visibility = Visibility.Collapsed;
+                _allHits = semanticHits.Select(CreateItem).ToList();
                 UpdateFilterCounts();
                 ApplyCurrentFilter();
 
                 if (CodeQuery.TextOf(q) is null && _allHits.Count > 0
                     && _allHits.All(h => h.Hit.Kind == "Code"))
-                    Status.Text = "только код совпадает — подсказка: code: ищет по коду, обычные слова — по остальным файлам";
+                {
+                    Status.Text = Loc.IsRu
+                        ? "только код совпадает — подсказка: code: ищет по коду, обычные слова — по остальным файлам"
+                        : "only code matches — hint: code: searches code, plain words search other files";
+                }
+                else if (_allHits.Count == 0)
+                {
+                    Status.Text = Loc.NoResultsFound;
+                }
+                else
+                {
+                    Status.Text = Loc.FoundResults(_allHits.Count);
+                }
             });
         });
     }

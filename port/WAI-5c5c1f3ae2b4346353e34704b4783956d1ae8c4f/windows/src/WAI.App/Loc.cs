@@ -135,6 +135,14 @@ public static class Loc
     public static string HwDiscrete(string name, ulong vram) => IsRu ? $"Дискретная видеокарта: {name} ({vram} МБ VRAM)" : $"Discrete GPU: {name} ({vram} MB VRAM)";
     public static string HwIntegrated(string name) => IsRu ? $"Встроенная графика: {name}" : $"Integrated GPU: {name}";
     public static string HwCpu(int cores) => IsRu ? $"Только процессор (CPU, {cores} потоков)" : $"CPU only ({cores} threads)";
+    public static string HwQueryFastPath => IsRu ? "Мгновенный старт поиска на CPU (Query Fast-Path)" : "Instant search start on CPU (Query Fast-Path)";
+    public static string HwQueryFastPathTooltip => IsRu
+        ? "Короткие поисковые запросы кодируются на CPU (AVX2/AVX-512) за ~10-15 мс без задержек инициализации контекста GPU/Vulkan. GPU сохраняется для пакетной фоновой индексации."
+        : "Short search queries are encoded on CPU (AVX2/AVX-512) in ~10-15 ms without GPU/Vulkan initialization latency. GPU is preserved for batch background indexing.";
+    public static string SearchingMeaning => IsRu ? "Ищем по смыслу…" : "Searching by meaning…";
+    public static string LexicalHitsSuffix(int count) => IsRu ? $"{count} совпадений (текст) · Ищем по смыслу…" : $"{count} keyword matches · Searching by meaning…";
+    public static string FoundResults(int count) => IsRu ? $"Найдено результатов: {count}" : $"Found {count} results";
+    public static string NoResultsFound => IsRu ? "Ничего не найдено" : "No results found";
 
     // Appearance
     public static string AppearanceTitle => IsRu ? "Внешний вид и прозрачность виджета поиска" : "Appearance and Search Widget Translucency";

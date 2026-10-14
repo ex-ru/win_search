@@ -184,6 +184,8 @@ public partial class App : System.Windows.Application
         if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); }
         _watcher?.Dispose();
         _engine?.Dispose();
+        JobObjectManager.TerminateAll();
+        JobObjectManager.Dispose();
         _single?.Dispose();
         base.OnExit(e);
     }

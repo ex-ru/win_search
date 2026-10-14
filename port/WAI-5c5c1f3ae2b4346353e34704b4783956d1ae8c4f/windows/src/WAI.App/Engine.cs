@@ -352,8 +352,27 @@ public sealed class Engine : IDisposable
 
     public record Hit(string Path, string Kind, string Where, string? Excerpt, double Score);
 
-    // Words always; meaning added when wai-embed.exe + model files answer.
-    public List<Hit> Search(string query, int limit = 20)
+    /// <summary>
+    /// Phase 1 Fast-Path: Instant (<5ms) lexical full-text search against SQLite FTS5.
+    /// Does not require AI model weights or vector embeddings.
+    /// </summary>
+    public List<Hit> SearchLexical(string query, int limit = 50)
+    {
+        return SearchWithVector(query, vec: null, limit: limit);
+    }
+
+    /// <summary>
+    /// Generates vector embedding for the query text. Uses CPU fast-path when enabled.
+    /// </summary>
+    public IReadOnlyList<float>? EmbedQuery(string query)
+    {
+        return TryEmbedQuery(query);
+    }
+
+    /// <summary>
+    /// Search with optional vector embedding (null = lexical only, non-null = hybrid semantic + lexical).
+    /// </summary>
+    public List<Hit> SearchWithVector(string query, IReadOnlyList<float>? vec, int limit = 50)
     {
         query = TextSanitize.Clean(query);
         OpenStores();
@@ -373,7 +392,7 @@ public sealed class Engine : IDisposable
                 ? codeSearcher
                 : (_searcher ??= new Searcher(_store!, loadVectors: false));
         }
-        IReadOnlyList<float>? vec = TryEmbedQuery(query);
+
         var hits = searcher.Search(query, vec, limit: limit)
             .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score))
             .ToList();
@@ -387,6 +406,13 @@ public sealed class Engine : IDisposable
                 .ToList();
         }
         return hits;
+    }
+
+    // Words always; meaning added when wai-embed.exe + model files answer.
+    public List<Hit> Search(string query, int limit = 20)
+    {
+        var vec = EmbedQuery(query);
+        return SearchWithVector(query, vec, limit: limit);
     }
 
     /// <summary>First-pass size for folders, off the UI thread.</summary>
@@ -515,10 +541,12 @@ public sealed class Engine : IDisposable
         DropQueryWorker();
     }
 
-    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly)
+    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly, bool forceCpu = false)
     {
         var hwInfo = HardwareDetector.Detect();
-        var (backend, deviceIdx, _) = HardwareDetector.ResolveBackend(_settings.HardwareMode, hwInfo);
+        var (backend, deviceIdx, _) = forceCpu
+            ? ("cpu", -1, "CPU (Fast-Path)")
+            : HardwareDetector.ResolveBackend(_settings.HardwareMode, hwInfo);
 
         var args = new List<string>();
         var env = new Dictionary<string, string>();
@@ -569,7 +597,7 @@ public sealed class Engine : IDisposable
     {
         string exe = ExeNextTo("wai-embed.exe");
         if (!File.Exists(exe)) return new WordsOnly();
-        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false));
+        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false, forceCpu: false));
     }
 
     private IReadOnlyList<float>? TryEmbedQuery(string query)
@@ -586,7 +614,8 @@ public sealed class Engine : IDisposable
                 // (the search simply goes words-only that once).
                 try
                 {
-                    _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true));
+                    bool forceCpu = _settings.QueryFastPathCpu;
+                    _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true, forceCpu: forceCpu));
                     Vectors.Dimension = _queryWorker.Info.Dim;
                 }
                 catch (Exception ex)
@@ -623,7 +652,8 @@ public sealed class Engine : IDisposable
             {
                 string exe = ExeNextTo("wai-embed.exe");
                 if (!File.Exists(exe) || _queryWorker is not null) return;
-                _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true));
+                bool forceCpu = _settings.QueryFastPathCpu;
+                _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true, forceCpu: forceCpu));
             }
             _queryWorker.EmbedTexts([Prompts.Query("warmup")]);
         }
