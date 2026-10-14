@@ -279,13 +279,13 @@ public sealed class Engine : IDisposable
         var sync = indexer.Sync(_settings.Folders);
         int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
         Say($"reading {sync.Queued.Count + recovered} new or recovered files…");
-        indexer.Run(shouldStop: () => _paused || _run!.IsCancellationRequested,
+        indexer.Run(shouldStop: () => _paused || (_run?.IsCancellationRequested == true),
             onEvent: e => {
                 ProgressDone = e.Done;
                 ProgressTotal = e.Total;
                 Say($"[{e.Done}/{e.Total}] {e.State} {Short(e.Path)}");
             });
-        indexer.FinishLongFiles(shouldStop: () => _paused || _run!.IsCancellationRequested);
+        indexer.FinishLongFiles(shouldStop: () => _paused || (_run?.IsCancellationRequested == true));
         indexer.CloseWorker();
     }
 
