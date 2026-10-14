@@ -1,6 +1,6 @@
 ﻿# 🔬 Отчет бенчмарка моделей эмбеддингов (Release 1.1.0)
 **Дата тестирования:** 2026-10-13 20:52:15 UTC  
-**Платформа:** Windows x64 CPU, llama.cpp b11461, DigUp Native Engine  
+**Платформа:** Windows x64 CPU, llama.cpp b11461, WAI Native Engine  
 **Тестовый стенд:** `testbed/` (документы TXT/MD/HTML, изображения PNG/JPG с OCR, аудио WAV, видео MP4)  
 **Датасет валидации:** `testbed-russian-eval.json` (русскоязычные и кросс-язычные запросы, OCR счетов, номера, негативные запросы)
 

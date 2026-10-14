@@ -18,7 +18,7 @@ $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " DigUp Release Downloader (Release 1.1.0)" -ForegroundColor Cyan
+Write-Host " WAI Release Downloader (Release 1.1.0)" -ForegroundColor Cyan
 Write-Host " Repository: $Repo" -ForegroundColor Cyan
 Write-Host " Target:     $OutputDir" -ForegroundColor Cyan
 Write-Host " Package:    $(if ($Portable) { 'Portable ZIP' } elseif ($Full) { 'Full Offline Setup (~290 MB)' } else { 'Slim Lightweight Setup (~75 MB)' })" -ForegroundColor Cyan
@@ -32,7 +32,7 @@ $apiUrl = if ($Tag -eq "latest") {
 
 Write-Host "Checking GitHub Releases at $apiUrl..." -ForegroundColor Yellow
 $headers = @{
-    "User-Agent" = "DigUp-Downloader/1.1"
+    "User-Agent" = "WAI-Downloader/1.1"
     "Accept" = "application/vnd.github.v3+json"
 }
 
@@ -46,11 +46,11 @@ try {
 }
 
 $targetPattern = if ($Portable) {
-    "WinSearch.DigUp-win-Portable.zip"
+    "WinSearch.WAI-win-Portable.zip"
 } elseif ($Full) {
-    "WinSearch.DigUp-win-Setup-Full.exe"
+    "WinSearch.WAI-win-Setup-Full.exe"
 } else {
-    "WinSearch.DigUp-win-Setup.exe"
+    "WinSearch.WAI-win-Setup.exe"
 }
 
 $assets = @($release.assets)
@@ -71,7 +71,7 @@ Write-Host "Found release $($release.tag_name): $($targetAsset.name) ($([Math]::
 Write-Host "Downloading to $destFile..." -ForegroundColor Yellow
 
 $wc = New-Object System.Net.WebClient
-$wc.Headers.Add("User-Agent", "DigUp-Downloader/1.0")
+$wc.Headers.Add("User-Agent", "WAI-Downloader/1.0")
 $wc.DownloadFile($targetAsset.browser_download_url, $destFile)
 
 Write-Host "Download complete: $destFile" -ForegroundColor Green

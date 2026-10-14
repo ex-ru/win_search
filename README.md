@@ -1,4 +1,4 @@
-# DigUp Windows (win_search) 🔍
+# WAI Windows (win_search) 🔍
 
 > **100% локальный семантический и полнотекстовый поиск по файлам для Windows 10/11.**  
 > Поиск документов, кода, скриншотов, фото, аудио и видео по смыслу, описанию и точным реквизитам без облаков, телеметрии и сторонних серверов.
@@ -12,10 +12,10 @@
 
 ## 📌 Первоисточники и история проекта
 
-Проект является глубоко доработанным и оптимизированным Windows-портом оригинального приложения **DigUp**:
+Проект является глубоко доработанным и оптимизированным Windows-портом оригинального приложения **WAI**:
 
-- **Оригинальный репозиторий (macOS):** [ARahim3/DigUp](https://github.com/ARahim3/DigUp) (автор: Abdur Rahim, лицензия MIT).
-- **Исходный открытый PR портирования на Windows:** [PR #18: Windows port](https://github.com/ARahim3/DigUp/pull/18).
+- **Оригинальный репозиторий (macOS):** [ARahim3/WAI](https://github.com/ARahim3/WAI) (автор: Abdur Rahim, лицензия MIT).
+- **Исходный открытый PR портирования на Windows:** [PR #18: Windows port](https://github.com/ARahim3/WAI/pull/18).
 - **Текущий репозиторий:** [ex-ru/win_search](https://github.com/ex-ru/win_search) — полная реализация, SIMD- и многопоточная оптимизация, нативный WinRT OCR, полная адаптация под русский язык и упаковка в автономный инсталлятор Velopack.
 
 ---
@@ -41,8 +41,8 @@
 5. **Аудио и видео:**
    - Нарезка ключевых кадров и извлечение аудио через встроенный неблокирующий конвейер FFmpeg.
 6. **Полная приватность и локальность (No-Admin, Per-User):**
-   - Никаких сетевых запросов при поиске. Все данные хранятся локально в `%LocalAppData%\DigUp`.
-   - Установщик **Velopack** (`WinSearch.DigUp-win-Setup.exe`) и переносимый архив (`WinSearch.DigUp-win-Portable.zip`) со встроенным PDFium.
+   - Никаких сетевых запросов при поиске. Все данные хранятся локально в `%LocalAppData%\WAI`.
+   - Установщик **Velopack** (`WinSearch.WAI-win-Setup.exe`) и переносимый архив (`WinSearch.WAI-win-Portable.zip`) со встроенным PDFium.
    - Фоновая проверка обновлений из локальной папки: путь задаётся в Settings; скачанный пакет применяется при следующем запуске.
    - Глобальный хоткей `Ctrl + Alt + Space` для мгновенного вызова поиска из любого окна.
 
@@ -55,7 +55,7 @@
 Для запуска приложения с бэкендом Vulkan (AMD/NVIDIA/Intel):
 
 ```powershell
-.\Start-DigUp.ps1 -Backend vulkan
+.\Start-WAI.ps1 -Backend vulkan
 ```
 
 - Поиск вызывается по нажатию **`Ctrl + Alt + Space`** (или через иконку в системном трее).
@@ -65,22 +65,22 @@
 
 ```powershell
 # Проверить статус текущего индекса
-cmd /c "set DIGUP_MODELS=D:\_projects\win_search\models&& .\run-vulkan\digup.exe status --index state\index-vulkan"
+cmd /c "set WAI_MODELS=D:\_projects\win_search\models&& .\run-vulkan\wai.exe status --index state\index-vulkan"
 
 # Проиндексировать новую папку
-cmd /c "set DIGUP_MODELS=D:\_projects\win_search\models&& .\run-vulkan\digup.exe index ""C:\MyFolder"" --index state\index-vulkan"
+cmd /c "set WAI_MODELS=D:\_projects\win_search\models&& .\run-vulkan\wai.exe index ""C:\MyFolder"" --index state\index-vulkan"
 
 # Поиск из командной строки
-cmd /c "set DIGUP_MODELS=D:\_projects\win_search\models&& .\run-vulkan\digup.exe search ""договор оказания услуг"" --index state\index-vulkan"
+cmd /c "set WAI_MODELS=D:\_projects\win_search\models&& .\run-vulkan\wai.exe search ""договор оказания услуг"" --index state\index-vulkan"
 
 # Запуск MCP сервера для ИИ-агентов (Claude Desktop, Cursor, Antigravity)
-digup mcp
+wai mcp
 ```
 
 ### 🤖 Подключение ИИ-агентов (Model Context Protocol / MCP)
 
-DigUp включает встроенный сервер **Model Context Protocol (MCP)** для безопасного подключения больших языковых моделей и автономных агентов строго в режиме **Read-Only**:
-- **Zero-setup:** встроен прямо в `digup.exe mcp` (не требует Python/Node.js).
+WAI включает встроенный сервер **Model Context Protocol (MCP)** для безопасного подключения больших языковых моделей и автономных агентов строго в режиме **Read-Only**:
+- **Zero-setup:** встроен прямо в `wai.exe mcp` (не требует Python/Node.js).
 - **Готовые инструменты:** `search_documents`, `read_document_content`, `get_document_info`, `get_index_status`.
 - **Поддержка сред:** Claude Desktop, Cursor, Antigravity, Docker Agent, VS Code, Cline.
 - Подробные инструкции по настройке и примеры конфигураций см. в [Руководстве по MCP](docs/MCP_GUIDE.md).
@@ -93,7 +93,7 @@ DigUp включает встроенный сервер **Model Context Protoco
 
 ```powershell
 # Запуск модульных и WPF-регрессионных тестов xUnit
-& ".\tools\dotnet\dotnet.exe" test port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\DigUp.Windows.sln
+& ".\tools\dotnet\dotnet.exe" test port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\WAI.Windows.sln
 ```
 
 - **Результаты русскоязычного бенчмарка (`results/eval-russian.json`):**
@@ -110,19 +110,19 @@ DigUp включает встроенный сервер **Model Context Protoco
 Скрипт автономной упаковки собирает `Setup.exe` и портативный `.zip`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\scripts\build-package.ps1
+powershell -ExecutionPolicy Bypass -File port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\scripts\build-package.ps1
 ```
 
 Готовые пакеты размещаются в каталоге `dist/releases/`:
-- `WinSearch.DigUp-win-Setup.exe` — установщик для пользователя (no-admin), программа хранится отдельно от данных в `%LocalAppData%\WinSearch.DigUp`;
-- `WinSearch.DigUp-win-Portable.zip` — переносимая версия;
+- `WinSearch.WAI-win-Setup.exe` — установщик для пользователя (no-admin), программа хранится отдельно от данных в `%LocalAppData%\WinSearch.WAI`;
+- `WinSearch.WAI-win-Portable.zip` — переносимая версия;
 - `SHA256SUMS.txt` — контрольные суммы релизных файлов.
 
-Источник обновлений для этого рабочего каталога — абсолютный путь к `dist/releases`; `Start-DigUp.ps1` передаёт его приложению. В Settings можно изменить путь и включить/выключить ежедневную проверку. Обновления доступны в пакетах Velopack; распакованная сборка `run-vulkan` предназначена для разработки. Модели загружаются отдельно при первом запуске и не включены в архив.
+Источник обновлений для этого рабочего каталога — абсолютный путь к `dist/releases`; `Start-WAI.ps1` передаёт его приложению. В Settings можно изменить путь и включить/выключить ежедневную проверку. Обновления доступны в пакетах Velopack; распакованная сборка `run-vulkan` предназначена для разработки. Модели загружаются отдельно при первом запуске и не включены в архив.
 
 После восстановления PDFium приложение и CLI автоматически повторяют обработку только PDF с прежней ошибкой отсутствующей DLL. Полный сброс индекса не требуется.
 
-Релиз `1.0.2` проверен: **48/48** тестов (`results/fixes-tests/fixes.trx`), восстановление PDF и поиск по его содержимому (`results/pdf-search-after.json`), скачивание и применение локального обновления `1.0.1 → 1.0.2` в отдельном переносимом каталоге (`results/fixes-update.json`). Старые пакеты `DigUp` сохранены в `dist/releases/legacy` и исключены из активного feed.
+Релиз `1.0.2` проверен: **48/48** тестов (`results/fixes-tests/fixes.trx`), восстановление PDF и поиск по его содержимому (`results/pdf-search-after.json`), скачивание и применение локального обновления `1.0.1 → 1.0.2` в отдельном переносимом каталоге (`results/fixes-update.json`). Старые пакеты `WAI` сохранены в `dist/releases/legacy` и исключены из активного feed.
 
 ---
 
@@ -130,5 +130,5 @@ powershell -ExecutionPolicy Bypass -File port\DigUp-5c5c1f3ae2b4346353e34704b478
 
 Проект лицензирован под [MIT License](LICENSE).  
 
-- Исходный код DigUp (macOS): Copyright (c) 2026 Abdur Rahim.
+- Исходный код WAI (macOS): Copyright (c) 2026 Abdur Rahim.
 - Реализация Windows-порта: Copyright (c) 2026 win_search contributors.

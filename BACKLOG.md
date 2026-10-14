@@ -1,6 +1,6 @@
-# Backlog: DigUp Windows Port (win_search)
+# Backlog: WAI Windows Port (win_search)
 
-Документ содержит декомпозицию задач по развитию, оптимизации и стабилизации Windows-порта DigUp.
+Документ содержит декомпозицию задач по развитию, оптимизации и стабилизации Windows-порта WAI.
 
 ---
 
@@ -30,7 +30,7 @@
 
 | ID | Задача | Приоритет | Статус | Оценка | Описание / DoD |
 |---|---|---|---|---|---|
-| **OCR-01** | Реализация `WindowsMediaOcrEngine` на базе Windows Runtime API | **P0** | **Done** | 2d | Использование встроенного `Windows.Media.Ocr.OcrEngine` без внешних зависимостей. Поддержка профильных языков ОС (русский, английский). Подключено в `Engine.cs` и `digup/Program.cs`. |
+| **OCR-01** | Реализация `WindowsMediaOcrEngine` на базе Windows Runtime API | **P0** | **Done** | 2d | Использование встроенного `Windows.Media.Ocr.OcrEngine` без внешних зависимостей. Поддержка профильных языков ОС (русский, английский). Подключено в `Engine.cs` и `wai/Program.cs`. |
 | **OCR-02** | Fallback на Tesseract OCR при отсутствии языкового пакета WinRT | **P2** | **Done** | 2d | Реализованы `TesseractOcrEngine` и каскадный `CompositeOcrEngine` с автоматическим переключением при сбоях или отсутствии языковых пакетов WinRT. |
 | **OCR-03** | Тестирование извлечения текста на тестовой выборке скриншотов | **P1** | **Done** | 0.5d | Проверка извлечения русского и английского текста из тестового скриншота счета (`Скриншот-счет.png`), попадание в FTS5 и поиск по номеру/сумме. |
 
@@ -52,7 +52,7 @@
 
 | ID | Задача | Приоритет | Статус | Оценка | Описание / DoD |
 |---|---|---|---|---|---|
-| **TEST-01** | Создание проекта `DigUp.Tests` (xUnit) в решении | **P0** | **Done** | 1d | Настройка тестового проекта `DigUp.Tests.csproj`, добавление в `DigUp.Windows.sln`. |
+| **TEST-01** | Создание проекта `WAI.Tests` (xUnit) в решении | **P0** | **Done** | 1d | Настройка тестового проекта `WAI.Tests.csproj`, добавление в `WAI.Windows.sln`. |
 | **TEST-02** | Модульные тесты для `Searcher` и векторных вычислений | **P0** | **Done** | 0.5d | Написаны xUnit тесты на DotProduct (совпадение со скалярной версией, ортогональность, единичная норма, Half-конвертация, параллельный скоринг блоков). |
 | **TEST-03** | Модульные тесты для `SearchText` и Unicode-санитизации | **P1** | **Done** | 0.5d | Написаны xUnit тесты на фильтрацию lone surrogates, извлечение русских терминов и стоп-слов. |
 | **TEST-04** | Модульные тесты правил фильтрации (`Rules`) | **P1** | **Done** | 0.5d | Написаны 11 параметризованных тестов на классификацию скриншотов с английскими и русскими префиксами. |
@@ -74,7 +74,7 @@
 
 | ID | Задача | Приоритет | Статус | Оценка | Описание / DoD |
 |---|---|---|---|---|---|
-| **SHIP-01** | Скрипт сборки Velopack пакета (`vpk pack`) | **P1** | **Done** | 1.5d | Написан скрипт `windows/scripts/build-package.ps1`, автоматизирующий сборку self-contained пакета `DigUp-win-Setup.exe` и `DigUp-win-Portable.zip` с расчетом SHA256SUMS. |
+| **SHIP-01** | Скрипт сборки Velopack пакета (`vpk pack`) | **P1** | **Done** | 1.5d | Написан скрипт `windows/scripts/build-package.ps1`, автоматизирующий сборку self-contained пакета `WAI-win-Setup.exe` и `WAI-win-Portable.zip` с расчетом SHA256SUMS. |
 | **SHIP-02** | Верификация автономного дистрибутива (no-admin, per-user) | **P1** | **Done** | 1d | Подтверждена сборка полноценного автономного инсталлятора и переносимого архива со всеми зависимостями (Vulkan/GGML, llama.cpp, SQLite, WIC, WinRT OCR). |
 
 ---
@@ -95,9 +95,9 @@
 
 | ID | Задача | Приоритет | Статус | Оценка | Описание / DoD |
 |---|---|---|---|---|---|
-| **MCP-01** | Ядро сервера MCP (JSON-RPC 2.0 stdio) и CLI (`digup mcp`) | **P0** | **Done** | 1.5d | Реализован `McpServer.cs` в `DigUp.Core` без внешних зависимостей. Команда `digup mcp` в CLI. Потоки: stdin/stdout для протокола, stderr для логов. Обработка UTF-8 BOM в Windows-пайпах. |
+| **MCP-01** | Ядро сервера MCP (JSON-RPC 2.0 stdio) и CLI (`wai mcp`) | **P0** | **Done** | 1.5d | Реализован `McpServer.cs` в `WAI.Core` без внешних зависимостей. Команда `wai mcp` в CLI. Потоки: stdin/stdout для протокола, stderr для логов. Обработка UTF-8 BOM в Windows-пайпах. |
 | **MCP-02** | Безопасные инструменты чтения и поиска RAG | **P0** | **Done** | 1d | Реализованы инструменты: `search_documents`, `read_document_content`, `get_document_info`, `get_index_status`. Строгий режим Read-Only, поддержка слайсов строк, защита от бинарников и системных каталогов. |
-| **MCP-03** | Python-коннектор (`digup_mcp.py`) и FastMCP | **P1** | **Done** | 0.5d | Создан скрипт `tools/mcp/digup_mcp.py` для экосистемы Python с поддержкой FastMCP (`uv run digup_mcp.py`) и прямого клиента `DigUpClient`. |
+| **MCP-03** | Python-коннектор (`wai_mcp.py`) и FastMCP | **P1** | **Done** | 0.5d | Создан скрипт `tools/mcp/wai_mcp.py` для экосистемы Python с поддержкой FastMCP (`uv run wai_mcp.py`) и прямого клиента `WAIClient`. |
 | **MCP-04** | Автоматизированные тесты и документация по подключению | **P0** | **Done** | 1d | Написаны xUnit тесты в `McpServerTests.cs` (рукопожатие, схемы инструментов, фильтрация, guardrails). Подготовлено руководство `docs/MCP_GUIDE.md` и обновлены спецификации. |
 
 ---

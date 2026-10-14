@@ -14,7 +14,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDir)) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " DigUp AI Embedding Models Benchmark Suite (Release 1.1.0)" -ForegroundColor Cyan
+Write-Host " WAI AI Embedding Models Benchmark Suite (Release 1.1.0)" -ForegroundColor Cyan
 Write-Host " Models: EmbeddingGemma 2 | BGE-M3 | Nomic Embed v1.5" -ForegroundColor Cyan
 Write-Host " Target Platform: Windows x64 CPU" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -24,7 +24,7 @@ if (Test-Path (Join-Path $RepoRoot "tools\dotnet\dotnet.exe")) {
     $Dotnet = Join-Path $RepoRoot "tools\dotnet\dotnet.exe"
 }
 
-$TestProj = Join-Path $RepoRoot "port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\src\DigUp.Tests\DigUp.Tests.csproj"
+$TestProj = Join-Path $RepoRoot "port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\src\WAI.Tests\WAI.Tests.csproj"
 
 & $Dotnet test $TestProj --filter "FullyQualifiedName~ModelBenchmark" --logger "console;verbosity=normal"
 if ($LASTEXITCODE -ne 0) {

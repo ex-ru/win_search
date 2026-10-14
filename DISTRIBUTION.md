@@ -1,4 +1,4 @@
-# Установка, распространение и аппаратная архитектура DigUp Windows
+# Установка, распространение и аппаратная архитектура WAI Windows
 
 В данном документе описано:
 1. **Почему папка `dist/` отсутствует/пуста в Git** и как скачать актуальный дистрибутив на любое устройство.
@@ -13,7 +13,7 @@
 
 ### Технические причины:
 1. **Лимит GitHub на размер файла (100 МБ)**:
-   - Размер автономного инсталлятора `WinSearch.DigUp-win-Setup.exe` составляет **~291 МБ**, а портативного архива `WinSearch.DigUp-win-Portable.zip` — **~284 МБ** (включают рантаймы Vulkan, llama.cpp, AVX-варианты CPU, OCR, PDFium и SQLite).
+   - Размер автономного инсталлятора `WinSearch.WAI-win-Setup.exe` составляет **~291 МБ**, а портативного архива `WinSearch.WAI-win-Portable.zip` — **~284 МБ** (включают рантаймы Vulkan, llama.cpp, AVX-варианты CPU, OCR, PDFium и SQLite).
    - При попытке отправить файлы такого размера в обычный Git сервер GitHub немедленно отклоняет push (`File exceeds GitHub's file size limit of 100.00 MB`).
 2. **Исключение в `.gitignore`**:
    - В `.gitignore` явно прописаны строки:
@@ -35,7 +35,7 @@
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download-release.ps1
 ```
-*(Скрипт автоматически опрашивает GitHub Releases API, находит свежую версию, скачивает `WinSearch.DigUp-win-Setup.exe` в `dist\releases\` и сверяет контрольную сумму SHA256).*
+*(Скрипт автоматически опрашивает GitHub Releases API, находит свежую версию, скачивает `WinSearch.WAI-win-Setup.exe` в `dist\releases\` и сверяет контрольную сумму SHA256).*
 
 Для скачивания портативной версии:
 ```powershell
@@ -45,11 +45,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\download-release.ps1 -Portabl
 ### Вариант Б: Прямое скачивание из браузера
 Зайдите на официальную страницу релизов репозитория:
 👉 **[GitHub Releases: ex-ru/win_search](https://github.com/ex-ru/win_search/releases)**
-1. Скачайте `WinSearch.DigUp-win-Setup.exe`.
+1. Скачайте `WinSearch.WAI-win-Setup.exe`.
 2. Запустите файл двойным кликом — приложение установится в безадминском режиме за несколько секунд, добавит ярлыки в меню «Пуск» и трей Windows.
 
 ### Вариант В: Перенос на USB-накопителе
-Вы можете скопировать `dist\releases\WinSearch.DigUp-win-Setup.exe` или `WinSearch.DigUp-win-Portable.zip` на флешку или по локальной сети.
+Вы можете скопировать `dist\releases\WinSearch.WAI-win-Setup.exe` или `WinSearch.WAI-win-Portable.zip` на флешку или по локальной сети.
 
 ---
 
@@ -77,10 +77,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\download-release.ps1 -Portabl
    - Если дискретной карты нет, но есть интегрированная графика (Intel Iris Xe, AMD APU) → вычисления идут на встроенную графику.
    - Если видеокарта не поддерживает вычисления или вы работаете на виртуальной машине → активируется процессорный режим CPU.
 3. **Безопасный откат (Graceful Fallback)**:
-   - Если при загрузке модели в видеопамять произошел сбой (нехватка VRAM, сбой видеодрайвера TDR) — движок `digup-embed` **не падает с ошибкой**, а автоматически и бесшовно переключается на CPU.
+   - Если при загрузке модели в видеопамять произошел сбой (нехватка VRAM, сбой видеодрайвера TDR) — движок `wai-embed` **не падает с ошибкой**, а автоматически и бесшовно переключается на CPU.
 
 ### Ручное управление в окне Настроек:
-В окне настроек DigUp добавлена секция **«Аппаратное ускорение (CPU / GPU для эмбеддингов)»**:
+В окне настроек WAI добавлена секция **«Аппаратное ускорение (CPU / GPU для эмбеддингов)»**:
 - **Выпадающий список**:
   - `Автоопределение (Рекомендуется)` — отображает выбранный девайс, например: `Авто: AMD Radeon RX 7900 GRE (Дискретная)`.
   - `Дискретный GPU (GPU ext)` — принудительно использовать мощную дискретную карту.
@@ -96,12 +96,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\download-release.ps1 -Portabl
 
 ### Сборка установщика:
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\port\DigUp-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\scripts\build-package.ps1 -Version "1.0.7"
+powershell -ExecutionPolicy Bypass -File .\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\scripts\build-package.ps1 -Version "1.0.7"
 ```
 Скрипт автоматически:
 1. Компилирует WPF-приложение, CLI и фоновый эмбеддер.
 2. Комплектует нативные библиотеки (`vulkan`, `cpu SIMD`, `sqlite`, `pdfium`, `ffmpeg`).
-3. Генерирует установщик Velopack `WinSearch.DigUp-win-Setup.exe` и архив `WinSearch.DigUp-win-Portable.zip`.
+3. Генерирует установщик Velopack `WinSearch.WAI-win-Setup.exe` и архив `WinSearch.WAI-win-Portable.zip`.
 4. Считает контрольные суммы `SHA256SUMS.txt` и обновляет `releases.win.json`.
 
 ### Публикация в GitHub Releases:

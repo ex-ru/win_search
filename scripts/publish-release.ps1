@@ -1,4 +1,4 @@
-# Publish DigUp Windows distribution packages to GitHub Releases
+# Publish WAI Windows distribution packages to GitHub Releases
 # PowerShell 5.1 & Core safe.
 param(
     [string]$Version = "1.1.0",
@@ -16,7 +16,7 @@ if ([string]::IsNullOrWhiteSpace($ReleasesDir)) {
 $ReleasesDir = [System.IO.Path]::GetFullPath($ReleasesDir)
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " DigUp Release Publisher" -ForegroundColor Cyan
+Write-Host " WAI Release Publisher" -ForegroundColor Cyan
 Write-Host " Version:     $Version" -ForegroundColor Cyan
 Write-Host " Repository:  $Repo" -ForegroundColor Cyan
 Write-Host " Source:      $ReleasesDir" -ForegroundColor Cyan
@@ -49,8 +49,8 @@ if ($gh) {
     Write-Host "`nUsing GitHub CLI (gh)..." -ForegroundColor Green
     $tag = "v$Version"
     $filePaths = $filesToUpload | ForEach-Object { $_.FullName }
-    $title = "DigUp v$Version (Windows)"
-    $notes = "DigUp v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
+    $title = "WAI v$Version (Windows)"
+    $notes = "WAI v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
 
     Write-Host "Creating release $tag..." -ForegroundColor Yellow
     & gh release create $tag @filePaths --repo $Repo --title $title --notes $notes
@@ -67,13 +67,13 @@ if (![string]::IsNullOrWhiteSpace($Token)) {
     $headers = @{
         "Authorization" = "token $Token"
         "Accept" = "application/vnd.github.v3+json"
-        "User-Agent" = "DigUp-Publisher/1.0"
+        "User-Agent" = "WAI-Publisher/1.0"
     }
 
     $releaseBody = @{
         tag_name = $tag
-        name = "DigUp v$Version (Windows)"
-        body = "DigUp v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
+        name = "WAI v$Version (Windows)"
+        body = "WAI v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
         draft = $false
         prerelease = $false
     } | ConvertTo-Json
@@ -88,7 +88,7 @@ if (![string]::IsNullOrWhiteSpace($Token)) {
         $uploadHeaders = @{
             "Authorization" = "token $Token"
             "Content-Type" = "application/octet-stream"
-            "User-Agent" = "DigUp-Publisher/1.0"
+            "User-Agent" = "WAI-Publisher/1.0"
         }
         Invoke-RestMethod -Uri $uploadUrl -Headers $uploadHeaders -Method Post -InFile $file.FullName | Out-Null
     }

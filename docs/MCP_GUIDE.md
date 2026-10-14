@@ -1,6 +1,6 @@
-# Руководство по интеграции DigUp с ИИ-агентами (Model Context Protocol / MCP)
+# Руководство по интеграции WAI с ИИ-агентами (Model Context Protocol / MCP)
 
-Модуль **DigUp MCP** предоставляет ИИ-агентам и большим языковым моделям (Claude, GPT-4, Cursor, Antigravity, OpenCode и др.) прямой доступ к проиндексированной локальной базе знаний и RAG **строго в режиме Read-Only**.
+Модуль **WAI MCP** предоставляет ИИ-агентам и большим языковым моделям (Claude, GPT-4, Cursor, Antigravity, OpenCode и др.) прямой доступ к проиндексированной локальной базе знаний и RAG **строго в режиме Read-Only**.
 
 ---
 
@@ -8,7 +8,7 @@
 
 1. **Режим SQLite WAL (Write-Ahead Logging):**
    * Базы данных (`index.sqlite` и `code.sqlite`) открываются исключительно на чтение (`ReadOnly`).
-   * Агенты могут выполнять параллельные запросы к базе одновременно с работающим фоновым индексатором DigUp без взаимных блокировок.
+   * Агенты могут выполнять параллельные запросы к базе одновременно с работающим фоновым индексатором WAI без взаимных блокировок.
 2. **Нулевая возможность мутации:**
    * Сервер MCP не содержит ни одного инструмента или метода для модификации, удаления или создания файлов.
    * Любые DDL/DML запросы (`INSERT`, `UPDATE`, `DELETE`, `DROP`) физически запрещены на уровне подключения к БД.
@@ -31,9 +31,9 @@
 
 ---
 
-## 🚀 Способ 1. Нативное подключение через `digup mcp` (Рекомендуется)
+## 🚀 Способ 1. Нативное подключение через `wai mcp` (Рекомендуется)
 
-Не требует установки Python, Node.js или дополнительных библиотек. Работает «из коробки» сразу после установки DigUp.
+Не требует установки Python, Node.js или дополнительных библиотек. Работает «из коробки» сразу после установки WAI.
 
 ### 1. Claude Desktop
 Откройте конфигурационный файл Claude Desktop:
@@ -43,8 +43,8 @@
 ```json
 {
   "mcpServers": {
-    "digup-rag": {
-      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\DigUp\\current\\digup.exe",
+    "wai-rag": {
+      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\WAI\\current\\wai.exe",
       "args": ["mcp"]
     }
   }
@@ -56,8 +56,8 @@
 ```json
 {
   "mcpServers": {
-    "digup": {
-      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\DigUp\\current\\digup.exe",
+    "wai": {
+      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\WAI\\current\\wai.exe",
       "args": ["mcp"]
     }
   }
@@ -70,7 +70,7 @@
 {
   "mcpServers": {
     "local-rag": {
-      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\DigUp\\current\\digup.exe",
+      "command": "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\WAI\\current\\wai.exe",
       "args": ["mcp"]
     }
   }
@@ -84,26 +84,26 @@ agents:
     model: gpt-4o
     toolsets:
       - type: mcp
-        command: "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\DigUp\\current\\digup.exe"
+        command: "C:\\Users\\<Ваш_Пользователь>\\AppData\\Local\\WAI\\current\\wai.exe"
         args: ["mcp"]
 ```
 
 ---
 
-## 🐍 Способ 2. Python FastMCP коннектор (`tools/mcp/digup_mcp.py`)
+## 🐍 Способ 2. Python FastMCP коннектор (`tools/mcp/wai_mcp.py`)
 
 Если ваш проект или фреймворк агентов использует Python (LangChain, AutoGen, CrewAI, LlamaIndex):
 
 ### Запуск через `uv`:
 ```bash
-uv run tools/mcp/digup_mcp.py
+uv run tools/mcp/wai_mcp.py
 ```
 
 ### Использование как Python-библиотеки:
 ```python
-from tools.mcp.digup_mcp import DigUpClient
+from tools.mcp.wai_mcp import WAIClient
 
-client = DigUpClient()
+client = WAIClient()
 
 # Поиск по документам
 results = client.search("финансовый отчет квартал 2025", limit=5)
@@ -120,16 +120,16 @@ for hit in results:
 
 ### Проверка рукопожатия (Initialize):
 ```powershell
-'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' | digup mcp
+'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' | wai mcp
 ```
 **Ожидаемый ответ:**
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"digup-mcp","version":"1.0.4"}}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"wai-mcp","version":"1.0.4"}}}
 ```
 
 ### Проверка поиска:
 ```powershell
-'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_documents","arguments":{"query":"счет 88392","limit":2}}}' | digup mcp
+'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_documents","arguments":{"query":"счет 88392","limit":2}}}' | wai mcp
 ```
 
 ---
@@ -139,7 +139,7 @@ for hit in results:
 Для максимальной точности добавьте в системную инструкцию вашего агента:
 
 ```markdown
-У тебя есть доступ к локальной базе знаний через инструменты `digup`:
+У тебя есть доступ к локальной базе знаний через инструменты `wai`:
 1. `search_documents`: используй при любых вопросах о личных документах, проектах, реквизитах, счетах, переписке и коде.
 2. `read_document_content`: вызывай для детального чтения файла, если выжимки из поиска недостаточно.
 3. Всегда цитируй точные пути к файлам и страницы/строки в ответе пользователю.

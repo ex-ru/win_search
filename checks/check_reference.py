@@ -26,7 +26,7 @@ def main():
     started = time.perf_counter()
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
-            [str(args.run / "digup-embed.exe")], cwd=args.run,
+            [str(args.run / "wai-embed.exe")], cwd=args.run,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
             text=True, encoding="utf-8", env=os.environ.copy(),
         )
