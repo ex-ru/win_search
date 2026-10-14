@@ -118,8 +118,10 @@ public partial class App : System.Windows.Application
         }
 
         _settings = Settings.Load();
+        Loc.CurrentLanguage = _settings.Language;
         _engine = new Engine(_settings);
         _panel = new MainWindow(_engine, _settings);
+        _panel.UpdateLocalization();
         _panel.Hide();
 
         MakeTray();
@@ -237,19 +239,21 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void MakeTray()
+    public void RefreshTray()
     {
-        _tray = new WinForms.NotifyIcon
-        {
-            Text = $"{AppConstants.AppName}: {Loc.AppSubtitle}",
-            Icon = AppIcon.Tray,
-            Visible = true,
-        };
+        if (_tray is null) return;
+        _tray.ContextMenuStrip?.Dispose();
+        _tray.ContextMenuStrip = BuildTrayMenu();
+        _tray.Text = $"{AppConstants.AppName}: {Loc.AppSubtitle}";
+    }
+
+    private WinForms.ContextMenuStrip BuildTrayMenu()
+    {
         var menu = new WinForms.ContextMenuStrip();
-        menu.Items.Add("Открыть поиск", null, (_, _) => TogglePanel());
+        menu.Items.Add(Loc.OpenSearch, null, (_, _) => TogglePanel());
 
         // Checkable indexing item with dynamic count
-        var indexItem = new WinForms.ToolStripMenuItem("Индексация") { CheckOnClick = true, Checked = true };
+        var indexItem = new WinForms.ToolStripMenuItem(Loc.Indexing) { CheckOnClick = true, Checked = true };
         indexItem.CheckedChanged += (_, _) =>
         {
             // Checked = indexing running, Unchecked = paused
@@ -262,7 +266,7 @@ public partial class App : System.Windows.Application
 
         // About menu section
         var aboutMenu = new WinForms.ToolStripMenuItem(Loc.About);
-        aboutMenu.DropDownItems.Add($"Версия: v{AppConstants.Version}", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        aboutMenu.DropDownItems.Add(Loc.VersionPrefix(AppConstants.Version), null, (_, _) => SettingsWindow.ShowAboutDialog());
         aboutMenu.DropDownItems.Add("GitHub: github.com/ex-ru/win_search", null, (_, _) =>
         {
             try
@@ -271,7 +275,7 @@ public partial class App : System.Windows.Application
             }
             catch { }
         });
-        aboutMenu.DropDownItems.Add("Подробнее…", null, (_, _) => SettingsWindow.ShowAboutDialog());
+        aboutMenu.DropDownItems.Add(Loc.IsRu ? "Подробнее…" : "More…", null, (_, _) => SettingsWindow.ShowAboutDialog());
         menu.Items.Add(aboutMenu);
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
@@ -299,7 +303,19 @@ public partial class App : System.Windows.Application
             }
         };
 
-        _tray.ContextMenuStrip = menu;
+        return menu;
+    }
+
+    private void MakeTray()
+    {
+        _tray = new WinForms.NotifyIcon
+        {
+            Text = $"{AppConstants.AppName}: {Loc.AppSubtitle}",
+            Icon = AppIcon.Tray,
+            Visible = true,
+            ContextMenuStrip = BuildTrayMenu()
+        };
+
         _tray.DoubleClick += (_, _) => TogglePanel();
         _tray.BalloonTipTitle = AppConstants.AppName;
         if (_settings?.SetupDone == true)
@@ -324,6 +340,7 @@ public partial class App : System.Windows.Application
             ResetWatcher();
             _engine.ApplySettings();
             _updates?.Restart();
+            RefreshTray();
         });
         _settingsWindow = win;
         win.Closed += (_, _) =>
@@ -333,6 +350,7 @@ public partial class App : System.Windows.Application
             ResetWatcher();
             _engine.ApplySettings();
             _updates?.Restart();
+            RefreshTray();
         };
         win.Show();
         win.Activate();

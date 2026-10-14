@@ -84,6 +84,7 @@ public partial class MainWindow : Window
         };
         Loaded += (_, _) => { AdjustCardSize(); FadeIn(); };
         SizeChanged += (_, _) => AdjustCardSize();
+        UpdateLocalization();
     }
 
     private void AdjustCardSize()
@@ -127,6 +128,7 @@ public partial class MainWindow : Window
         {
             AdjustCardSize();
             ApplyWidgetAppearance();
+            UpdateLocalization();
         }
         catch { }
     }
@@ -166,6 +168,8 @@ public partial class MainWindow : Window
             if (BtnOpenWith is not null) BtnOpenWith.Content = Loc.OpenWith;
             if (BtnCopyPath is not null) BtnCopyPath.Content = Loc.CopyPath;
             if (MascotSubtitle is not null) MascotSubtitle.Text = Loc.MascotSubtitle;
+            if (Query is not null) Query.ToolTip = Loc.SearchTooltip;
+            if (ClearButton is not null) ClearButton.ToolTip = Loc.ClearQueryTooltip;
             UpdateFilterCounts();
         }
         catch { }

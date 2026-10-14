@@ -71,8 +71,12 @@ public sealed class Settings
                 // Migrate to new default Ctrl+Space if old default was present
                 if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
                     s.Hotkey = "ctrl+space";
-                if (string.IsNullOrWhiteSpace(s.UpdateSource))
+                if (string.IsNullOrWhiteSpace(s.UpdateSource) ||
+                    s.UpdateSource.Contains("dist\\releases", StringComparison.OrdinalIgnoreCase) ||
+                    s.UpdateSource.StartsWith("D:\\_projects\\", StringComparison.OrdinalIgnoreCase))
+                {
                     s.UpdateSource = AppConstants.DefaultUpdateSource;
+                }
                 if (s.WindowWidth < 580)
                     s.WindowWidth = 720;
                 return s;

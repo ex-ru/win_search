@@ -290,9 +290,12 @@
                         ToolTip="English interface language" />
               </StackPanel>
             </Border>
-            <!-- Version badge -->
-            <Border Background="#2E4A62" CornerRadius="4" Padding="8,4">
-              <TextBlock x:Name="TextAppVersion" Text="v1.1.0 Windows" FontSize="11" Foreground="#80D8FF" FontWeight="SemiBold" />
+            <!-- Version badge in unified dark styling matching language toggle -->
+            <Border Background="#282828" BorderBrush="#444444" BorderThickness="1" CornerRadius="6" Height="28" Padding="10,0" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="🏷️" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="TextAppVersion" Text="v1.1.1 Windows" FontSize="11" Foreground="#CCCCCC" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Center" />
+              </StackPanel>
             </Border>
           </StackPanel>
         </DockPanel>
@@ -377,6 +380,25 @@
                 <TextBlock x:Name="TxtModelStatus" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#E0E0E0" FontSize="12"
                            Text="Загрузка каталога моделей…" />
                 <TextBlock x:Name="TxtModelDetails" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#AAAAAA" FontSize="11" />
+
+                <!-- Download Button panel (visible when weights missing) -->
+                <StackPanel x:Name="PanelModelDownloadAction" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+                  <Button x:Name="BtnDownloadModel" Content="📥 Скачать веса модели" Click="OnDownloadModelClick" Style="{StaticResource PrimaryButtonStyle}" Padding="12,5" FontSize="12" />
+                  <TextBlock x:Name="TxtModelDownloadHint" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="#888888" FontSize="11" />
+                </StackPanel>
+
+                <!-- Download Progress panel (visible during download) -->
+                <StackPanel x:Name="PanelModelDownloadProgress" Margin="0,8,0,0" Visibility="Collapsed">
+                  <DockPanel Margin="0,0,0,4">
+                    <TextBlock x:Name="TxtModelDownloadStatus" Text="Загрузка модели…" Foreground="#80FFE8" FontSize="12" FontWeight="SemiBold" />
+                    <TextBlock x:Name="TxtModelDownloadPercent" Text="0%" Foreground="#80D8FF" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right" />
+                  </DockPanel>
+                  <ProgressBar x:Name="ProgressModelDownload" Height="6" Minimum="0" Maximum="100" Value="0" Background="#22332E" Foreground="#00D2B4" BorderThickness="0" Margin="0,0,0,6" />
+                  <DockPanel>
+                    <TextBlock x:Name="TxtModelDownloadBytes" Text="0 / 0 МБ" Foreground="#AAAAAA" FontSize="11" />
+                    <Button x:Name="BtnCancelModelDownload" Content="Отмена" Click="OnCancelModelDownloadClick" HorizontalAlignment="Right" Padding="8,3" FontSize="11" />
+                  </DockPanel>
+                </StackPanel>
               </StackPanel>
             </Border>
 
@@ -423,8 +445,6 @@
                     TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,0,0,10"
                     ValueChanged="OnOpacitySliderChanged" />
 
-            <CheckBox x:Name="ChkWidgetBlur" Visibility="Collapsed" Margin="0" />
-
             <TextBlock x:Name="TxtThemeLabel" Text="Тема оформления интерфейса:" Foreground="#BBBBBB" FontSize="12" Margin="0,4,0,4" />
             <ComboBox x:Name="ComboTheme" Margin="0,0,0,4" />
           </StackPanel>
@@ -456,8 +476,8 @@
             <TextBlock x:Name="TxtSystemTitle" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Система и обновления" />
             <CheckBox x:Name="Startup" Content="Запускать WAI при старте Windows" />
             <CheckBox x:Name="Updates" Content="Проверять обновления программы раз в день" />
-            <TextBlock x:Name="TxtUpdateSourceLabel" Text="Источник пакетов обновлений (GitHub Releases или локальная папка):" Foreground="#BBBBBB" Margin="0,4,0,4" />
-            <TextBox x:Name="UpdateSource" Margin="0,0,0,6" ToolTip="Оставьте пустым для обновлений с https://github.com/ex-ru/win_search/releases или укажите локальную папку." />
+            <TextBlock x:Name="TxtUpdateSourceLabel" Text="Источник пакетов обновлений (GitHub Releases или папка):" Foreground="#BBBBBB" Margin="0,4,0,4" />
+            <TextBox x:Name="UpdateSource" Margin="0,0,0,6" ToolTip="По умолчанию: https://github.com/ex-ru/win_search. Оставьте репозиторий GitHub или укажите локальную папку." />
             <TextBlock x:Name="TxtSystemNote" Foreground="#777777" FontSize="11" Margin="0,2,0,8" TextWrapping="Wrap"
                        Text="WAI работает per-user: не требует прав администратора, данные хранятся в %LocalAppData%\WAI." />
 

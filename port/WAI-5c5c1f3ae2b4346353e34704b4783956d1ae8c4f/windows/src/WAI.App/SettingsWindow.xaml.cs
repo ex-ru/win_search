@@ -18,6 +18,8 @@ public partial class SettingsWindow : Window
     private readonly MainWindow? _mainWindow;
     private readonly Action? _onApplyCallback;
     private string _hotkey;
+    private CancellationTokenSource? _modelDownloadCts;
+    private bool _isDownloadingModel;
 
     public SettingsWindow(Settings settings, Engine? engine = null, MainWindow? mainWindow = null, Action? onApplyCallback = null)
     {
@@ -25,9 +27,11 @@ public partial class SettingsWindow : Window
         _engine = engine;
         _mainWindow = mainWindow;
         _onApplyCallback = onApplyCallback;
+        Loc.CurrentLanguage = _settings.Language;
         _hotkey = string.IsNullOrWhiteSpace(settings.Hotkey) ? "ctrl+space" : settings.Hotkey;
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
+        Closing += (_, _) => { try { _modelDownloadCts?.Cancel(); } catch { } };
 
         RefreshFolders();
         Hotkey.Text = Display(_hotkey);
@@ -39,23 +43,11 @@ public partial class SettingsWindow : Window
 
         SliderOpacity.Value = Math.Clamp((int)Math.Round(_settings.WidgetOpacity * 100), 50, 100);
         TxtOpacityValue.Text = $"{(int)SliderOpacity.Value}%";
-        ChkWidgetBlur.IsChecked = _settings.WidgetBlur;
-
-        ComboTheme.ItemsSource = new[] { "Системная (как в Windows)", "Тёмная (Dark)", "Светлая (Light)" };
-        ComboTheme.SelectedIndex = _settings.Theme switch
-        {
-            "dark" => 1,
-            "light" => 2,
-            _ => 0
-        };
 
         TextAppVersion.Text = $"v{AppConstants.Version} Windows";
         UpdateLanguageToggleButtons(_settings.Language);
         UpdateTextsForLanguage();
         ApplyTheme(ThemeManager.IsDark(_settings.Theme));
-        UpdateFolderStats();
-        InitModelOptions();
-        InitHardwareOptions();
 
         Updates.IsChecked = settings.CheckUpdates;
         UpdateSource.Text = string.IsNullOrWhiteSpace(settings.UpdateSource) ? AppConstants.DefaultUpdateSource : settings.UpdateSource;
@@ -217,13 +209,13 @@ public partial class SettingsWindow : Window
             _hotkey = string.Join("+", parts);
             Hotkey.Text = Display(_hotkey);
             if (_hotkey.Contains("shift") && _hotkey.Contains("alt"))
-                Hotkey.Text += " — может конфликтовать со сменой раскладки Windows";
+                Hotkey.Text += Loc.IsRu ? " — может конфликтовать со сменой раскладки Windows" : " — may conflict with Windows layout switch";
             e.Handled = true;
         }
         else if (e.Key is not (Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl
             or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin or Key.Tab))
         {
-            Hotkey.Text = "нажмите Пробел (например: с зажатым Ctrl)";
+            Hotkey.Text = Loc.IsRu ? "нажмите Пробел (например: с зажатым Ctrl)" : "press Space (e.g. with Ctrl held)";
             e.Handled = true;
         }
     }
@@ -371,6 +363,9 @@ public partial class SettingsWindow : Window
         if (TxtModelActiveLabel is not null) TxtModelActiveLabel.Text = Loc.ModelActiveLabel;
         if (TxtModelStatusHeader is not null) TxtModelStatusHeader.Text = Loc.ModelStatusHeader;
         if (TxtModelNote is not null) TxtModelNote.Text = Loc.ModelNote;
+        if (BtnDownloadModel is not null) BtnDownloadModel.Content = Loc.ModelDownloadBtn;
+        if (BtnCancelModelDownload is not null) BtnCancelModelDownload.Content = Loc.ModelCancelDownload;
+        if (TxtModelDownloadStatus is not null) TxtModelDownloadStatus.Text = Loc.ModelDownloadingDefault;
         if (TxtHwTitle is not null) TxtHwTitle.Text = Loc.HwTitle;
         if (TxtHwDesc is not null) TxtHwDesc.Text = Loc.HwDesc;
         if (TxtHwDeviceLabel is not null) TxtHwDeviceLabel.Text = Loc.HwDeviceLabel;
@@ -379,7 +374,6 @@ public partial class SettingsWindow : Window
         if (TxtAppearanceTitle is not null) TxtAppearanceTitle.Text = Loc.AppearanceTitle;
         if (TxtAppearanceDesc is not null) TxtAppearanceDesc.Text = Loc.AppearanceDesc;
         if (TxtOpacityLabel is not null) TxtOpacityLabel.Text = Loc.OpacityLabel;
-        if (ChkWidgetBlur is not null) ChkWidgetBlur.Content = Loc.WidgetBlur;
         if (TxtThemeLabel is not null) TxtThemeLabel.Text = Loc.ThemeLabel;
         if (TxtHotkeyTitle is not null) TxtHotkeyTitle.Text = Loc.HotkeyTitle;
         if (TxtHotkeyDesc is not null) TxtHotkeyDesc.Text = Loc.HotkeyDesc;
@@ -404,6 +398,10 @@ public partial class SettingsWindow : Window
         if (ComboEmbeddingModel is not null) InitModelOptions();
         UpdateThemeOptions();
         UpdateFolderStats();
+        if (ComboEmbeddingModel?.SelectedItem is ModelComboItem selModel)
+        {
+            UpdateModelStatus(selModel.Model);
+        }
     }
 
     private void UpdateThemeOptions()
@@ -509,7 +507,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ComboEmbeddingModel.SelectedItem is ModelComboItem item)
         {
@@ -517,33 +515,24 @@ public partial class SettingsWindow : Window
             UpdateModelStatus(model);
             if (!string.Equals(model.Id, _settings.EmbeddingModel, StringComparison.OrdinalIgnoreCase))
             {
-                string title = Loc.IsRu ? "Смена модели эмбеддингов" : "Switch Embedding Model";
-                string dbName = _engine?.GetMainIndexFileName(model.Id) ?? $"index_{model.Id}.db";
-                string msg = Loc.IsRu
-                    ? $"Смена модели переключит векторный поиск на '{model.Name}'.\n\n" +
-                      $"• Для этой модели будет использоваться отдельная изолированная база ('{dbName}').\n" +
-                      $"• Все существующие индексы и векторы для предыдущей модели сохранятся и не будут удалены.\n" +
-                      $"• Если веса модели ещё не загружены, начнётся их автоматическая загрузка с отображением прогресса.\n\n" +
-                      $"Переключить модель на {model.Name}?"
-                    : $"Changing the model will switch vector search to '{model.Name}'.\n\n" +
-                      $"• An isolated index database ('{dbName}') will be used for this model.\n" +
-                      $"• Existing indices for previous models will be preserved without loss.\n" +
-                      $"• If model weights are missing, download will start automatically with progress.\n\n" +
-                      $"Switch active model to {model.Name}?";
-
-                var res = MessageBox.Show(this, msg, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (res != MessageBoxResult.Yes)
+                if (!model.IsDownloaded())
                 {
-                    ComboEmbeddingModel.SelectionChanged -= OnModelSelectionChanged;
-                    var prev = (ComboEmbeddingModel.ItemsSource as IEnumerable<ModelComboItem>)?
-                        .FirstOrDefault(m => string.Equals(m.Model.Id, _settings.EmbeddingModel, StringComparison.OrdinalIgnoreCase));
-                    if (prev is not null)
+                    string title = Loc.IsRu ? "Загрузка модели эмбеддингов" : "Download Embedding Model";
+                    string msg = Loc.IsRu
+                        ? $"Модель '{model.Name}' ещё не загружена на этот компьютер.\n\n" +
+                          $"• Размер загрузки: ~{model.EstimatedBytes / (1024 * 1024)} МБ.\n" +
+                          $"• Модель будет скачана с Hugging Face в каталог моделей WAI.\n\n" +
+                          $"Начать загрузку модели прямо сейчас?"
+                        : $"Model '{model.Name}' is not yet downloaded on this computer.\n\n" +
+                          $"• Download size: ~{model.EstimatedBytes / (1024 * 1024)} MB.\n" +
+                          $"• The model will be downloaded from Hugging Face into WAI models directory.\n\n" +
+                          $"Start downloading the model now?";
+
+                    var res = MessageBox.Show(this, msg, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (res == MessageBoxResult.Yes)
                     {
-                        ComboEmbeddingModel.SelectedItem = prev;
-                        UpdateModelStatus(prev.Model);
+                        await StartModelDownloadAsync(model);
                     }
-                    ComboEmbeddingModel.SelectionChanged += OnModelSelectionChanged;
-                    return;
                 }
             }
         }
@@ -557,12 +546,145 @@ public partial class SettingsWindow : Window
             : (Loc.IsRu ? "⏳ Требуется загрузка весов (GGUF)" : "⏳ Weights download required (GGUF)");
         TxtModelStatus.Text = $"{model.Name} — {statusIcon}";
         TxtModelDetails.Text = $"{model.GetDescription(Loc.IsRu)} ({(Loc.IsRu ? "Размерность векторов" : "Vector dimensions")}: {model.Dimension} dim, {(Loc.IsRu ? "файл" : "file")}: {model.TextFile})";
+
+        if (_isDownloadingModel)
+        {
+            if (PanelModelDownloadAction is not null) PanelModelDownloadAction.Visibility = Visibility.Collapsed;
+            if (PanelModelDownloadProgress is not null) PanelModelDownloadProgress.Visibility = Visibility.Visible;
+        }
+        else if (downloaded)
+        {
+            if (PanelModelDownloadAction is not null) PanelModelDownloadAction.Visibility = Visibility.Collapsed;
+            if (PanelModelDownloadProgress is not null) PanelModelDownloadProgress.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            if (PanelModelDownloadAction is not null) PanelModelDownloadAction.Visibility = Visibility.Visible;
+            if (PanelModelDownloadProgress is not null) PanelModelDownloadProgress.Visibility = Visibility.Collapsed;
+            if (BtnDownloadModel is not null) BtnDownloadModel.Content = Loc.ModelDownloadBtn;
+            if (TxtModelDownloadHint is not null)
+            {
+                long mb = model.EstimatedBytes / (1024 * 1024);
+                TxtModelDownloadHint.Text = Loc.IsRu ? $"~{mb} МБ с Hugging Face" : $"~{mb} MB from Hugging Face";
+            }
+        }
+    }
+
+    private async void OnDownloadModelClick(object sender, RoutedEventArgs e)
+    {
+        if (ComboEmbeddingModel.SelectedItem is ModelComboItem item)
+        {
+            await StartModelDownloadAsync(item.Model);
+        }
+    }
+
+    private void OnCancelModelDownloadClick(object sender, RoutedEventArgs e)
+    {
+        if (_modelDownloadCts is not null && !_modelDownloadCts.IsCancellationRequested)
+        {
+            try
+            {
+                _modelDownloadCts.Cancel();
+            }
+            catch { }
+        }
+    }
+
+    private async Task StartModelDownloadAsync(EmbeddingModelDef model)
+    {
+        if (_isDownloadingModel) return;
+
+        _modelDownloadCts?.Cancel();
+        _modelDownloadCts = new CancellationTokenSource();
+        var ct = _modelDownloadCts.Token;
+
+        _isDownloadingModel = true;
+        if (PanelModelDownloadAction is not null) PanelModelDownloadAction.Visibility = Visibility.Collapsed;
+        if (PanelModelDownloadProgress is not null) PanelModelDownloadProgress.Visibility = Visibility.Visible;
+        if (ProgressModelDownload is not null) ProgressModelDownload.Value = 0;
+        if (TxtModelDownloadPercent is not null) TxtModelDownloadPercent.Text = "0%";
+        if (TxtModelDownloadStatus is not null) TxtModelDownloadStatus.Text = Loc.IsRu ? $"Загрузка {model.Name}…" : $"Downloading {model.Name}…";
+        if (TxtModelDownloadBytes is not null) TxtModelDownloadBytes.Text = $"0 / {model.EstimatedBytes / (1024.0 * 1024.0):F1} {(Loc.IsRu ? "МБ" : "MB")}";
+
+        try
+        {
+            string dir = ModelFiles.InstalledDirectory;
+            Directory.CreateDirectory(dir);
+
+            if (model.Id == "gemma2")
+            {
+                var missing = ModelFiles.Missing(dir);
+                long totalBytes = missing.Count > 0 ? missing.Sum(m => m.Bytes) : model.EstimatedBytes;
+                long baseBytes = 0;
+                foreach (var file in missing)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    string? cached = ModelFiles.CachedCopy(file);
+                    if (cached is not null)
+                    {
+                        File.Copy(cached, Path.Combine(dir, file.Name), overwrite: true);
+                        baseBytes += file.Bytes;
+                        continue;
+                    }
+                    var one = new Progress<double>(frac =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            double overallFrac = totalBytes > 0 ? Math.Clamp((baseBytes + frac * file.Bytes) / totalBytes, 0, 1) : frac;
+                            if (ProgressModelDownload is not null) ProgressModelDownload.Value = (int)(overallFrac * 100);
+                            if (TxtModelDownloadPercent is not null) TxtModelDownloadPercent.Text = $"{(int)(overallFrac * 100)}%";
+                            long cur = (long)(baseBytes + frac * file.Bytes);
+                            if (TxtModelDownloadBytes is not null)
+                                TxtModelDownloadBytes.Text = $"{(cur / (1024.0 * 1024.0)):F1} / {(totalBytes / (1024.0 * 1024.0)):F1} {(Loc.IsRu ? "МБ" : "MB")}";
+                        });
+                    });
+                    await ModelFiles.DownloadAsync(file, dir, one, ct);
+                    baseBytes += file.Bytes;
+                }
+            }
+            else
+            {
+                var prog = new Progress<double>(frac =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (ProgressModelDownload is not null) ProgressModelDownload.Value = (int)(frac * 100);
+                        if (TxtModelDownloadPercent is not null) TxtModelDownloadPercent.Text = $"{(int)(frac * 100)}%";
+                        long cur = (long)(frac * model.EstimatedBytes);
+                        if (TxtModelDownloadBytes is not null)
+                            TxtModelDownloadBytes.Text = $"{(cur / (1024.0 * 1024.0)):F1} / {(model.EstimatedBytes / (1024.0 * 1024.0)):F1} {(Loc.IsRu ? "МБ" : "MB")}";
+                    });
+                });
+                await ModelFiles.DownloadFileFromUrlAsync(model.DownloadUrl, dir, model.TextFile, model.EstimatedBytes, prog, ct);
+            }
+
+            _isDownloadingModel = false;
+            UpdateModelStatus(model);
+            MessageBox.Show(this, Loc.ModelDownloadComplete(model.Name), Loc.ModelDownloadCompleteTitle, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            _isDownloadingModel = false;
+            UpdateModelStatus(model);
+        }
+        catch (Exception ex)
+        {
+            _isDownloadingModel = false;
+            UpdateModelStatus(model);
+            MessageBox.Show(this, ex.Message, Loc.ModelDownloadErrorTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void ApplyCurrentSettings()
     {
         string updateSource = UpdateSource.Text.Trim();
-        if (updateSource.Length > 0 && !Path.IsPathFullyQualified(updateSource) && !updateSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(updateSource) ||
+            updateSource.Contains("dist\\releases", StringComparison.OrdinalIgnoreCase) ||
+            updateSource.StartsWith(@"D:\_projects\", StringComparison.OrdinalIgnoreCase))
+        {
+            updateSource = AppConstants.DefaultUpdateSource;
+        }
+        else if (!Path.IsPathFullyQualified(updateSource) && !updateSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
             MessageBox.Show(this,
                 Loc.IsRu ? "Укажите абсолютный путь к папке обновлений или оставьте пустым для GitHub." : "Specify the absolute path to update directory or leave empty for GitHub.",
@@ -574,7 +696,6 @@ public partial class SettingsWindow : Window
         _settings.Editor = Editor.SelectedItem as string ?? "auto";
         _settings.Language = Loc.CurrentLanguage;
         _settings.WidgetOpacity = SliderOpacity.Value / 100.0;
-        _settings.WidgetBlur = ChkWidgetBlur.IsChecked == true;
         _settings.Theme = ComboTheme.SelectedIndex switch
         {
             1 => ThemeManager.ThemeDark,

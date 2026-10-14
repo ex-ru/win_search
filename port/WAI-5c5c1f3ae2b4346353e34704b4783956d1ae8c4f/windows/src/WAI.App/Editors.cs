@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace WAI.App;
 
@@ -69,6 +70,19 @@ public static class Editors
         Open(native);
     }
 
+    [DllImport("shell32.dll", ExactSpelling = true)]
+    private static extern int SHOpenFolderAndSelectItems(
+        IntPtr pidlFolder,
+        uint cidl,
+        IntPtr apidl,
+        uint dwFlags);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern IntPtr ILCreateFromPathW(string pszPath);
+
+    [DllImport("shell32.dll", ExactSpelling = true)]
+    private static extern void ILFree(IntPtr pidl);
+
     public static void OpenInExplorer(string path)
     {
         string native = Native(path);
@@ -76,7 +90,32 @@ public static class Editors
         {
             if (File.Exists(native) || Directory.Exists(native))
             {
-                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{native}\"") { UseShellExecute = true });
+                // Try official Shell API to reveal & highlight the file in an active or new Explorer window
+                try
+                {
+                    IntPtr pidl = ILCreateFromPathW(native);
+                    if (pidl != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            int hr = SHOpenFolderAndSelectItems(pidl, 0, IntPtr.Zero, 0);
+                            if (hr == 0) return;
+                        }
+                        finally
+                        {
+                            ILFree(pidl);
+                        }
+                    }
+                }
+                catch { }
+
+                // Fallback to explorer.exe /select,"<file>" with direct process creation
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{native}\"",
+                    UseShellExecute = false
+                });
                 return;
             }
             string? dir = Path.GetDirectoryName(native);

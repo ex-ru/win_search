@@ -29,6 +29,13 @@ public static class Loc
         ? $"Пауза: проиндексировано {count} файлов"
         : $"Paused: indexed {count} files";
 
+    public static string Indexing => IsRu ? "Индексация" : "Indexing";
+    public static string VersionPrefix(string v) => IsRu ? $"Версия: v{v}" : $"Version: v{v}";
+    public static string SearchTooltip => IsRu
+        ? "Опишите, что ищете. code: для поиска кода. Enter — открыть, Esc — скрыть."
+        : "Describe what you're looking for. code: to search code. Enter to open, Esc to hide.";
+    public static string ClearQueryTooltip => IsRu ? "Очистить строку поиска" : "Clear search query";
+
     public static string SearchPlaceholder => IsRu
         ? "Поиск по смыслу и словам… (например: отчёт за май, договор, схема архитектуры)"
         : "Search by meaning and keywords… (e.g. quarterly report, contract, architecture)";
@@ -101,6 +108,15 @@ public static class Loc
         : "Select machine learning model for semantic search. Switch between EmbeddingGemma 2, BGE-M3, Perplexity Embed v2 and Nomic v1.5 with support for all file types preserved.";
     public static string ModelActiveLabel => IsRu ? "Активная модель эмбеддингов:" : "Active embedding model:";
     public static string ModelStatusHeader => IsRu ? "🧠 Характеристики и статус модели:" : "🧠 Model specifications and status:";
+    public static string ModelDownloadBtn => IsRu ? "📥 Скачать веса модели" : "📥 Download model weights";
+    public static string ModelDownloadingDefault => IsRu ? "Загрузка модели…" : "Downloading model…";
+    public static string ModelDownloading(string name) => IsRu ? $"Загрузка {name}…" : $"Downloading {name}…";
+    public static string ModelCancelDownload => IsRu ? "Отмена" : "Cancel";
+    public static string ModelDownloadCompleteTitle => IsRu ? "Загрузка завершена" : "Download Complete";
+    public static string ModelDownloadComplete(string name) => IsRu
+        ? $"Модель '{name}' успешно загружена и готова к работе."
+        : $"Model '{name}' downloaded successfully and is ready to use.";
+    public static string ModelDownloadErrorTitle => IsRu ? "Ошибка загрузки" : "Download Error";
     public static string ModelNote => IsRu
         ? "Для каждой модели создаётся отдельный изолированный индекс. Предыдущие индексы сохраняются и не удаляются при переключении."
         : "Each model uses an isolated index database. Previous indices are preserved and not deleted when switching.";
@@ -144,7 +160,10 @@ public static class Loc
     public static string SystemTitle => IsRu ? "Система и обновления" : "System & Updates";
     public static string StartupCheck => IsRu ? "Запускать WAI при старте Windows" : "Launch WAI on Windows startup";
     public static string UpdatesCheck => IsRu ? "Проверять обновления программы раз в день" : "Check for app updates daily";
-    public static string UpdateSourceLabel => IsRu ? "Источник пакетов обновлений (GitHub Releases или локальная папка):" : "Update package source (GitHub Releases or local folder):";
+    public static string UpdateSourceLabel => IsRu ? "Источник пакетов обновлений (GitHub Releases или папка):" : "Update package source (GitHub Releases or folder):";
+    public static string UpdateSourceTooltip => IsRu
+        ? "Репозиторий GitHub (по умолчанию: https://github.com/ex-ru/win_search) или локальная папка с релизами."
+        : "GitHub repository (default: https://github.com/ex-ru/win_search) or local releases folder.";
     public static string SystemNote => IsRu
         ? "WAI работает per-user: не требует прав администратора, данные хранятся в %LocalAppData%\\WAI."
         : "WAI runs per-user without administrator privileges, data stored in %LocalAppData%\\WAI.";
