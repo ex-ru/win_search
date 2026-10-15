@@ -42,7 +42,11 @@ try {
     Invoke-Gate 'packaged-payload-net10-full' {
         $Required = @('WAIApp.exe','wai.exe','wai-embed.exe','WAI.Core.dll','e_sqlite3.dll','pdfium.dll',
             'ffmpeg.exe','ffprobe.exe','llama.dll','mtmd.dll','ggml.dll','ggml-base.dll','ggml-vulkan.dll',
-            'ggml-cpu-x64.dll','libomp.dll','System.Private.CoreLib.dll','licenses\LICENSE','licenses\LICENSE-LLVM-OpenMP')
+            'msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll','licenses\vcruntime\index.json',
+            'ggml-cpu-x64.dll','libomp.dll','System.Private.CoreLib.dll','licenses\LICENSE-WAI.txt',
+            'licenses\llama\LICENSE','licenses\llama\LICENSE-LLVM-OpenMP','licenses\pdfium\pdfium.txt',
+            'licenses\ffmpeg\COPYING.LGPLv2.1','licenses\ffmpeg\LICENSE-dav1d.txt','licenses\ffmpeg\LICENSE-zlib.txt',
+            'licenses\managed\index.json','native-provenance.json')
         foreach ($File in $Required) {
             $Path = Join-Path $PackageDir $File
             Assert-Release (Test-Path -LiteralPath $Path -PathType Leaf) "Missing required full-package file: $File"
@@ -57,6 +61,39 @@ try {
         $RuntimeVersion = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $PackageDir 'System.Private.CoreLib.dll')).Version
         Assert-Release ($RuntimeVersion.Major -eq 10) 'Packaged runtime binary is not .NET 10.'
         'Full payload and .NET 10 runtime verified.'
+    }
+    Invoke-Gate 'third-party-notices-and-corresponding-source' {
+        $Manifest = Get-Content -LiteralPath (Join-Path $PackageDir 'native-provenance.json') -Raw | ConvertFrom-Json
+        foreach ($File in $Manifest.files) {
+            Assert-Release ((Get-FileHash -LiteralPath (Join-Path $PackageDir $File.name)).Hash -eq $File.sha256) "Native provenance mismatch: $($File.name)"
+        }
+        $VcNoticeIndex = Get-Content -LiteralPath (Join-Path $PackageDir 'licenses\vcruntime\index.json') -Raw | ConvertFrom-Json
+        foreach ($File in $VcNoticeIndex.files) {
+            Assert-Release ((Get-FileHash -LiteralPath (Join-Path $PackageDir "licenses\vcruntime\$($File.name)")).Hash -eq $File.sha256) "VC runtime notice mismatch: $($File.name)"
+        }
+        $Index = Get-Content -LiteralPath (Join-Path $PackageDir 'licenses\managed\index.json') -Raw | ConvertFrom-Json
+        Assert-Release ($Index.unresolved_count -eq 0) 'Managed notices remain unresolved.'
+        Assert-Release (@($Index.runtime_notice_check.missing_from_runtime_pack_cache).Count -eq 0) 'Missing .NET runtime notices.'
+        $SourceZipPath = Join-Path $ReleasesDir 'ffmpeg-corresponding-source.zip'
+        Assert-Release (Test-Path -LiteralPath $SourceZipPath -PathType Leaf) 'Missing matching media source distribution.'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $SourceZip = [IO.Compression.ZipFile]::OpenRead($SourceZipPath)
+        try {
+            foreach ($Pair in @(@('ffmpegSource','tar.xz'),@('dav1dSource','tar.gz'),@('zlibSource','tar.gz'))) {
+                $Source = $Manifest.dependencies.($Pair[0])
+                $Name = ($Pair[0] -replace 'Source$','') + '-' + $Source.version + '.' + $Pair[1]
+                $Entries = @($SourceZip.Entries | Where-Object { $_.FullName -eq $Name })
+                Assert-Release ($Entries.Count -eq 1) "Source archive missing: $Name"
+                $Stream = $Entries[0].Open(); $Hasher = [Security.Cryptography.SHA256]::Create()
+                try { $Hash = ([BitConverter]::ToString($Hasher.ComputeHash($Stream))).Replace('-','') }
+                finally { $Stream.Dispose(); $Hasher.Dispose() }
+                Assert-Release ($Hash -eq $Source.sha256) "Corresponding-source hash mismatch: $Name"
+            }
+            foreach ($Name in @('scripts/build-ffmpeg.sh','native-dependencies.json','README.md')) {
+                Assert-Release (@($SourceZip.Entries | Where-Object { $_.FullName -eq $Name }).Count -eq 1) "Source rebuild instruction missing: $Name"
+            }
+        } finally { $SourceZip.Dispose() }
+        'Native hashes, managed/runtime notices and exact FFmpeg/dav1d/zlib source archives verified.'
     }
     Invoke-Gate 'release-sha256-and-portable-payload' {
         $ChecksumPath = Join-Path $ReleasesDir 'SHA256SUMS.txt'
@@ -106,7 +143,7 @@ try {
     Invoke-Gate 'isolate-local-models' {
         # Hardlinks avoid duplicating model data on the same volume. Cross-volume runs copy immutable fixtures.
         $Files = @()
-        $Selected = switch ($Model) { 'bge-m3' { 'bge-m3-Q4_K_M.gguf' }; 'nomic' { 'nomic-embed-text-v1.5.Q8_0.gguf' }; 'pplx-v2' { 'pplx-late-Q8_0.gguf' }; 'gemma2' { 'embeddinggemma-2-Q8_0.gguf' }; default { throw "Unknown model: $Model" } }
+        $Selected = switch ($Model) { 'bge-m3' { 'bge-m3-Q4_K_M.gguf' }; 'gemma2' { 'embeddinggemma-2-Q8_0.gguf' }; default { throw "Unknown model: $Model" } }
         $Files = @($Selected)
         if ($Model -eq 'gemma2') { $Files += 'mmproj-embeddinggemma-2-Q8_0.gguf' }
         foreach ($File in $Files) {

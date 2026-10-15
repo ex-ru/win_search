@@ -104,8 +104,8 @@ public static class Loc
     // Embedding Model
     public static string ModelTitle => IsRu ? "Модель векторных эмбеддингов (Нейросеть поиска)" : "Embedding Model (Search Neural Network)";
     public static string ModelDesc => IsRu
-        ? "Выберите модель машинного обучения для семантического поиска. Поддерживается переключение между EmbeddingGemma 2, BGE-M3, Perplexity Embed v2 и Nomic v1.5 с сохранением поиска по всем типам файлов."
-        : "Select machine learning model for semantic search. Switch between EmbeddingGemma 2, BGE-M3, Perplexity Embed v2 and Nomic v1.5 with support for all file types preserved.";
+        ? "Выберите модель для поиска по смыслу: Gemma ищет по тексту, изображениям и аудио; BGE-M3 — многоязычная модель для текста. Текст на изображениях можно искать через OCR."
+        : "Choose a semantic search model: Gemma searches text, images, and audio; BGE-M3 is a multilingual text model. Text in images can be searched through OCR.";
     public static string ModelActiveLabel => IsRu ? "Активная модель эмбеддингов:" : "Active embedding model:";
     public static string ModelStatusHeader => IsRu ? "🧠 Характеристики и статус модели:" : "🧠 Model specifications and status:";
     public static string ModelDownloadBtn => IsRu ? "📥 Скачать веса модели" : "📥 Download model weights";

@@ -20,6 +20,7 @@ dist/releases/
 /releases/
 TestResults/
 **/Vendor/
+port/*/windows/native/
 *.pfx
 *.p12
 .env
@@ -46,3 +47,7 @@ Thumbs.db
 *.tmp
 *.log
 *.trx
+__pycache__/
+*.pyc
+
+dist/

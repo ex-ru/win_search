@@ -1,58 +1,43 @@
-# WAI for Windows 1.2.0 — Builder Guide
+# WAI for Windows 1.2.1 — Builder Guide
 
-## Requirements
+## Requirements and pinned inputs
 
-- Windows 10 or 11, x64, with Git.
-- .NET SDK 10.0.402. The repository pins this SDK in global.json; verify the selected version with dotnet --version.
-- Python 3.12, CMake, Ninja, and Visual Studio C++ build tools are needed for rebuilding the native llama.cpp runtime. They are not required to run the packaged app.
+- Windows x64, Git, PowerShell 5.1 or 7, and the exact .NET SDK **10.0.402**. `global.json` disables SDK roll-forward.
+- The five project `packages.lock.json` files are restored with `RestoreLockedMode=true`. The package builder installs the pinned Velopack CLI 1.2.161 when needed.
+- `native-dependencies.json` is the source of truth for native artifact URLs, versions, sizes, and SHA-256: llama.cpp b11461, PDFium 157.0.8100.0, FFmpeg 9.0.2, dav1d 1.5.4, and zlib 1.3.2. `scripts/prepare-runtime.ps1` verifies archive hashes before extracting the runtime.
+- The standard package needs no Python, CUDA, or Visual Studio C++ toolchain. Rebuilding the FFmpeg bundle from source is a separate Linux CI job using `scripts/build-ffmpeg.sh` and the compiler/tool versions recorded in that bundle.
 
-The shipped package uses CPU and Vulkan backends and includes FFmpeg by default. CUDA is not part of the release package. Model files are downloaded when needed and checked against pinned source, file size, and SHA-256 metadata. Users do not need a separate .NET, Python, or FFmpeg installation.
+The release package contains CPU and Vulkan backends, PDFium and FFmpeg. CUDA is not included. Models are downloaded separately and validated against pinned size/SHA-256 metadata. Packaged users do not need to install .NET, Python, or FFmpeg.
 
-## Build
+App-local Microsoft Visual C++ CRT files are also pinned and prepared with built-in Windows extraction tools. They are proprietary redistributable components subject to the applicable Visual Studio distributable-code terms; original terms and references are in `licenses/vcruntime/`.
 
-Run commands from the repository root. Managed source checks do not require a local `run-vulkan/` application build:
+## Clean checkout build
+
+Run from the repository root. Confirm that the SDK selected by `global.json` is 10.0.402, then run the locked regression suite and the release wrapper:
 
 ~~~powershell
+dotnet --version
 $win = '.\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows'
-dotnet build "$win\WAI.Windows.sln" -c Release
-dotnet test "$win\WAI.Windows.sln" -c Release
+dotnet test "$win\WAI.Windows.sln" -c Release -p:RestoreLockedMode=true --logger trx
+.\scripts\build-release.ps1
 ~~~
 
-A fresh clone is **not yet sufficient to build the standard distribution**. `build-package.ps1` requires a prepared `run-vulkan/` native payload (`llama.dll`, `mtmd.dll`, `ggml*.dll`, `libomp.dll`), `tools/llama-vulkan/LICENSE-LLVM-OpenMP`, and `tools/ffmpeg/{ffmpeg,ffprobe}.exe`. PDFium is currently tracked under `windows/native/x64/`. These external binaries are not downloaded by the packaging command. See `PUB-02` and `PUB-04` in the root backlog for matching notices and reproducible native dependency preparation.
+`release-version.json` selects the package version; for 1.2.1 the output is `dist\1.2.1\staging` and `dist\1.2.1\releases`. The builder creates a full package and rejects the removed Slim profile. It publishes the GUI, CLI, and worker self-contained for `win-x64`, copies the verified native runtime and its notices, installs Velopack 1.2.161 if needed, creates installer/portable assets, and writes `SHA256SUMS.txt`.
 
-The existing `build-llama-windows.ps1` is an experimental source build, **not** a bootstrap for the standard CPU/Vulkan package. It currently enables CUDA, needs the CUDA toolchain and Visual Studio 2022 C++ tools, writes to `windows/native/`, and uses PowerShell 7 syntax. Do not invoke it through Windows PowerShell 5.1 or assume it fills `run-vulkan/`.
+The first 1.2.1 CI package run seeds `tools\native-cache` with the `ffmpeg-win-x64` Actions artifact from the run ID in `release-version.json`; the artifact must contain `ffmpeg-tools-win-x64.zip` and `ffmpeg-corresponding-source.zip`. For a local build before 1.2.1 is public, download that same run's artifact and place those two files in `tools\native-cache`. Check their sizes and SHA-256 against `native-dependencies.json`. The other native archives are downloaded and verified by `prepare-runtime.ps1`. After publication, the pinned FFmpeg archive URLs also resolve from the public release.
 
-Build the standard full package with the default profile:
+The native lock file pins the original FFmpeg, dav1d, and zlib source archives as well as the Windows runtime archives. The release carries the matching source bundle, `native-provenance.json`, and legal notices for native, managed, .NET runtime, and Velopack dependencies. Their source files live under `licenses/`; `THIRD_PARTY_NOTICES.md` summarizes the shipped components. Missing notices or changed native inputs stop packaging. A clean Windows checkout can repeat the build from these pinned inputs; byte-for-byte equality of Velopack output across machines/runs is not claimed.
 
-~~~powershell
-& "$win\scripts\build-package.ps1" -Version 1.2.0
-~~~
+## CI and final release gates
 
-The package identity is WinSearch.WAI. The build writes its staged payload to dist\staging and release artifacts to dist\releases. The full package includes FFmpeg. Model files are not embedded in the installer.
+The manually dispatched workflow `.github/workflows/package.yml` runs locked tests, builds the full package, checks the native files and notices, then uploads release assets to a **draft**. A draft is not a public release, and the workflow does not replace the final model and update checks.
 
-## Model integrity
+Before publication, `scripts/check-release.ps1` must validate the actual staged package with real model files and native checks enabled. `scripts/check-update-apply.ps1` must apply the new package to a disposable copy of the original 1.2.0 portable release and verify retained state and search. See `docs/RELEASE_VERIFICATION_1.2.1.md` for the tested source commit, downloaded package hashes and final package/model/update results. Clean Windows 11 GUI installation is a separate external test with the owner's volunteers and must remain pending until they report it.
 
-Model URLs and expected size/SHA-256 values are pinned in WAI.Core/ModelCatalog.cs and WAI.Core/ModelFiles.cs. The downloader validates the file before it is used. Keep model metadata changes explicit and review the upstream revision and checksums when updating a model.
+After all automated gates pass, `scripts/publish-release.ps1` verifies all required assets against `SHA256SUMS.txt` and GitHub's reported sizes/digests before publishing. Pass the full SHA of the tested source commit as `TargetCommitish`; published tags and release assets are immutable.
 
-## Release checks
+## Data migration and runtime limits
 
-The following commands are available to run before a release. Their presence here does not mean they have passed in the current checkout; retain and review reports from actual runs.
+The package ID is `WinSearch.WAI`. Existing WAI data under `%LocalAppData%\WAI` remains in place; automatic in-place upgrade from an older package ID is not guaranteed. Confirm required data with the new installation before removing an older identity.
 
-~~~powershell
-$models = Join-Path $env:LOCALAPPDATA 'WAI\Models'
-.\scripts\check-release.ps1 -PackageDir .\dist\staging -ModelsDir $models -Model gemma2
-
-dotnet run --project .\checks\WAI.Performance\WAI.Performance.csproj -c Release -- --counts 10000,100000 --repetitions 12 --report .\state\perf\report.json
-~~~
-
-The release check expects a staged full package and the locally available model files. The performance tool reports measurements for the requested corpus and this machine; it is not a universal latency requirement. Add --million only when there is enough disk space for the generated test index.
-
-## Distribution and data migration
-
-Version 1.2.0 uses package identity WinSearch.WAI. Existing WAI data in %LOCALAPPDATA%\WAI remains in place. The new package identity differs from older installers, so automatic in-place upgrade across package identities is not guaranteed. Test the new installation and confirm that needed data is available before uninstalling an older identity.
-
-The package contains CPU and Vulkan runtimes. Vulkan behavior depends on hardware and driver; test on the target systems. The shipped package does not contain CUDA.
-
-## Historical measurements
-
-Older evaluation results remain in README.md and CHANGELOG.md as historical context. The Russian quality set and mixed media set were small fixtures; their percentages and timings do not establish expected performance or accuracy for real user collections.
+Vulkan availability and speed depend on the GPU and installed driver. CPU remains available in settings. Historical performance and accuracy results describe small fixtures and specific hardware; they do not predict results on every user's files or device.

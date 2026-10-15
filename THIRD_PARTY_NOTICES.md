@@ -1,16 +1,23 @@
-# Third-party distribution status
+# WAI 1.2.1 - third-party distribution
 
-The [MIT license](LICENSE) covers WAI project code. Bundled native programs, runtimes, packages and downloaded models have their own licenses. The root MIT license does not replace them.
+WAI project code uses the [MIT license](LICENSE). Bundled components keep their own licenses. Actual notices are included under licenses/ in the package.
 
-| Component | Current evidence | Required before the next general release |
-|---|---|---|
-| llama.cpp / GGML / MTMD | Build scripts and local runtime archives identify upstream tag `b11461`; [upstream](https://github.com/ggml-org/llama.cpp/tree/b11461). | Retain the matching MIT notice and record hashes/provenance for the exact CPU/Vulkan binaries. |
-| LLVM OpenMP | The package copies `LICENSE-LLVM-OpenMP` from the native runtime distribution. | Keep this notice with `libomp.dll`. |
-| FFmpeg / FFprobe | The inspected binaries report `9.0.2-full_build-www.gyan.dev`, `--enable-gpl` and `--enable-version3`. Only the executables were retained locally. | Recover the matching build/source/dependency materials and license texts, preserve the build configuration, and provide the required corresponding-source distribution. A generic link to current upstream source does not identify these binaries. |
-| PDFium | `windows/native/x64/pdfium.dll` is tracked; the current packaging script copies no PDFium notice or source/build manifest. | Identify the exact binary build and include its matching PDFium and third-party notices. |
-| .NET, SQLite and managed dependencies | Versions are recorded in the project files and packaged dependency manifests. | Collect their applicable notices in the release license bundle. |
-| Downloaded embedding models | Model revisions and checksums are pinned in `ModelCatalog.cs`; weights are not committed or bundled. | Keep each upstream model's license and use terms with its download provenance when changing models. |
+| Component | Pinned version and materials |
+|---|---|
+| llama.cpp / GGML / MTMD | Official b11461 CPU/Vulkan archive, checked by size and SHA-256. MIT and LLVM OpenMP notices in licenses/llama/. |
+| Microsoft Visual C++ CRT | 14.51.36247.0, extracted from the pinned Microsoft-signed redistributable. Required app-local DLLs have individual hashes; proprietary runtime terms and developer distributable-code references are in licenses/vcruntime/. |
+| PDFium | 157.0.8100.0 from bblanchon chromium/8100. Binary distribution license and every supplied component notice in licenses/pdfium/. |
+| FFmpeg / FFprobe | FFmpeg 9.0.2, without GPL, version-3 or nonfree components. LGPL-2.1-or-later, used as separate programs. Build configuration, toolchain versions, imported DLLs and binary hashes in licenses/ffmpeg/. |
+| dav1d | 1.5.4, BSD-2-Clause. Retains CPU AV1 decoding; exact source and notice included. |
+| zlib | 1.3.2, zlib license. PNG/compression support; exact source and notice included. |
+| .NET / managed packages | Exact versions/content hashes locked. licenses/managed/index.json records authors/copyright and copied texts. Runtime notices come from the exact .NET 10.0.13 runtime packs. |
+| Velopack installer/updater | 1.2.161, root MIT notice plus Cargo.lock notice inventory under licenses/velopack-runtime/. The registry-dependency superset does not claim every development/platform crate is shipped. Archives are checksum-verified; omitted standalone notices are recovered at crate VCS commits where available. Otherwise declared license terms, authors and complete original crate source are retained. |
+| Models | Downloaded separately, never bundled. Each model retains upstream license/use terms; source revisions and expected size/hash are pinned in ModelCatalog.cs. |
 
-FFmpeg documents the effect of GPL-enabled configurations and the need for matching source at [FFmpeg legal information](https://ffmpeg.org/legal.html). This inventory records a concrete packaging gap; it is not a statement that the current license bundle is complete.
+## Corresponding media source
 
-The already published 1.2.0 assets are unchanged. **Do not describe their two-file license directory as a complete third-party notice bundle.** Track the remaining release work as `PUB-02` in [BACKLOG.md](BACKLOG.md).
+The same release hosts [ffmpeg-corresponding-source.zip](https://github.com/ex-ru/win_search/releases/download/v1.2.1/ffmpeg-corresponding-source.zip): exact unmodified FFmpeg, dav1d and zlib archives, pinned hashes, the MinGW recipe and rebuild instructions. This software uses [FFmpeg](https://ffmpeg.org/) under LGPL-2.1-or-later. See [FFmpeg distribution guidance](https://ffmpeg.org/legal.html).
+
+native-dependencies.json pins archive URLs, sizes and SHA-256. native-provenance.json in each package records selected file hashes. Preparation, packaging and release gates reject missing required notices or mismatched inputs/source archives.
+
+Historical 1.2.0 assets remain unchanged; their incomplete notice/source bundle is superseded by this new distribution, without replacing binaries under the old tag.

@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "files": [
+    {
+      "name": "LICENSE-Microsoft-VC-Runtime.docx",
+      "sha256": "08651651a7602fc7c0e2763de0fde1ff9f868df2780597cd1775ee9d6441c783",
+      "size": 39553
+    },
+    {
+      "name": "LICENSE-Microsoft-VC-Runtime.txt",
+      "sha256": "67574d66d2632c6ce248b8a5f92bebcfb2d630c40584d683327811397eeadd5d",
+      "size": 12045
+    },
+    {
+      "name": "LICENSE-Visual-Studio-Community-2022.docx",
+      "sha256": "41a207b10c8ab91d0d2f10a854715f73dca54509581692d2fe179aa3ffcb8540",
+      "size": 62859
+    },
+    {
+      "name": "LICENSE-Visual-Studio-Community-2022.txt",
+      "sha256": "b2830f9facf16b5c34f9840ff5d2e2a84671fc54c1117153fc28bade4ac40f9b",
+      "size": 19199
+    },
+    {
+      "name": "README.md",
+      "sha256": "bdbffb0bd92a1054f7e51af1e7552920e845d8f1f2cc5ae16773f677555251b9",
+      "size": 1817
+    }
+  ]
+}

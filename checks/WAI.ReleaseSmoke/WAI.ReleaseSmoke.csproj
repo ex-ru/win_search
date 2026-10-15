@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\src\WAI.Core\WAI.Core.csproj" />
+    <EmbeddedResource Include="Fixtures\av1.webm" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "llama": {
+    "version": "b11461",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11461/llama-b11461-bin-win-vulkan-x64.zip",
+    "sha256": "6b9ca8ad3e43ac3e166d1997875709e4547214bb5bf1c2ebfdd17a2350a8380c",
+    "size": 33377638,
+    "source": "https://github.com/ggml-org/llama.cpp/tree/b11461"
+  },
+  "pdfium": {
+    "version": "157.0.8100.0",
+    "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8100/pdfium-win-x64.tgz",
+    "sha256": "51621bcc1d9be9ea448f4b84b0516862b928e3968d3fca899af1a6d6e2848d6d",
+    "size": 3875218,
+    "source": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/8100"
+  },
+  "ffmpegSource": {
+    "version": "9.0.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+    "commit": "946fcce07b6dcd0331c8cc609192aeff5e1924f8"
+  },
+  "dav1dSource": {
+    "version": "1.5.4",
+    "url": "https://codeload.github.com/videolan/dav1d/tar.gz/54706fc6bc0cdecab7e9593974a4039cc038fca7",
+    "sha256": "9edb11a2108b375cc58370354e705feebc93430bb780130363815c1e1ac0c250",
+    "commit": "54706fc6bc0cdecab7e9593974a4039cc038fca7"
+  },
+  "zlibSource": {
+    "version": "1.3.2",
+    "url": "https://codeload.github.com/madler/zlib/tar.gz/da607da739fa6047df13e66a2af6b8bec7c2a498",
+    "sha256": "b9258cf6254e7f7c37f1cd61dba943a1c5ea3cff5718c789834dac359094f5f7",
+    "commit": "da607da739fa6047df13e66a2af6b8bec7c2a498"
+  },
+  "ffmpeg": {
+    "version": "9.0.2",
+    "url": "https://github.com/ex-ru/win_search/releases/download/v1.2.1/ffmpeg-tools-win-x64.zip",
+    "sha256": "64b9bf8d66b59b97e03f4c8588152ce7e92db4b9e744b229c5a7a868178c5f9c",
+    "size": 16720455,
+    "buildRun": "https://github.com/ex-ru/win_search/actions/runs/38761826161",
+    "sourceArchive": {
+      "url": "https://github.com/ex-ru/win_search/releases/download/v1.2.1/ffmpeg-corresponding-source.zip",
+      "sha256": "332d1652170ea3b9d4540064f5b471966d0e7c54b6ffeb8ef84a6687e141b2dd",
+      "size": 15359793
+    }
+  },
+  "vcruntime": {
+    "version": "14.51.36247.0",
+    "url": "https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe",
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+    "size": 18731856,
+    "source": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution#visual-c-runtime-files",
+    "runtimeLicense": "https://visualstudio.microsoft.com/wp-content/uploads/2025/10/Visual-C-V14-License-Redistributable_and_Runtime_ENU.docx",
+    "files": [
+      {
+        "name": "msvcp140.dll",
+        "archiveName": "msvcp140.dll_amd64",
+        "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+        "size": 643512
+      },
+      {
+        "name": "vcruntime140.dll",
+        "archiveName": "vcruntime140.dll_amd64",
+        "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+        "size": 178616
+      },
+      {
+        "name": "vcruntime140_1.dll",
+        "archiveName": "vcruntime140_1.dll_amd64",
+        "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+        "size": 50112
+      }
+    ]
+  }
+}

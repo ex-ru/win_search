@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "version": "1.2.1",
+  "status": "passed",
+  "testedSourceCommit": "fcd419c81e21dc67fddd8bfb8ac7af467efada90",
+  "completedAtUtc": "2026-10-15T21:51:51.959030+00:00",
+  "ci": {
+    "packageRun": "https://github.com/ex-ru/win_search/actions/runs/38811112578",
+    "packageRunAttempt": 2,
+    "windowsRun": "https://github.com/ex-ru/win_search/actions/runs/38811112421",
+    "verificationArtifactSha256": "52f651270bff7f2f074413001823f13fba54a9f7ce7a48e16d73553b276a880e",
+    "unitTests": {
+      "total": 192,
+      "passed": 191,
+      "failed": 0,
+      "explicitlySkipped": 1,
+      "skippedTest": "Benchmark_AllEmbeddingModels_RetrievalAccuracyAndLatency"
+    }
+  },
+  "loadedCoreSha256": "6397aa264c22780669f53e465f66bd98a7d275f44629e377fc5d9a783ea9be5e",
+  "packageChecks": {
+    "bge": {
+      "status": "passed",
+      "evaluationRequested": true,
+      "checks": [
+        {
+          "name": "packaged-payload-net10-full",
+          "status": "passed",
+          "seconds": 0.2484949
+        },
+        {
+          "name": "third-party-notices-and-corresponding-source",
+          "status": "passed",
+          "seconds": 1.7116799
+        },
+        {
+          "name": "release-sha256-and-portable-payload",
+          "status": "passed",
+          "seconds": 1.8558935
+        },
+        {
+          "name": "isolate-local-models",
+          "status": "passed",
+          "seconds": 0.2812089
+        },
+        {
+          "name": "packaged-cli",
+          "status": "passed",
+          "seconds": 6.5102879
+        },
+        {
+          "name": "release-smoke",
+          "status": "passed",
+          "seconds": 121.5943653
+        }
+      ],
+      "smoke": [
+        {
+          "name": "arguments",
+          "status": "passed",
+          "seconds": 0.0122478
+        },
+        {
+          "name": "file-lifecycle-lexical",
+          "status": "passed",
+          "seconds": 0.822176
+        },
+        {
+          "name": "crash-during-transaction",
+          "status": "passed",
+          "seconds": 0.4852784
+        },
+        {
+          "name": "sqlite-disk-full",
+          "status": "passed",
+          "seconds": 0.043928
+        },
+        {
+          "name": "packaged-worker-cpu",
+          "status": "passed",
+          "seconds": 9.4930183
+        },
+        {
+          "name": "production-evaluation",
+          "status": "passed",
+          "seconds": 25.8760758
+        },
+        {
+          "name": "native-pdfium-ffmpeg",
+          "status": "passed",
+          "seconds": 2.9550199
+        }
+      ]
+    },
+    "gemma": {
+      "status": "passed",
+      "evaluationRequested": false,
+      "checks": [
+        {
+          "name": "packaged-payload-net10-full",
+          "status": "passed",
+          "seconds": 0.1222741
+        },
+        {
+          "name": "third-party-notices-and-corresponding-source",
+          "status": "passed",
+          "seconds": 0.3233085
+        },
+        {
+          "name": "release-sha256-and-portable-payload",
+          "status": "passed",
+          "seconds": 1.5115724
+        },
+        {
+          "name": "isolate-local-models",
+          "status": "passed",
+          "seconds": 0.4319951
+        },
+        {
+          "name": "packaged-cli",
+          "status": "passed",
+          "seconds": 7.7632635
+        },
+        {
+          "name": "release-smoke",
+          "status": "passed",
+          "seconds": 46.4402384
+        }
+      ],
+      "smoke": [
+        {
+          "name": "arguments",
+          "status": "passed",
+          "seconds": 0.011971
+        },
+        {
+          "name": "file-lifecycle-lexical",
+          "status": "passed",
+          "seconds": 0.7999078
+        },
+        {
+          "name": "crash-during-transaction",
+          "status": "passed",
+          "seconds": 0.4837739
+        },
+        {
+          "name": "sqlite-disk-full",
+          "status": "passed",
+          "seconds": 0.0429372
+        },
+        {
+          "name": "packaged-worker-cpu",
+          "status": "passed",
+          "seconds": 7.4545764
+        },
+        {
+          "name": "native-pdfium-ffmpeg",
+          "status": "passed",
+          "seconds": 1.9783901
+        }
+      ]
+    }
+  },
+  "workers": {
+    "status": "passed",
+    "backend": "cpu",
+    "workerExecutableSha256": "2102df96b4983ba1b9721b44b937fcd4f25235dbf4b42d1d1dd3da070ae2bdff",
+    "workerAssemblySha256": "0497a631c09712b22e94607755affeace037d19bc3aa6b2d44040df492539035",
+    "results": [
+      {
+        "model": "bge-m3",
+        "status": "passed",
+        "textOnly": true,
+        "checks": [
+          {
+            "operation": "text",
+            "dimensions": 1024,
+            "norm": 1.000000006420491,
+            "seconds": 0.058344899996882305
+          }
+        ],
+        "seconds": 2.7634689999977127
+      },
+      {
+        "model": "gemma2",
+        "status": "passed",
+        "textOnly": false,
+        "checks": [
+          {
+            "operation": "text",
+            "dimensions": 768,
+            "norm": 1.0000000380996863,
+            "seconds": 0.03673569999227766
+          },
+          {
+            "operation": "image",
+            "dimensions": 768,
+            "norm": 0.9999999837389372,
+            "seconds": 2.954119999994873
+          },
+          {
+            "operation": "audio",
+            "dimensions": 768,
+            "norm": 1.0000000243219787,
+            "seconds": 0.19082560000242665
+          }
+        ],
+        "seconds": 18.099670499999775
+      }
+    ],
+    "limitation": "Synthetic input protocol/inference checks, not search quality or a GPU compatibility matrix."
+  },
+  "evaluation": {
+    "queryCount": 240,
+    "documentCount": 41,
+    "failures": 0,
+    "model": "BAAI/bge-m3",
+    "dimension": 1024,
+    "limitation": "Synthetic independent-topic corpus. Absence asserts lexical results only; hybrid candidates are diagnostic. No real-world accuracy claim."
+  },
+  "update": {
+    "status": "passed",
+    "applied": true,
+    "baselineVersion": "1.2.0",
+    "targetVersion": "1.2.1",
+    "historicalBinaryBaseline": true,
+    "targetPackageSha256": "4CA91F02ED652D697D1162D6807D69BA25E3268DDB7E49909B5A3C4B73E5D3BC",
+    "verifiedPayloadSha256": {
+      "WAIApp.exe": "87CEAD284EF77958B72A7B9C9EBC986AD111D9553A0B4BFF41F9F3092A64D5FD",
+      "wai.exe": "47E2D4014A07BF2C10123A70AA5C2693B442ADB43D72A3BD5778C15453036085",
+      "System.Private.CoreLib.dll": "0A175CDD09067C52F8B2477CFCEBF894B2F926D7302E55AE76FC921529662C7B",
+      "wai-embed.exe": "2102DF96B4983BA1B9721B44B937FCD4F25235DBF4B42D1D1DD3DA070AE2BDFF",
+      "WAI.Core.dll": "6397AA264C22780669F53E465F66BD98A7D275F44629E377FC5D9A783EA9BE5E"
+    },
+    "limitations": [
+      "Disposable portable installation only.",
+      "Verified historical portable binaries used.",
+      "Actual updater hooks and CLI relaunch exercised; interactive GUI restart not tested.",
+      "Interrupted network transfer is separate from local apply."
+    ]
+  },
+  "historicalBaselinePortableSha256": "a432fb246585506f0025d7e0d56bec01dead70899fdc64efd4fc293443e21a45",
+  "native": {
+    "lockSha256": "90cb385d3b84ed62b1c0fe592dfeedc1e37150bbc03b15290fdbe01be0ac2146",
+    "peFileCount": 26,
+    "importCount": 285,
+    "appLocalVcRuntime": "14.51.36247.0",
+    "pdfium": "157.0.8100.0",
+    "ffmpeg": "9.0.2",
+    "av1": "dav1d 1.5.4",
+    "pngCompression": "zlib 1.3.2"
+  },
+  "notices": {
+    "managedPackages": 9,
+    "managedLegalFiles": 14,
+    "managedUnresolved": 0,
+    "velopackRegistrySuperset": 612,
+    "velopackVerifiedLegalReferences": 1149,
+    "velopackUnresolved": 0
+  },
+  "modelInputs": [
+    {
+      "name": "embeddinggemma-2-Q8_0.gguf",
+      "sha256": "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135",
+      "size": 309855456
+    },
+    {
+      "name": "mmproj-embeddinggemma-2-Q8_0.gguf",
+      "sha256": "c4a8a52691ecef40618438928bdf9e68379b854e24166f292592353db0aab64f",
+      "size": 554821024
+    },
+    {
+      "name": "bge-m3-Q4_K_M.gguf",
+      "sha256": "6d39681b26c61279ac1f82db35a04a05009e94c415b51c858ff571489a82fc06",
+      "size": 437778496
+    }
+  ],
+  "assets": [
+    {
+      "name": "assets.win.json",
+      "size": 211,
+      "sha256": "2676db7d1b41c6488651fc3695c032cace0c82edee774ad34f3e5836e647d8b2"
+    },
+    {
+      "name": "ffmpeg-corresponding-source.zip",
+      "size": 15359793,
+      "sha256": "332d1652170ea3b9d4540064f5b471966d0e7c54b6ffeb8ef84a6687e141b2dd"
+    },
+    {
+      "name": "ffmpeg-tools-win-x64.zip",
+      "size": 16720455,
+      "sha256": "64b9bf8d66b59b97e03f4c8588152ce7e92db4b9e744b229c5a7a868178c5f9c"
+    },
+    {
+      "name": "native-provenance.json",
+      "size": 7858,
+      "sha256": "29b001716d1fe73d02673888ade922c02af72291111f85780cd56617e92e6c59"
+    },
+    {
+      "name": "RELEASES",
+      "size": 84,
+      "sha256": "b8bfc2101580ac83b755a354f123ca56f7c11c9a2ab54d521905b5e2f388ec5e"
+    },
+    {
+      "name": "releases.win.json",
+      "size": 261,
+      "sha256": "16d67433b7901cf3b7b243720c65873c677894885af72af7b78975ac1b23c342"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 816,
+      "sha256": "554ec8829ca0f1fc48e054eaba949092040d76e398facf5121843da11114a8c1"
+    },
+    {
+      "name": "WinSearch.WAI-1.2.1-full.nupkg",
+      "size": 135519169,
+      "sha256": "4ca91f02ed652d697d1162d6807d69ba25e3268ddb7e49909b5a3c4b73e5d3bc"
+    },
+    {
+      "name": "WinSearch.WAI-win-Portable.zip",
+      "size": 135518071,
+      "sha256": "01f126ff19cbff85e71a59f3be22f3aa58a81443fc7527d80b986006fb63125b"
+    },
+    {
+      "name": "WinSearch.WAI-win-Setup.exe",
+      "size": 143033281,
+      "sha256": "5a5353c0d53ac715904a78fce94b9cef20abfedd7bc57de15f4dbd5f7213380b"
+    }
+  ],
+  "limitations": [
+    "Clean Windows 11 per-user installation, first model download and installed GUI upgrade are assigned to volunteer testers; result pending.",
+    "CPU inference verified; GPU and driver matrix not validated.",
+    "Installer unsigned.",
+    "Pinned build inputs are repeatable; byte-identical output across arbitrary machines/toolchains is not claimed.",
+    "Synthetic retrieval results do not establish accuracy on real collections.",
+    "Unsupported Perplexity and Nomic options removed; legacy settings migrate to Gemma. No successful Nomic Russian retrieval check is claimed."
+  ]
+}

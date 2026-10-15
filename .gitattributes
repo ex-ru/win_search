@@ -5,3 +5,6 @@
 *.json text
 *.md text
 *.ps1 text eol=crlf
+# Preserve upstream bytes recorded in license/provenance hashes.
+licenses/** -text -whitespace
+checks/WAI.ReleaseSmoke/Fixtures/*.webm -text
