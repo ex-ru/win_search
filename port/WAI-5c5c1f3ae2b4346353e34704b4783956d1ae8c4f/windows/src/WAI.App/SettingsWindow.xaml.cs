@@ -411,28 +411,61 @@ public partial class SettingsWindow : Window
     private void UpdateThemeOptions()
     {
         if (ComboTheme is null) return;
-        int idx = ComboTheme.SelectedIndex >= 0 ? ComboTheme.SelectedIndex : 0;
+        int idx = ComboTheme.SelectedIndex >= 0
+            ? ComboTheme.SelectedIndex
+            : _settings.Theme switch
+            {
+                ThemeManager.ThemeDark => 1,
+                ThemeManager.ThemeLight => 2,
+                _ => 0
+            };
+        ComboTheme.SelectionChanged -= OnThemeSelectionChanged;
         ComboTheme.ItemsSource = Loc.IsRu
             ? new[] { "Системная (как в Windows)", "Тёмная (Dark)", "Светлая (Light)" }
             : new[] { "System (Windows default)", "Dark", "Light" };
         ComboTheme.SelectedIndex = idx;
+        ComboTheme.SelectionChanged += OnThemeSelectionChanged;
+    }
+
+    private void OnThemeSelectionChanged(object? sender, SelectionChangedEventArgs? e)
+    {
+        if (ComboTheme is null || ComboTheme.SelectedIndex < 0) return;
+        string theme = ComboTheme.SelectedIndex switch
+        {
+            1 => ThemeManager.ThemeDark,
+            2 => ThemeManager.ThemeLight,
+            _ => ThemeManager.ThemeSystem
+        };
+        ApplyTheme(ThemeManager.IsDark(theme));
     }
 
     private void UpdateLanguageToggleButtons(string lang)
     {
         bool isRu = !string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase);
-        var activeBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#0078D4")!;
-        var inactiveBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#282828")!;
+        bool isDark = ThemeManager.IsDark(ComboTheme?.SelectedIndex switch
+        {
+            1 => ThemeManager.ThemeDark,
+            2 => ThemeManager.ThemeLight,
+            _ => _settings.Theme
+        });
+        var bc = new System.Windows.Media.BrushConverter();
+        var activeBrush = (System.Windows.Media.Brush)bc.ConvertFrom("#0078D4")!;
+        var inactiveBrush = isDark
+            ? (System.Windows.Media.Brush)bc.ConvertFrom("#282828")!
+            : (System.Windows.Media.Brush)bc.ConvertFrom("#E2E8F0")!;
+        var inactiveFg = isDark
+            ? (System.Windows.Media.Brush)bc.ConvertFrom("#888888")!
+            : (System.Windows.Media.Brush)bc.ConvertFrom("#475569")!;
 
         if (BtnLangRu is not null)
         {
             BtnLangRu.Background = isRu ? activeBrush : inactiveBrush;
-            BtnLangRu.Foreground = isRu ? System.Windows.Media.Brushes.White : (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#888888")!;
+            BtnLangRu.Foreground = isRu ? System.Windows.Media.Brushes.White : inactiveFg;
         }
         if (BtnLangEn is not null)
         {
             BtnLangEn.Background = !isRu ? activeBrush : inactiveBrush;
-            BtnLangEn.Foreground = !isRu ? System.Windows.Media.Brushes.White : (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#888888")!;
+            BtnLangEn.Foreground = !isRu ? System.Windows.Media.Brushes.White : inactiveFg;
         }
     }
 
@@ -746,14 +779,137 @@ public partial class SettingsWindow : Window
             var bc = new System.Windows.Media.BrushConverter();
             if (isDark)
             {
-                Background = (System.Windows.Media.Brush)bc.ConvertFrom("#1E1E1E")!;
-                Foreground = System.Windows.Media.Brushes.White;
+                Resources["WindowBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1E1E1E")!;
+                Resources["WindowForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F0F0F0")!;
+                Resources["CardBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#252525")!;
+                Resources["CardBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#383838")!;
+                Resources["TextPrimaryBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["TextSecondaryBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#AAAAAA")!;
+                Resources["TextMutedBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#777777")!;
+                Resources["TextAccentBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#80D8FF")!;
+
+                Resources["InputBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#2A2A2A")!;
+                Resources["InputBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#444444")!;
+                Resources["InputForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["PopupBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#202020")!;
+                Resources["PopupBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#444444")!;
+                Resources["ItemSelectedBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1C4B72")!;
+                Resources["ItemSelectedForegroundBrush"] = System.Windows.Media.Brushes.White;
+
+                Resources["ButtonBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#353535")!;
+                Resources["ButtonBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#444444")!;
+                Resources["ButtonForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["ButtonHoverBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#454545")!;
+                Resources["ButtonHoverBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#555555")!;
+
+                Resources["DangerButtonBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#402020")!;
+                Resources["DangerButtonBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#663030")!;
+                Resources["DangerButtonForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFAAAA")!;
+
+                Resources["BadgeBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#282828")!;
+                Resources["BadgeBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#444444")!;
+                Resources["BadgeForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CCCCCC")!;
+
+                Resources["BannerBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1C2E3D")!;
+                Resources["BannerBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#256B9E")!;
+                Resources["BannerForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#D0E8FF")!;
+
+                Resources["StatsBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1A2733")!;
+                Resources["StatsBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#256B9E")!;
+                Resources["StatsBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#80D8FF")!;
+                Resources["StatsBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#E0E0E0")!;
+
+                Resources["OrphanedBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#221C14")!;
+                Resources["OrphanedBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#8A631E")!;
+                Resources["OrphanedBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFD54F")!;
+                Resources["OrphanedBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFE082")!;
+
+                Resources["ModelBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1A2826")!;
+                Resources["ModelBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#257E70")!;
+                Resources["ModelBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#80FFE8")!;
+
+                Resources["HwBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1A2733")!;
+                Resources["HwBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#256B9E")!;
+                Resources["HwBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#80D8FF")!;
+
+                Resources["LogsBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1C2228")!;
+                Resources["LogsBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#334455")!;
+                Resources["LogsBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#A0B0C0")!;
+
+                Resources["ScrollThumbBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#444444")!;
+                Resources["ScrollThumbHoverBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#666666")!;
+                Resources["ExpanderHeaderHoverBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#303030")!;
+
+                Background = (System.Windows.Media.Brush)Resources["WindowBackgroundBrush"];
+                Foreground = (System.Windows.Media.Brush)Resources["WindowForegroundBrush"];
             }
             else
             {
-                Background = (System.Windows.Media.Brush)bc.ConvertFrom("#F8F9FA")!;
-                Foreground = (System.Windows.Media.Brush)bc.ConvertFrom("#0F172A")!;
+                Resources["WindowBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F1F5F9")!;
+                Resources["WindowForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0F172A")!;
+                Resources["CardBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["CardBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["TextPrimaryBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0F172A")!;
+                Resources["TextSecondaryBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#475569")!;
+                Resources["TextMutedBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#64748B")!;
+                Resources["TextAccentBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0284C7")!;
+
+                Resources["InputBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["InputBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["InputForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0F172A")!;
+                Resources["PopupBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["PopupBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["ItemSelectedBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#E0F2FE")!;
+                Resources["ItemSelectedForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0078D4")!;
+
+                Resources["ButtonBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFFFF")!;
+                Resources["ButtonBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["ButtonForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1E293B")!;
+                Resources["ButtonHoverBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F1F5F9")!;
+                Resources["ButtonHoverBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#94A3B8")!;
+
+                Resources["DangerButtonBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FEE2E2")!;
+                Resources["DangerButtonBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FCA5A5")!;
+                Resources["DangerButtonForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#DC2626")!;
+
+                Resources["BadgeBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["BadgeBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["BadgeForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#334155")!;
+
+                Resources["BannerBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#EFF6FF")!;
+                Resources["BannerBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#93C5FD")!;
+                Resources["BannerForegroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#1E40AF")!;
+
+                Resources["StatsBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F0F9FF")!;
+                Resources["StatsBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#7DD3FC")!;
+                Resources["StatsBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0369A1")!;
+                Resources["StatsBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#334155")!;
+
+                Resources["OrphanedBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FFFBEB")!;
+                Resources["OrphanedBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#FCD34D")!;
+                Resources["OrphanedBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#B45309")!;
+                Resources["OrphanedBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#78350F")!;
+
+                Resources["ModelBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F0FDF4")!;
+                Resources["ModelBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#86EFAC")!;
+                Resources["ModelBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#15803D")!;
+
+                Resources["HwBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F0F9FF")!;
+                Resources["HwBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#7DD3FC")!;
+                Resources["HwBoxHeaderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#0369A1")!;
+
+                Resources["LogsBoxBackgroundBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F8FAFC")!;
+                Resources["LogsBoxBorderBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["LogsBoxTextBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#475569")!;
+
+                Resources["ScrollThumbBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["ScrollThumbHoverBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#94A3B8")!;
+                Resources["ExpanderHeaderHoverBrush"] = (System.Windows.Media.Brush)bc.ConvertFrom("#F1F5F9")!;
+
+                Background = (System.Windows.Media.Brush)Resources["WindowBackgroundBrush"];
+                Foreground = (System.Windows.Media.Brush)Resources["WindowForegroundBrush"];
             }
+            UpdateLanguageToggleButtons(_settings.Language);
         }
         catch { }
     }
