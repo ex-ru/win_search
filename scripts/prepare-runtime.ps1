@@ -50,6 +50,8 @@ $LlamaZip = Get-Verified $Lock.llama 'llama-b11461-win-vulkan-x64.zip'
 $PdfTgz = Get-Verified $Lock.pdfium 'pdfium-8100-win-x64.tgz'
 $MediaZip = Get-Verified $Lock.ffmpeg 'ffmpeg-tools-win-x64.zip'
 $SourceZip = Get-Verified $Lock.ffmpeg.sourceArchive 'ffmpeg-corresponding-source.zip'
+$VcInstaller = Get-Verified $Lock.vcruntime 'vc-redist-14.51.36247-x64.exe'
+& (Join-Path $PSScriptRoot 'prepare-vcruntime.ps1') -Installer $VcInstaller -OutputDir $Bin -CacheDir $CacheDir
 $LlamaDir = Join-Path $CacheDir 'llama-b11461'
 $PdfDir = Join-Path $CacheDir 'pdfium-8100'
 $MediaDir = Join-Path $CacheDir 'ffmpeg-payload'
@@ -76,6 +78,14 @@ Copy-Item -Path (Join-Path $RepoRoot 'licenses\llama\*') -Destination $LlamaNoti
 Copy-Item -LiteralPath (Join-Path $PdfDir 'LICENSE') -Destination (Join-Path $PdfNotices 'LICENSE-binary-distribution.txt') -Force
 Copy-Item -Path (Join-Path $PdfDir 'licenses\*') -Destination $PdfNotices -Force
 Copy-Item -Path (Join-Path $MediaDir 'licenses\*') -Destination $Licenses -Recurse -Force
+$VcNotices = Join-Path $Licenses 'vcruntime'
+New-Item -ItemType Directory -Force -Path $VcNotices | Out-Null
+$VcNoticeSource = Join-Path $RepoRoot 'licenses\vcruntime'
+$VcNoticeIndex = Get-Content -LiteralPath (Join-Path $VcNoticeSource 'index.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+foreach ($File in $VcNoticeIndex.files) {
+    if ((Get-FileHash -LiteralPath (Join-Path $VcNoticeSource $File.name) -Algorithm SHA256).Hash -ne $File.sha256) { throw "VC runtime notice changed: $($File.name)" }
+}
+Copy-Item -Path (Join-Path $RepoRoot 'licenses\vcruntime\*') -Destination $VcNotices -Force
 $Sources = Join-Path $OutputDir 'sources'
 New-Item -ItemType Directory -Force -Path $Sources | Out-Null
 Copy-Item -LiteralPath $SourceZip -Destination $Sources -Force

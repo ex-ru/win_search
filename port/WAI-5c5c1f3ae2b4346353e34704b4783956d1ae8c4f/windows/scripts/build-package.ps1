@@ -62,7 +62,7 @@ foreach ($File in $NativeManifest.files) {
     $Path = Join-Path $NativeBin $File.name
     if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $File.sha256) { throw "Prepared native file changed: $($File.name)" }
 }
-$RequiredNativeDlls = @("llama.dll", "mtmd.dll", "ggml.dll", "ggml-base.dll", "ggml-vulkan.dll", "ggml-cpu-x64.dll", "libomp.dll", "pdfium.dll")
+$RequiredNativeDlls = @("llama.dll", "mtmd.dll", "ggml.dll", "ggml-base.dll", "ggml-vulkan.dll", "ggml-cpu-x64.dll", "libomp.dll", "pdfium.dll", "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
 $RequiredFfmpegTools = @("ffmpeg.exe", "ffprobe.exe")
 $RepoLicenseSource = Join-Path $RepoRoot 'LICENSE'
 if ($Slim) { throw 'Slim packages are no longer supported. The standard package includes verified media tools and their notices.' }
@@ -147,7 +147,8 @@ if (@($ManagedNotices.runtime_notice_check.missing_from_runtime_pack_cache).Coun
 # 5. Require the exact payload before packaging.
 $RequiredFiles = @('WAIApp.exe', 'wai.exe', 'wai-embed.exe', 'WAI.Core.dll', 'e_sqlite3.dll',
     'licenses\LICENSE-WAI.txt', 'licenses\llama\LICENSE', 'licenses\llama\LICENSE-LLVM-OpenMP',
-    'licenses\pdfium\pdfium.txt', 'licenses\ffmpeg\COPYING.LGPLv2.1', 'licenses\managed\index.json', 'native-provenance.json') + $RequiredNativeDlls + $RequiredFfmpegTools
+    'licenses\pdfium\pdfium.txt', 'licenses\ffmpeg\COPYING.LGPLv2.1', 'licenses\managed\index.json',
+    'licenses\vcruntime\index.json', 'licenses\vcruntime\LICENSE-Microsoft-VC-Runtime.docx', 'native-provenance.json') + $RequiredNativeDlls + $RequiredFfmpegTools
 foreach ($File in $RequiredFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $StagingDir $File) -PathType Leaf)) { throw "Missing required package file: $File" }
 }

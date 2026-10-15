@@ -242,6 +242,7 @@ internal static class Program
     private static string NativeRuntimes(string root, string? package)
     {
         Require(package is not null, "--native requires --package."); Directory.CreateDirectory(root);
+        string dependencyAudit = NativeDependencyAudit.Run(package!);
         string pdfPath = Path.Combine(root, "fixture.pdf"); WritePdf(pdfPath);
         using (var pdf = new PdfiumEngine(Find(package, "pdfium.dll")))
         using (var opened = pdf.Open(pdfPath))
@@ -269,7 +270,7 @@ internal static class Program
         using (var output = File.Create(av1)) fixture.CopyTo(output);
         RunProcess(paths.FFmpegExe, ["-y", "-hwaccel", "none", "-i", av1, "-frames:v", "1", Path.Combine(root, "av1.png")]);
         Require(new FileInfo(Path.Combine(root, "av1.png")).Length > 100, "FFmpeg did not decode AV1 on the CPU.");
-        return "PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
+        return $"{dependencyAudit} PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
     }
     private static void RunProcess(string exe, string[] args)
     {

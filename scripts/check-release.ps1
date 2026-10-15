@@ -42,6 +42,7 @@ try {
     Invoke-Gate 'packaged-payload-net10-full' {
         $Required = @('WAIApp.exe','wai.exe','wai-embed.exe','WAI.Core.dll','e_sqlite3.dll','pdfium.dll',
             'ffmpeg.exe','ffprobe.exe','llama.dll','mtmd.dll','ggml.dll','ggml-base.dll','ggml-vulkan.dll',
+            'msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll','licenses\vcruntime\index.json',
             'ggml-cpu-x64.dll','libomp.dll','System.Private.CoreLib.dll','licenses\LICENSE-WAI.txt',
             'licenses\llama\LICENSE','licenses\llama\LICENSE-LLVM-OpenMP','licenses\pdfium\pdfium.txt',
             'licenses\ffmpeg\COPYING.LGPLv2.1','licenses\ffmpeg\LICENSE-dav1d.txt','licenses\ffmpeg\LICENSE-zlib.txt',
@@ -65,6 +66,10 @@ try {
         $Manifest = Get-Content -LiteralPath (Join-Path $PackageDir 'native-provenance.json') -Raw | ConvertFrom-Json
         foreach ($File in $Manifest.files) {
             Assert-Release ((Get-FileHash -LiteralPath (Join-Path $PackageDir $File.name)).Hash -eq $File.sha256) "Native provenance mismatch: $($File.name)"
+        }
+        $VcNoticeIndex = Get-Content -LiteralPath (Join-Path $PackageDir 'licenses\vcruntime\index.json') -Raw | ConvertFrom-Json
+        foreach ($File in $VcNoticeIndex.files) {
+            Assert-Release ((Get-FileHash -LiteralPath (Join-Path $PackageDir "licenses\vcruntime\$($File.name)")).Hash -eq $File.sha256) "VC runtime notice mismatch: $($File.name)"
         }
         $Index = Get-Content -LiteralPath (Join-Path $PackageDir 'licenses\managed\index.json') -Raw | ConvertFrom-Json
         Assert-Release ($Index.unresolved_count -eq 0) 'Managed notices remain unresolved.'

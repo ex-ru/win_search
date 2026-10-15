@@ -5,6 +5,7 @@ WAI project code uses the [MIT license](LICENSE). Bundled components keep their 
 | Component | Pinned version and materials |
 |---|---|
 | llama.cpp / GGML / MTMD | Official b11461 CPU/Vulkan archive, checked by size and SHA-256. MIT and LLVM OpenMP notices in licenses/llama/. |
+| Microsoft Visual C++ CRT | 14.51.36247.0, extracted from the pinned Microsoft-signed redistributable. Required app-local DLLs have individual hashes; proprietary runtime terms and developer distributable-code references are in licenses/vcruntime/. |
 | PDFium | 157.0.8100.0 from bblanchon chromium/8100. Binary distribution license and every supplied component notice in licenses/pdfium/. |
 | FFmpeg / FFprobe | FFmpeg 9.0.2, without GPL, version-3 or nonfree components. LGPL-2.1-or-later, used as separate programs. Build configuration, toolchain versions, imported DLLs and binary hashes in licenses/ffmpeg/. |
 | dav1d | 1.5.4, BSD-2-Clause. Retains CPU AV1 decoding; exact source and notice included. |

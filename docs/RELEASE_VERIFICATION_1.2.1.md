@@ -6,6 +6,7 @@ Clean Windows 11 installation and GUI feedback are assigned to the owner's volun
 
 - .NET SDK 10.0.402; self-contained runtime 10.0.13; Velopack 1.2.161.
 - WinSearch.WAI package identity; 1.2.1 in UI, assemblies and package metadata.
+- Microsoft Visual C++ CRT 14.51.36247.0, extracted from a hash-pinned Microsoft-signed installer without machine-wide installation; three required DLLs are individually pinned.
 - Official llama.cpp b11461 CPU/Vulkan and PDFium 157.0.8100.0 archives, checked by SHA-256.
 - FFmpeg 9.0.2, BSD dav1d 1.5.4 and zlib 1.3.2; exact sources and cross-build recipe supplied beside binaries.
 - NuGet lock files and managed/runtime/updater notice inventories.

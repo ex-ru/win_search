@@ -43,5 +43,33 @@
       "sha256": "332d1652170ea3b9d4540064f5b471966d0e7c54b6ffeb8ef84a6687e141b2dd",
       "size": 15359793
     }
+  },
+  "vcruntime": {
+    "version": "14.51.36247.0",
+    "url": "https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe",
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+    "size": 18731856,
+    "source": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution#visual-c-runtime-files",
+    "runtimeLicense": "https://visualstudio.microsoft.com/wp-content/uploads/2025/10/Visual-C-V14-License-Redistributable_and_Runtime_ENU.docx",
+    "files": [
+      {
+        "name": "msvcp140.dll",
+        "archiveName": "msvcp140.dll_amd64",
+        "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+        "size": 643512
+      },
+      {
+        "name": "vcruntime140.dll",
+        "archiveName": "vcruntime140.dll_amd64",
+        "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+        "size": 178616
+      },
+      {
+        "name": "vcruntime140_1.dll",
+        "archiveName": "vcruntime140_1.dll_amd64",
+        "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+        "size": 50112
+      }
+    ]
   }
 }

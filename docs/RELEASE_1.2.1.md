@@ -13,6 +13,7 @@ The installer is unsigned: Windows may display an unknown-publisher warning. Che
 - Background indexing uses bounded CPU threads, lower priority and Windows efficiency hints. Query inference keeps its own foreground configuration.
 - Index cancellation and incremental reconciliation remain active. Renamed/deleted folders with temporary-looking names are still reconciled.
 - All shipped native inputs have pinned versions, source URLs and SHA-256 metadata in native-provenance.json.
+- Required Microsoft Visual C++ runtime DLLs are bundled beside the executables. Native checks audit PE imports and verify that llama/MTMD load the packaged runtime rather than a machine-global copy.
 - PDFium is updated to 157.0.8100.0 and ships its distribution and component notices.
 - FFmpeg/FFprobe are built from FFmpeg 9.0.2 without GPL/nonfree components. BSD dav1d retains CPU AV1 decoding; zlib supports PNG and compressed media structures. Network protocols and optional external codec libraries are omitted from this local-file build.
 - licenses/ contains WAI, llama/LLVM, PDFium, media, managed dependencies, .NET runtime and Velopack runtime notices. Missing required materials stop packaging.

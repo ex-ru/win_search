@@ -9,6 +9,8 @@
 
 The release package contains CPU and Vulkan backends, PDFium and FFmpeg. CUDA is not included. Models are downloaded separately and validated against pinned size/SHA-256 metadata. Packaged users do not need to install .NET, Python, or FFmpeg.
 
+App-local Microsoft Visual C++ CRT files are also pinned and prepared with built-in Windows extraction tools. They are proprietary redistributable components subject to the applicable Visual Studio distributable-code terms; original terms and references are in `licenses/vcruntime/`.
+
 ## Clean checkout build
 
 Run from the repository root. Confirm that the SDK selected by `global.json` is 10.0.402, then run the locked regression suite and the release wrapper:
