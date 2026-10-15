@@ -28,6 +28,10 @@ public sealed class ResultItemViewModel
     public required System.Windows.Media.Brush BadgeBackground { get; init; }
     public required System.Windows.Media.Brush BadgeBorder { get; init; }
     public required System.Windows.Media.Brush BadgeForeground { get; init; }
+    public required string RelevancePercent { get; init; }
+    public required string RelevanceTooltip { get; init; }
+    public required System.Windows.Media.Brush RelevanceBackground { get; init; }
+    public required System.Windows.Media.Brush RelevanceForeground { get; init; }
 }
 
 public partial class MainWindow : Window
@@ -308,6 +312,13 @@ public partial class MainWindow : Window
                 Resources["KeycapBorderBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
                 Resources["KeycapForegroundBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
             }
+
+            if (_allHits.Count > 0)
+            {
+                _allHits = _allHits.Select(x => CreateItem(x.Hit)).ToList();
+                _currentItems = _allHits.ToList();
+                Results.ItemsSource = _currentItems;
+            }
         }
         catch { }
     }
@@ -528,7 +539,7 @@ public partial class MainWindow : Window
         finally { _searchPumpRunning = false; }
     }
 
-    private static ResultItemViewModel CreateItem(Engine.Hit h)
+    private ResultItemViewModel CreateItem(Engine.Hit h)
     {
         string ext = Path.GetExtension(h.Path).ToLowerInvariant();
         string badgeText;
@@ -601,6 +612,31 @@ public partial class MainWindow : Window
         borderBrush.Freeze();
         fgBrush.Freeze();
 
+        int scorePct = Math.Clamp((int)Math.Round(h.Score * 100), 1, 99);
+        string relPercent = $"{scorePct}%";
+        string relTooltip = Loc.IsRu
+            ? $"Точность совпадения: {scorePct}% (score: {h.Score:F3})"
+            : $"Match relevance: {scorePct}% (score: {h.Score:F3})";
+
+        bool isDark = ThemeManager.IsDark(_settings.Theme);
+        string relBgHex;
+        string relFgHex;
+        if (isDark)
+        {
+            relBgHex = scorePct >= 75 ? "#1B3D2F" : (scorePct >= 50 ? "#1C3B4E" : "#2D3748");
+            relFgHex = scorePct >= 75 ? "#4ADE80" : (scorePct >= 50 ? "#67E8F9" : "#94A3B8");
+        }
+        else
+        {
+            relBgHex = scorePct >= 75 ? "#DCFCE7" : (scorePct >= 50 ? "#E0F2FE" : "#F1F5F9");
+            relFgHex = scorePct >= 75 ? "#15803D" : (scorePct >= 50 ? "#0369A1" : "#475569");
+        }
+
+        var relBgBrush = (SolidColorBrush)(bc.ConvertFrom(relBgHex) ?? Brushes.DarkSlateGray);
+        var relFgBrush = (SolidColorBrush)(bc.ConvertFrom(relFgHex) ?? Brushes.LightGray);
+        relBgBrush.Freeze();
+        relFgBrush.Freeze();
+
         return new ResultItemViewModel
         {
             Hit = h,
@@ -609,7 +645,11 @@ public partial class MainWindow : Window
             BadgeText = badgeText,
             BadgeBackground = bgBrush,
             BadgeBorder = borderBrush,
-            BadgeForeground = fgBrush
+            BadgeForeground = fgBrush,
+            RelevancePercent = relPercent,
+            RelevanceTooltip = relTooltip,
+            RelevanceBackground = relBgBrush,
+            RelevanceForeground = relFgBrush
         };
     }
 
