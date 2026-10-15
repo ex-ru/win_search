@@ -22,16 +22,12 @@ public sealed record EmbeddingModelDef(
     public string Description => GetDescription(true);
     public string GetDescription(bool isRu = true) => isRu ? DescriptionRu : DescriptionEn;
 
+    public IReadOnlyList<ModelFile> Files => ModelCatalog.FilesFor(Id);
+
     public bool IsDownloaded(string? customDir = null)
     {
-        string? textPath = ResolvePath(TextFile, customDir);
-        if (textPath is null) return false;
-        if (HasMediaProjection && MediaFile is not null)
-        {
-            string? mediaPath = ResolvePath(MediaFile, customDir);
-            return mediaPath is not null;
-        }
-        return true;
+        return Files.All(file => ResolvePath(file.Name, customDir) is { } path
+            && VerifiedDownload.IsValid(path, file.Bytes, file.Sha256));
     }
 
     public static string? ResolvePath(string fileName, string? customDir = null)
@@ -43,7 +39,6 @@ public sealed record EmbeddingModelDef(
         if (!string.IsNullOrEmpty(envModels)) dirs.Add(envModels);
 
         dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI", "Models"));
-        dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DigUp", "Models"));
         dirs.Add(Path.Combine(AppContext.BaseDirectory, "models"));
         dirs.Add(Path.Combine(Directory.GetCurrentDirectory(), "models"));
 
@@ -92,8 +87,8 @@ public static class ModelCatalog
         MediaFile: null,
         HasMediaProjection: false,
         Repo: "gpustack/bge-m3-GGUF",
-        DownloadUrl: "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/main/bge-m3-Q4_K_M.gguf",
-        EstimatedBytes: 437_774_432);
+        DownloadUrl: "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/2d48f1737679ad900d5c26c5aad5410e9c70fdca/bge-m3-Q4_K_M.gguf",
+        EstimatedBytes: 437_778_496);
 
     public static readonly EmbeddingModelDef PerplexityV2 = new(
         Id: "pplx-v2",
@@ -107,8 +102,8 @@ public static class ModelCatalog
         MediaFile: null,
         HasMediaProjection: false,
         Repo: "bigdawg003/pplx-embed-v2-late-0.6b-GGUF",
-        DownloadUrl: "https://huggingface.co/bigdawg003/pplx-embed-v2-late-0.6b-GGUF/resolve/main/pplx-late-Q8_0.gguf",
-        EstimatedBytes: 536_191_680);
+        DownloadUrl: "https://huggingface.co/bigdawg003/pplx-embed-v2-late-0.6b-GGUF/resolve/07ebf344332880f14f72673df5d41549826872f7/pplx-late-Q8_0.gguf",
+        EstimatedBytes: 536_190_688);
 
     public static readonly EmbeddingModelDef Nomic = new(
         Id: "nomic",
@@ -122,10 +117,20 @@ public static class ModelCatalog
         MediaFile: null,
         HasMediaProjection: false,
         Repo: "nomic-ai/nomic-embed-text-v1.5-GGUF",
-        DownloadUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf",
+        DownloadUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/0188c9bf409793f810680a5a431e7b899c46104c/nomic-embed-text-v1.5.Q8_0.gguf",
         EstimatedBytes: 146_146_432);
 
     public static readonly IReadOnlyList<EmbeddingModelDef> All = [Gemma2, BgeM3, PerplexityV2, Nomic];
+
+    public static IReadOnlyList<ModelFile> FilesFor(string id) => id switch
+    {
+        "gemma2" => ModelFiles.All,
+        "bge-m3" => [new(BgeM3.TextFile, BgeM3.EstimatedBytes, "6d39681b26c61279ac1f82db35a04a05009e94c415b51c858ff571489a82fc06", BgeM3.DownloadUrl)],
+        "pplx-v2" => [new(PerplexityV2.TextFile, PerplexityV2.EstimatedBytes, "2a323886ecea9ec4c0cb50403f1ee94ffb1654880b21597f17e5387bdd43c9c4", PerplexityV2.DownloadUrl)],
+        "nomic" => [new(Nomic.TextFile, Nomic.EstimatedBytes, "3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7", Nomic.DownloadUrl)],
+        _ => throw new ArgumentException("Unknown embedding model.", nameof(id))
+    };
+
 
     public static EmbeddingModelDef Get(string? id)
     {

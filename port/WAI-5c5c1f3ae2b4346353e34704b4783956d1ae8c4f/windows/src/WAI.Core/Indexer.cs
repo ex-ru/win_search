@@ -27,11 +27,19 @@ public sealed class IndexerError : System.Exception
 /// Windows file IDs (volume serial + file index) so moves are detected.</summary>
 public sealed record CrawlCandidate(string Path, long Size, double Mtime, FileKind Kind, long Device = 0, long Inode = 0);
 
-public sealed record CrawlReport(System.Collections.Generic.IReadOnlyList<CrawlCandidate> Candidates);
+public sealed record CrawlReport(System.Collections.Generic.IReadOnlyList<CrawlCandidate> Candidates)
+{
+    public System.Collections.Generic.IReadOnlyList<string> InaccessiblePaths { get; init; } = System.Array.Empty<string>();
+}
 
 public interface ICrawler
 {
     CrawlReport Crawl(System.Collections.Generic.IReadOnlyList<string> roots, IndexOptions options);
+    CrawlReport Crawl(System.Collections.Generic.IReadOnlyList<string> roots, IndexOptions options, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Crawl(roots, options);
+    }
 }
 
 /// <summary>Minimal store surface the indexer needs (SQLite port implements this).</summary>
@@ -88,6 +96,7 @@ public sealed class Indexer : System.IDisposable
     private readonly ExtractorRunner _runner;
     private readonly string _scratch;
     private bool _disposed;
+    private int _vectorDimension = 768;
 
     /// <summary>
     /// When set, an index built with another model or settings is emptied and
@@ -201,10 +210,38 @@ public sealed class Indexer : System.IDisposable
     /// re-queued, moved ones re-pathed (no re-embedding), gone or newly
     /// excluded files removed. Ports sync (Indexer.swift:86).
     /// </summary>
-    public SyncSummary Sync(System.Collections.Generic.IReadOnlyList<string> roots)
+    public SyncSummary Sync(System.Collections.Generic.IReadOnlyList<string> roots, CancellationToken cancellationToken = default) =>
+        Reconcile(roots, roots, cancellationToken);
+
+    /// <summary>Only reconcile changed directory subtrees. A rename includes both old and new paths.</summary>
+    public SyncSummary SyncChanges(System.Collections.Generic.IReadOnlyList<string> roots,
+        System.Collections.Generic.IReadOnlyCollection<string> changedPaths, CancellationToken cancellationToken = default)
     {
-        var crawl = _crawler.Crawl(roots, _options);
-        var existing = _store.FilesUnder(roots);
+        var dirty = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (string changed in changedPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path;
+            try { path = System.IO.Path.GetFullPath(changed); } catch (System.ArgumentException) { continue; }
+            foreach (string root in roots)
+            {
+                if (!IndexStore.IsInside(path, root)) continue;
+                // A parent scan also detects deletions and preserves classification of sibling datasets.
+                string parent = System.IO.Path.GetDirectoryName(path) ?? root;
+                dirty.Add(IndexStore.IsInside(parent, root) ? parent : root);
+            }
+        }
+        var targets = dirty.Where(path => !dirty.Any(other => !path.Equals(other, System.StringComparison.OrdinalIgnoreCase)
+            && IndexStore.IsInside(path, other))).ToArray();
+        return targets.Length == 0 ? new SyncSummary() : Reconcile(targets, roots, cancellationToken);
+    }
+
+    private SyncSummary Reconcile(System.Collections.Generic.IReadOnlyList<string> scanRoots,
+        System.Collections.Generic.IReadOnlyList<string> selectedRoots, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var crawl = _crawler.Crawl(scanRoots, _options, cancellationToken);
+        var existing = _store.FilesUnder(scanRoots);
         // The store keeps forward-slash paths (IndexStore.NormalizePath) while
         // the crawler yields native backslash paths: compare normalized.
         var byPath = new System.Collections.Generic.Dictionary<string, FileRecord>(System.StringComparer.OrdinalIgnoreCase);
@@ -212,7 +249,7 @@ public sealed class Indexer : System.IDisposable
         foreach (var file in existing)
         {
             byPath[IndexStore.NormalizePath(file.Path)] = file;
-            byInode[$"{file.Device}:{file.Inode}"] = file;
+            if (file.Device != 0 && file.Inode != 0) byInode[$"{file.Device}:{file.Inode}"] = file;
         }
 
         var seen = new System.Collections.Generic.HashSet<string>(
@@ -224,6 +261,7 @@ public sealed class Indexer : System.IDisposable
         {
             foreach (var file in crawl.Candidates)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (byPath.TryGetValue(IndexStore.NormalizePath(file.Path), out var row))
                 {
                     if (row.Size != file.Size || System.Math.Abs(row.Mtime - file.Mtime) > 0.001 || row.Kind != file.Kind)
@@ -237,7 +275,7 @@ public sealed class Indexer : System.IDisposable
                         summary.Unchanged++;
                     }
                 }
-                else if (byInode.TryGetValue($"{file.Device}:{file.Inode}", out var moved)
+                else if (file.Device != 0 && file.Inode != 0 && byInode.TryGetValue($"{file.Device}:{file.Inode}", out var moved)
                     && !seen.Contains(IndexStore.NormalizePath(moved.Path)) && !movedFrom.Contains(IndexStore.NormalizePath(moved.Path))
                     && moved.Size == file.Size && System.Math.Abs(moved.Mtime - file.Mtime) < 0.001)
                 {
@@ -255,7 +293,7 @@ public sealed class Indexer : System.IDisposable
             // A root that went away mid-crawl (a drive ejected) looked emptier
             // than it is: keep its rows rather than take that for "deleted".
             var vanished = new System.Collections.Generic.List<string>();
-            foreach (string root in roots)
+            foreach (string root in scanRoots)
             {
                 if (!System.IO.Directory.Exists(root) && !System.IO.File.Exists(root))
                 {
@@ -264,11 +302,14 @@ public sealed class Indexer : System.IDisposable
                 }
             }
 
+            vanished.AddRange(crawl.InaccessiblePaths.Select(p => IndexStore.NormalizePath(p.TrimEnd('\\', '/') + "/")));
             foreach (var row in existing)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string at = IndexStore.NormalizePath(row.Path);
                 if (!seen.Contains(at) && !movedFrom.Contains(at)
-                    && !System.Linq.Enumerable.Any(vanished, prefix => at.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase)))
+                    && !System.Linq.Enumerable.Any(vanished, prefix => at.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase))
+                    && !crawl.InaccessiblePaths.Any(path => at.Equals(IndexStore.NormalizePath(path), System.StringComparison.OrdinalIgnoreCase)))
                 {
                     _store.Delete(row.Id);
                     summary.Removed++;
@@ -536,7 +577,7 @@ public sealed class Indexer : System.IDisposable
             if (_workers.Count == 0)
             {
                 var started = _makeEmbedder();
-                Vectors.Dimension = started.Info.Dim;
+                _vectorDimension = started.Info.Dim;
                 string fingerprint = $"{started.Info.VectorSource} | {_options.Fingerprint}";
                 try
                 {
@@ -685,7 +726,7 @@ public sealed class Indexer : System.IDisposable
                     try
                     {
                         var fv = worker.EmbedTexts(new[] { Prompts.Document(docTitle, textContent) });
-                        if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackVec = fv[0];
+                        if (fv.Length > 0 && fv[0].Length == _vectorDimension) fallbackVec = fv[0];
                     }
                     catch { }
 
@@ -954,7 +995,7 @@ public sealed class Indexer : System.IDisposable
             {
                 string title = System.IO.Path.GetFileName(file.Path);
                 var fv = worker.EmbedTexts(new[] { Prompts.Document(title, System.IO.Path.GetFileNameWithoutExtension(file.Path)) });
-                if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackAudioVec = fv[0];
+                if (fv.Length > 0 && fv[0].Length == _vectorDimension) fallbackAudioVec = fv[0];
             }
             catch { }
         }
@@ -1003,7 +1044,7 @@ public sealed class Indexer : System.IDisposable
             {
                 string title = System.IO.Path.GetFileName(file.Path);
                 var fv = worker.EmbedTexts(new[] { Prompts.Document(title, System.IO.Path.GetFileNameWithoutExtension(file.Path)) });
-                if (fv.Length > 0 && fv[0].Length == Vectors.Dimension) fallbackVideoVec = fv[0];
+                if (fv.Length > 0 && fv[0].Length == _vectorDimension) fallbackVideoVec = fv[0];
             }
             catch { }
         }

@@ -45,7 +45,10 @@ public sealed record WorkerConfig(
     System.Collections.Generic.IReadOnlyList<string> Arguments,
     System.Collections.Generic.Dictionary<string, string>? Environment = null,
     string? LogPath = null,
-    bool TextOnly = false);
+    bool TextOnly = false,
+    System.TimeSpan? RequestTimeout = null,
+    System.TimeSpan? StartupTimeout = null,
+    System.Threading.CancellationToken LifetimeCancellation = default);
 
 public sealed class WorkerError : System.Exception
 {
@@ -82,6 +85,13 @@ public interface IEmbedder : System.IDisposable
     Embedding[] EmbedImages(System.Collections.Generic.IReadOnlyList<string> paths, int budget);
     Embedding[] EmbedAudio(System.Collections.Generic.IReadOnlyList<string> paths);
     void Close();
+    float[][] EmbedTexts(System.Collections.Generic.IReadOnlyList<string> texts, System.Threading.CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = EmbedTexts(texts);
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
+    }
 }
 
 /// <summary>
@@ -95,7 +105,11 @@ public sealed class WorkerClient : IEmbedder
     private readonly object _gate = new();
     private readonly string? _logPath;
     private int _nextId = 1;
-    private bool _closed;
+    private int _closed;
+    private int _disposed;
+    private readonly System.TimeSpan _requestTimeout;
+    private readonly System.Threading.CancellationToken _lifetimeCancellation;
+    private System.Threading.CancellationTokenRegistration _lifetimeRegistration;
 
     private sealed class Request
     {
@@ -175,7 +189,7 @@ public sealed class WorkerClient : IEmbedder
 
     public WorkerInfo Info { get; private set; } = new(string.Empty, string.Empty, string.Empty, string.Empty, 0, false, null);
 
-    public WorkerClient(WorkerConfig config)
+    public WorkerClient(WorkerConfig config, System.Threading.CancellationToken startupCancellation = default)
     {
         if (string.IsNullOrWhiteSpace(config.Executable))
         {
@@ -188,6 +202,10 @@ public sealed class WorkerClient : IEmbedder
         }
 
         _logPath = config.LogPath;
+        _requestTimeout = config.RequestTimeout ?? System.TimeSpan.FromMinutes(3);
+        _lifetimeCancellation = config.LifetimeCancellation;
+        _lifetimeCancellation.ThrowIfCancellationRequested();
+        startupCancellation.ThrowIfCancellationRequested();
         var start = new System.Diagnostics.ProcessStartInfo
         {
             FileName = config.Executable,
@@ -231,8 +249,10 @@ public sealed class WorkerClient : IEmbedder
             }
             JobObjectManager.AssignProcess(_process);
         }
-        catch (System.Exception error) when (error is not WorkerError)
+        catch (System.Exception error)
         {
+            _process.Dispose();
+            if (error is WorkerError) throw;
             throw WorkerError.NotFound($"{config.Executable}: {error.Message}");
         }
 
@@ -246,7 +266,7 @@ public sealed class WorkerClient : IEmbedder
                 _process.ErrorDataReceived += (_, e) =>
                 {
                     if (e.Data is null) return;
-                    try { System.IO.File.AppendAllText(capture, e.Data + "\n"); } catch { }
+                    LocalLog.Write(capture, e.Data);
                 };
                 _process.BeginErrorReadLine();
             }
@@ -256,24 +276,32 @@ public sealed class WorkerClient : IEmbedder
             }
         }
 
-        var ready = ReadReply();
-        if (ready.Ready != true || ready.Info == null)
+        try
         {
-            Close();
-            throw WorkerError.Failed(ready.Error ?? "didn't start" + LogTail());
+            _lifetimeRegistration = _lifetimeCancellation.Register(Close);
+            using var startup = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation, startupCancellation);
+            var ready = ReadReply(config.StartupTimeout ?? System.TimeSpan.FromMinutes(2), startup.Token);
+            if (ready.Ready != true || ready.Info == null)
+                throw WorkerError.Failed(ready.Error ?? "didn't start" + LogTail());
+            Info = ToInfo(ready.Info);
         }
-
-        Info = ToInfo(ready.Info);
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
-    public float[][] EmbedTexts(System.Collections.Generic.IReadOnlyList<string> texts)
+    public float[][] EmbedTexts(System.Collections.Generic.IReadOnlyList<string> texts) => EmbedTexts(texts, default);
+
+    public float[][] EmbedTexts(System.Collections.Generic.IReadOnlyList<string> texts, System.Threading.CancellationToken cancellationToken)
     {
         if (texts.Count == 0)
         {
             return System.Array.Empty<float[]>();
         }
 
-        var embeddings = Send("text", texts, budget: null);
+        var embeddings = Send("text", texts, budget: null, cancellationToken);
         var rows = new float[texts.Count][];
         for (int i = 0; i < texts.Count; i++)
         {
@@ -319,73 +347,41 @@ public sealed class WorkerClient : IEmbedder
         }
     }
 
-    /// <summary>Frees the model. Safe to call twice.</summary>
+    /// <summary>Interrupts an in-flight read without waiting for the request lock.</summary>
     public void Close()
     {
-        lock (_gate)
+        if (System.Threading.Interlocked.Exchange(ref _closed, 1) != 0) return;
+        try
         {
-            if (_closed)
+            if (!_process.HasExited)
             {
-                return;
-            }
-
-            _closed = true;
-            try
-            {
-                if (!_process.HasExited)
-                {
-                    string quit = System.Text.Json.JsonSerializer.Serialize(
-                        new Request { Id = 0, Op = "quit" }, JsonOptions) + "\n";
-                    try
-                    {
-                        _process.StandardInput.Write(quit);
-                        _process.StandardInput.Flush();
-                    }
-                    catch
-                    {
-                        // The worker may already be gone.
-                    }
-
-                    try
-                    {
-                        _process.StandardInput.Close();
-                    }
-                    catch
-                    {
-                    }
-
-                    var deadline = System.DateTime.UtcNow.AddSeconds(3);
-                    while (!_process.HasExited && System.DateTime.UtcNow < deadline)
-                    {
-                        System.Threading.Thread.Sleep(20);
-                    }
-
-                    if (!_process.HasExited)
-                    {
-                        _process.Kill();
-                    }
-                }
-            }
-            catch
-            {
-                // Close must not throw.
+                _process.Kill(entireProcessTree: true);
+                _process.WaitForExit(3000);
             }
         }
+        catch (System.InvalidOperationException) { }
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     public void Dispose()
     {
+        if (System.Threading.Interlocked.Exchange(ref _disposed, 1) != 0) return;
         Close();
-        _process.Dispose();
+        _lifetimeRegistration.Dispose();
+        lock (_gate) _process.Dispose();
     }
 
     private int NextId() => _nextId++;
 
-    private Embedding[] Send(string op, System.Collections.Generic.IReadOnlyList<string> inputs, int? budget)
+    private Embedding[] Send(string op, System.Collections.Generic.IReadOnlyList<string> inputs, int? budget, System.Threading.CancellationToken cancellationToken = default)
     {
+        using var linked = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCancellation);
+        linked.Token.ThrowIfCancellationRequested();
+        using var interrupted = linked.Token.Register(Close);
         lock (_gate)
         {
-            if (_closed)
+            linked.Token.ThrowIfCancellationRequested();
+            if (System.Threading.Volatile.Read(ref _closed) != 0)
             {
                 throw WorkerError.Died("client is closed");
             }
@@ -394,7 +390,12 @@ public sealed class WorkerClient : IEmbedder
             Reply reply;
             try
             {
-                reply = RoundTrip(new Request { Id = id, Op = op, Inputs = inputs, Budget = budget });
+                reply = RoundTrip(new Request { Id = id, Op = op, Inputs = inputs, Budget = budget }, linked.Token);
+            }
+            catch (System.Exception) when (linked.IsCancellationRequested)
+            {
+                linked.Token.ThrowIfCancellationRequested();
+                throw;
             }
             catch (System.IO.IOException error)
             {
@@ -447,19 +448,46 @@ public sealed class WorkerClient : IEmbedder
         }
     }
 
-    private Reply RoundTrip(Request request)
+    private Reply RoundTrip(Request request, System.Threading.CancellationToken cancellationToken = default)
     {
-        string line = System.Text.Json.JsonSerializer.Serialize(request, JsonOptions) + "\n";
-        _process.StandardInput.Write(line);
-        _process.StandardInput.Flush();
-        return ReadReply();
+        using var deadline = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCancellation);
+        deadline.CancelAfter(_requestTimeout);
+        using var interrupted = deadline.Token.Register(Close);
+        try
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            string line = System.Text.Json.JsonSerializer.Serialize(request, JsonOptions) + "\n";
+            _process.StandardInput.Write(line);
+            _process.StandardInput.Flush();
+            return ReadReply(_requestTimeout, deadline.Token);
+        }
+        catch (System.Exception) when (deadline.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _lifetimeCancellation.ThrowIfCancellationRequested();
+            throw WorkerError.Died("response timed out" + LogTail());
+        }
     }
 
-    private Reply ReadReply()
+    private Reply ReadReply(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken)
     {
+        using var deadline = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCancellation);
+        deadline.CancelAfter(timeout);
+        using var interrupted = deadline.Token.Register(Close);
         while (true)
         {
-            string? line = _process.StandardOutput.ReadLine();
+            string? line;
+            try
+            {
+                line = _process.StandardOutput.ReadLineAsync(deadline.Token).AsTask().GetAwaiter().GetResult();
+                deadline.Token.ThrowIfCancellationRequested();
+            }
+            catch (System.Exception) when (deadline.IsCancellationRequested)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _lifetimeCancellation.ThrowIfCancellationRequested();
+                throw WorkerError.Died("response timed out" + LogTail());
+            }
             if (line == null)
             {
                 throw WorkerError.Died("exited" + LogTail());

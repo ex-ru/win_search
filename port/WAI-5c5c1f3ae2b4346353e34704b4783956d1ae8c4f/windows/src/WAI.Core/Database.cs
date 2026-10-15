@@ -33,28 +33,33 @@ public readonly struct SqlValue
 }
 
 /// <summary>Thin wrapper over Microsoft.Data.Sqlite (SQLite with FTS5 bundled).
-/// One connection, serialized here: the index thread writes while keystroke
-/// searches read, so every statement runs alone (locks re-enter, transactions
-/// calling back into Query/Run on the same thread are fine).</summary>
+/// Connection access and entire transactions are serialized. Searchers use their own
+/// read-only WAL connection, so searches see a committed snapshot while indexing writes.</summary>
 public sealed class Database : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly object _gate = new();
     private bool _disposed;
+    private readonly string _path;
+    private readonly bool _readOnly;
+    private int _transactionDepth;
 
-    public Database(string path)
+    public Database(string path, bool readOnly = false)
     {
+        _path = path;
+        _readOnly = readOnly;
         // Pooling=false: Dispose really closes the file (Swift lifetime semantics),
         // so index files can be moved/deleted right after the store is disposed.
         _connection = new SqliteConnection(
-            new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());
+            new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate }.ToString());
         _connection.Open();
-        // WAL so readers never block the indexer; same pragmas as the Swift original.
-        Execute("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; " +
-                "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+        _connection.CreateCollation("WAI_PATH", (a, b) => StringComparer.OrdinalIgnoreCase.Compare(a, b));
+        Execute(readOnly ? "PRAGMA query_only = ON; PRAGMA busy_timeout = 5000;"
+            : "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; " +
+              "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     }
 
-    internal SqliteConnection Connection => _connection;
+    internal Database OpenReader() => new(_path, readOnly: true);
 
     public void Execute(string sql)
     {
@@ -96,17 +101,30 @@ public sealed class Database : IDisposable
         Justification = "Rollback must be attempted before rethrowing, mirroring the Swift original.")]
     public T Transaction<T>(Func<T> body)
     {
-        Execute("BEGIN IMMEDIATE");
-        try
+        lock (_gate)
         {
-            var result = body();
-            Execute("COMMIT");
-            return result;
-        }
-        catch
-        {
-            try { Execute("ROLLBACK"); } catch { }
-            throw;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            int depth = _transactionDepth;
+            string savepoint = "wai_" + depth;
+            Execute(depth == 0 ? (_readOnly ? "BEGIN" : "BEGIN IMMEDIATE") : "SAVEPOINT " + savepoint);
+            _transactionDepth++;
+            try
+            {
+                var result = body();
+                Execute(depth == 0 ? "COMMIT" : "RELEASE " + savepoint);
+                return result;
+            }
+            catch
+            {
+                try
+                {
+                    Execute(depth == 0 ? "ROLLBACK" : "ROLLBACK TO " + savepoint);
+                    if (depth != 0) Execute("RELEASE " + savepoint);
+                }
+                catch { }
+                throw;
+            }
+            finally { _transactionDepth--; }
         }
     }
 
@@ -159,10 +177,12 @@ public sealed class Database : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        _connection.Dispose();
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _connection.Dispose();
+        }
     }
 
     private static string NamePlaceholders(string sql)

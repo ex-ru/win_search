@@ -28,10 +28,6 @@ public sealed class ResultItemViewModel
     public required System.Windows.Media.Brush BadgeBackground { get; init; }
     public required System.Windows.Media.Brush BadgeBorder { get; init; }
     public required System.Windows.Media.Brush BadgeForeground { get; init; }
-    public required string RelevancePercent { get; init; }
-    public required string RelevanceTooltip { get; init; }
-    public required System.Windows.Media.Brush RelevanceBackground { get; init; }
-    public required System.Windows.Media.Brush RelevanceForeground { get; init; }
 }
 
 public partial class MainWindow : Window
@@ -45,6 +41,13 @@ public partial class MainWindow : Window
     private bool _big;
     private int _searchGen; // only the newest background search may touch the list
     private PreviewWindow? _preview;
+    private readonly Action _engineChanged;
+    private CancellationTokenSource? _searchCancellation;
+    private SearchRequest? _pendingSearch;
+    private bool _searchPumpRunning;
+    private bool _closed;
+    private const int SearchLimit = 50;
+    private sealed record SearchRequest(int Generation, string Query, HashSet<FileKind>? Kinds);
     // Mac rule: once arrows/click moved the selection, Space previews
     // instead of typing a space. Any edit (or a click back in the field)
     // hands Space back to typing.
@@ -55,14 +58,19 @@ public partial class MainWindow : Window
         _engine = engine; _settings = settings;
         InitializeComponent();
         try { Icon = AppIcon.Wpf; } catch { }
-        _engine.Changed += () => Dispatcher.Invoke(() => Status.Text = _engine.Status);
+        _engineChanged = () => Dispatcher.BeginInvoke(() =>
+        {
+            if (!_closed && string.IsNullOrWhiteSpace(Query.Text)) Status.Text = _engine.Status;
+        });
+        _engine.Changed += _engineChanged;
         Status.Text = _engine.Status;
-        _debounce.Elapsed += (_, _) => Dispatcher.Invoke(SearchNow);
+        _debounce.Elapsed += (_, _) => Dispatcher.BeginInvoke(SearchNow);
         Query.TextChanged += (_, _) =>
         {
-            Interlocked.Increment(ref _searchGen);
+            InvalidateSearch();
             _navigated = false;
             ClearButton.Visibility = string.IsNullOrEmpty(Query.Text) ? Visibility.Collapsed : Visibility.Visible;
+            SearchPrompt.Visibility = string.IsNullOrEmpty(Query.Text) ? Visibility.Visible : Visibility.Collapsed;
             _debounce.Stop();
             if (string.IsNullOrWhiteSpace(Query.Text)) SearchNow();
             else _debounce.Start();
@@ -168,7 +176,20 @@ public partial class MainWindow : Window
             if (BtnOpenWith is not null) BtnOpenWith.Content = Loc.OpenWith;
             if (BtnCopyPath is not null) BtnCopyPath.Content = Loc.CopyPath;
             if (MascotSubtitle is not null) MascotSubtitle.Text = Loc.MascotSubtitle;
-            if (Query is not null) Query.ToolTip = Loc.SearchTooltip;
+            if (Query is not null)
+            {
+                Query.ToolTip = Loc.SearchTooltip;
+                System.Windows.Automation.AutomationProperties.SetName(Query, Loc.SearchTooltip);
+            }
+            if (SearchPrompt is not null) SearchPrompt.Text = Loc.SearchPlaceholder;
+            if (BtnQuickLook is not null) BtnQuickLook.Content = Loc.PreviewLabel;
+            if (BtnMin is not null) BtnMin.ToolTip = Loc.Minimize;
+            if (BtnClose is not null) BtnClose.ToolTip = Loc.HideSearch;
+            if (BtnPin is not null) BtnPin.ToolTip = _isPinned ? Loc.Unpin : Loc.Pin;
+            if (KeySpace is not null) KeySpace.Text = Loc.IsRu ? "Пробел" : "Space";
+            if (HintPreview is not null) HintPreview.Text = Loc.PreviewLabel + " · ";
+            if (HintOpen is not null) HintOpen.Text = Loc.Open + " · ";
+            if (HintClose is not null) HintClose.Text = Loc.HideSearch;
             if (ClearButton is not null) ClearButton.ToolTip = Loc.ClearQueryTooltip;
             if (SemanticPillText is not null) SemanticPillText.Text = Loc.SearchingMeaning;
             if (SemanticPill is not null) SemanticPill.ToolTip = Loc.IsRu
@@ -324,7 +345,7 @@ public partial class MainWindow : Window
         BtnPin.Background = _isPinned
             ? (Brush)new BrushConverter().ConvertFrom("#0078D4")!
             : (Brush)new BrushConverter().ConvertFrom("#383838")!;
-        BtnPin.ToolTip = _isPinned ? "Открепить от верха" : "Закрепить поверх всех окон";
+        BtnPin.ToolTip = _isPinned ? Loc.Unpin : Loc.Pin;
     }
 
     private void OnWidgetMinimize(object sender, RoutedEventArgs e)
@@ -358,7 +379,6 @@ public partial class MainWindow : Window
     {
         Query.Text = string.Empty;
         Query.Focus();
-        SearchNow();
     }
 
     private void OnFilterClick(object sender, RoutedEventArgs e)
@@ -381,161 +401,131 @@ public partial class MainWindow : Window
                 b.Tag = ReferenceEquals(b, btn) ? "Active" : string.Empty;
         }
 
-        ApplyCurrentFilter();
+        _debounce.Stop();
+        SearchNow();
         Query.Focus();
     }
 
     private void ApplyCurrentFilter()
     {
-        _currentItems = _activeFilter switch
-        {
-            "pdf" => _allHits.Where(x => x.BadgeText == "PDF").ToList(),
-            "img" => _allHits.Where(x => x.BadgeText is "IMG" or "СКРИН").ToList(),
-            "doc" => _allHits.Where(x => x.BadgeText is "DOC" or "TXT").ToList(),
-            "code" => _allHits.Where(x => x.BadgeText == "CODE").ToList(),
-            "media" => _allHits.Where(x => x.BadgeText is "ВИДЕО" or "АУДИО").ToList(),
-            _ => _allHits.ToList()
-        };
-
+        // The engine already filtered candidates before ranking and limiting.
+        _currentItems = _allHits.ToList();
         Results.ItemsSource = _currentItems;
-        if (_currentItems.Count > 0) Results.SelectedIndex = 0;
-        else Results.SelectedIndex = -1;
-
+        Results.SelectedIndex = _currentItems.Count > 0 ? 0 : -1;
         ShowPreview();
         FollowPreview();
     }
 
     private void UpdateFilterCounts()
     {
-        int allCount = _allHits.Count;
-        int pdfCount = _allHits.Count(x => x.BadgeText == "PDF");
-        int imgCount = _allHits.Count(x => x.BadgeText is "IMG" or "СКРИН");
-        int docCount = _allHits.Count(x => x.BadgeText is "DOC" or "TXT");
-        int codeCount = _allHits.Count(x => x.BadgeText == "CODE");
-        int mediaCount = _allHits.Count(x => x.BadgeText is "ВИДЕО" or "АУДИО");
-
-        FilterAll.Content = allCount > 0 ? $"{Loc.FilterAll} ({allCount})" : Loc.FilterAll;
-        FilterPdf.Content = pdfCount > 0 ? $"{Loc.FilterPdf} ({pdfCount})" : Loc.FilterPdf;
-        FilterImg.Content = imgCount > 0 ? $"{Loc.FilterImg} ({imgCount})" : Loc.FilterImg;
-        FilterDoc.Content = docCount > 0 ? $"{Loc.FilterDoc} ({docCount})" : Loc.FilterDoc;
-        FilterCode.Content = codeCount > 0 ? $"{Loc.FilterCode} ({codeCount})" : Loc.FilterCode;
-        FilterMedia.Content = mediaCount > 0 ? $"{Loc.FilterMedia} ({mediaCount})" : Loc.FilterMedia;
+        // A limited result page cannot provide totals for the whole index.
+        FilterAll.Content = Loc.FilterAll;
+        FilterPdf.Content = Loc.FilterPdf;
+        FilterImg.Content = Loc.FilterImg;
+        FilterDoc.Content = Loc.FilterDoc;
+        FilterCode.Content = Loc.FilterCode;
+        FilterMedia.Content = Loc.FilterMedia;
     }
 
-    // The query box never waits: each keystroke starts a background search,
-    // and only the newest one paints (older ones throw their work away).
+    private static HashSet<FileKind>? FilterKinds(string filter) => filter switch
+    {
+        "pdf" => [FileKind.Pdf],
+        "img" => [FileKind.Image, FileKind.Screenshot],
+        "doc" => [FileKind.Doc],
+        "code" => [FileKind.Code],
+        "media" => [FileKind.Audio, FileKind.Video],
+        _ => null
+    };
+
+    private void InvalidateSearch()
+    {
+        Interlocked.Increment(ref _searchGen);
+        _pendingSearch = null;
+        _searchCancellation?.Cancel();
+    }
+
+    private void ClearSearchResults()
+    {
+        _allHits.Clear();
+        _currentItems.Clear();
+        Results.ItemsSource = null;
+        Results.SelectedIndex = -1;
+        SemanticPill.Visibility = Visibility.Collapsed;
+        PreviewImage.Source = null;
+        PreviewText.Text = string.Empty;
+        PreviewTitle.Text = string.Empty;
+        UpdateFilterCounts();
+        ShowPreview();
+        FollowPreview();
+    }
+
+    // One running search and one replaceable pending request. Every edit
+    // invalidates completions immediately, including during debounce.
     private void SearchNow()
     {
-        int gen = Interlocked.Increment(ref _searchGen);
-        string q = Query.Text.Trim();
-        ClearButton.Visibility = q.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-
-        if (q.Length == 0)
+        if (_closed) return;
+        InvalidateSearch();
+        string query = Query.Text.Trim();
+        ClearButton.Visibility = query.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ClearSearchResults();
+        if (query.Length == 0)
         {
-            _allHits.Clear();
-            _currentItems.Clear();
-            Results.ItemsSource = null;
-            PreviewImage.Source = null;
-            PreviewText.Text = string.Empty;
-            SemanticPill.Visibility = Visibility.Collapsed;
-            UpdateFilterCounts();
-            ShowPreview();
-            FollowPreview();
+            Status.Text = _engine.Status;
             return;
         }
-        Task.Run(() =>
+        _pendingSearch = new SearchRequest(_searchGen, query, FilterKinds(_activeFilter));
+        Status.Text = Loc.Searching;
+        if (!_searchPumpRunning) _ = RunSearchQueueAsync();
+    }
+
+    private async Task RunSearchQueueAsync()
+    {
+        _searchPumpRunning = true;
+        try
         {
-            // Phase 1: Instant lexical search (< 5 ms)
-            List<Engine.Hit> lexicalHits;
-            try
+            while (!_closed && _pendingSearch is { } request)
             {
-                lexicalHits = _engine.SearchLexical(q, limit: 50);
-            }
-            catch (Exception ex)
-            {
-                Dispatcher.Invoke(() =>
+                _pendingSearch = null;
+                using var cancellation = new CancellationTokenSource();
+                _searchCancellation = cancellation;
+                try
                 {
-                    if (gen == _searchGen)
+                    var lexical = await Task.Run(() => _engine.SearchText(request.Query, SearchLimit,
+                        request.Kinds, cancellation.Token), cancellation.Token);
+                    if (_closed || request.Generation != _searchGen || cancellation.IsCancellationRequested) continue;
+                    if (lexical.Count > 0)
                     {
-                        ErrorLog.Write("search lexical: " + ex);
-                        Status.Text = "search stopped: " + ex.Message.Split('\n')[0];
-                        SemanticPill.Visibility = Visibility.Collapsed;
+                        _allHits = lexical.Select(CreateItem).ToList();
+                        ApplyCurrentFilter();
+                        Status.Text = Loc.SearchResults(_allHits.Count, SearchLimit) + " · " + Loc.Searching;
                     }
-                });
-                return;
-            }
-
-            // Immediately show Phase 1 results and activate "Ищем по смыслу…" indicator
-            Dispatcher.Invoke(() =>
-            {
-                if (gen != _searchGen) return;
-
-                if (lexicalHits.Count > 0)
-                {
-                    _allHits = lexicalHits.Select(CreateItem).ToList();
+                    SemanticPill.Visibility = Visibility.Visible;
+                    var hits = await Task.Run(() => _engine.Search(request.Query, SearchLimit,
+                        request.Kinds, cancellation.Token), cancellation.Token);
+                    if (_closed || request.Generation != _searchGen || cancellation.IsCancellationRequested) continue;
+                    SemanticPill.Visibility = Visibility.Collapsed;
+                    _allHits = hits.Select(CreateItem).ToList();
                     UpdateFilterCounts();
                     ApplyCurrentFilter();
-                    Status.Text = Loc.LexicalHitsSuffix(lexicalHits.Count);
+                    Status.Text = Loc.SearchResults(_allHits.Count, SearchLimit)
+                        + (_engine.IsSemanticAvailable ? string.Empty : " · " + Loc.SemanticUnavailable);
                 }
-                else
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+                catch (Exception ex)
                 {
-                    Status.Text = Loc.SearchingMeaning;
+                    ErrorLog.Write("search: " + ex);
+                    if (!_closed && request.Generation == _searchGen)
+                        Status.Text = _allHits.Count > 0
+                            ? Loc.SearchResults(_allHits.Count, SearchLimit) + " · " + Loc.SemanticUnavailable
+                            : Loc.SearchFailed;
                 }
-
-                // Show semantic searching indicator pill
-                SemanticPillText.Text = Loc.SearchingMeaning;
-                SemanticPill.Visibility = Visibility.Visible;
-            });
-
-            // Phase 2: Vector embedding and hybrid re-ranking
-            List<Engine.Hit> semanticHits;
-            try
-            {
-                var vec = _engine.EmbedQuery(q);
-                if (gen != _searchGen) return;
-
-                semanticHits = _engine.SearchWithVector(q, vec, limit: 50);
+                finally
+                {
+                    if (ReferenceEquals(_searchCancellation, cancellation)) { _searchCancellation = null; SemanticPill.Visibility = Visibility.Collapsed; }
+                }
             }
-            catch (Exception ex)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    if (gen == _searchGen)
-                    {
-                        ErrorLog.Write("search semantic: " + ex);
-                        SemanticPill.Visibility = Visibility.Collapsed;
-                    }
-                });
-                return;
-            }
-
-            // Render final semantic / hybrid results
-            Dispatcher.Invoke(() =>
-            {
-                if (gen != _searchGen) return; // a newer keystroke won
-
-                SemanticPill.Visibility = Visibility.Collapsed;
-                _allHits = semanticHits.Select(CreateItem).ToList();
-                UpdateFilterCounts();
-                ApplyCurrentFilter();
-
-                if (CodeQuery.TextOf(q) is null && _allHits.Count > 0
-                    && _allHits.All(h => h.Hit.Kind == "Code"))
-                {
-                    Status.Text = Loc.IsRu
-                        ? "только код совпадает — подсказка: code: ищет по коду, обычные слова — по остальным файлам"
-                        : "only code matches — hint: code: searches code, plain words search other files";
-                }
-                else if (_allHits.Count == 0)
-                {
-                    Status.Text = Loc.NoResultsFound;
-                }
-                else
-                {
-                    Status.Text = Loc.FoundResults(_allHits.Count);
-                }
-            });
-        });
+        }
+        finally { _searchPumpRunning = false; }
     }
 
     private static ResultItemViewModel CreateItem(Engine.Hit h)
@@ -555,7 +545,7 @@ public partial class MainWindow : Window
         }
         else if (h.Kind == "Screenshot")
         {
-            badgeText = "СКРИН";
+            badgeText = Loc.IsRu ? "СКРИН" : "SCREEN";
             bg = "#0D2E35";
             border = "#00ACC1";
             fg = "#80DEEA";
@@ -576,14 +566,14 @@ public partial class MainWindow : Window
         }
         else if (h.Kind == "Video" || ext is ".mp4" or ".mkv" or ".avi" or ".mov" or ".webm")
         {
-            badgeText = "ВИДЕО";
+            badgeText = Loc.IsRu ? "ВИДЕО" : "VIDEO";
             bg = "#3D2714";
             border = "#FB8C00";
             fg = "#FFCC80";
         }
         else if (h.Kind == "Audio" || ext is ".mp3" or ".wav" or ".flac" or ".m4a" or ".ogg" or ".aac")
         {
-            badgeText = "АУДИО";
+            badgeText = Loc.IsRu ? "АУДИО" : "AUDIO";
             bg = "#3A162B";
             border = "#E91E63";
             fg = "#F48FB1";
@@ -611,17 +601,6 @@ public partial class MainWindow : Window
         borderBrush.Freeze();
         fgBrush.Freeze();
 
-        int scorePct = Math.Clamp((int)Math.Round(h.Score * 100), 1, 99);
-        string relPercent = $"{scorePct}%";
-        string relTooltip = $"Точность совпадения: {scorePct}% (score: {h.Score:F3})";
-        string relBgHex = scorePct >= 75 ? "#1B3D2F" : (scorePct >= 50 ? "#1C3B4E" : "#2D3748");
-        string relFgHex = scorePct >= 75 ? "#4ADE80" : (scorePct >= 50 ? "#67E8F9" : "#94A3B8");
-
-        var relBgBrush = (SolidColorBrush)(bc.ConvertFrom(relBgHex) ?? Brushes.DarkSlateGray);
-        var relFgBrush = (SolidColorBrush)(bc.ConvertFrom(relFgHex) ?? Brushes.LightGray);
-        relBgBrush.Freeze();
-        relFgBrush.Freeze();
-
         return new ResultItemViewModel
         {
             Hit = h,
@@ -630,11 +609,7 @@ public partial class MainWindow : Window
             BadgeText = badgeText,
             BadgeBackground = bgBrush,
             BadgeBorder = borderBrush,
-            BadgeForeground = fgBrush,
-            RelevancePercent = relPercent,
-            RelevanceTooltip = relTooltip,
-            RelevanceBackground = relBgBrush,
-            RelevanceForeground = relFgBrush
+            BadgeForeground = fgBrush
         };
     }
 
@@ -650,7 +625,7 @@ public partial class MainWindow : Window
         var h = item.Hit;
         PreviewTitle.Text = Short(h.Path, 100) + (h.Where.Length > 0 ? "  " + h.Where : "");
         PreviewKind.Text = KindText(h);
-        PreviewText.Text = (h.Excerpt is not null ? EncodingHelper.FixMojibake(h.Excerpt) : null) ?? "(нет текстового фрагмента — найдено по смыслу / изображению)";
+        PreviewText.Text = (h.Excerpt is not null ? EncodingHelper.FixMojibake(h.Excerpt) : null) ?? Loc.NoExcerpt;
         PreviewImage.Source = null;
         // Thumbnails load off the UI thread; a late one for an old selection is dropped.
         int at = Results.SelectedIndex;
@@ -694,9 +669,9 @@ public partial class MainWindow : Window
 
     private static string KindText(Engine.Hit h) => h.Kind switch
     {
-        "Video" or "Audio" => $"{h.Kind} · с момента {h.Where}",
-        "Pdf" => $"PDF · страница {h.Where.TrimStart('@')}",
-        "Code" => $"Код · {h.Where}",
+        "Video" or "Audio" => $"{(h.Kind == "Video" ? Loc.Video : Loc.Audio)} · {h.Where}",
+        "Pdf" => $"PDF · {Loc.Page} {h.Where.TrimStart('@')}",
+        "Code" => $"{Loc.CodeLabel} · {h.Where}",
         _ => h.Kind,
     };
 
@@ -869,7 +844,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Status.Text = "предпросмотр недоступен: " + ex.Message.Split('\n')[0].Trim();
+            ErrorLog.Write("preview: " + ex);
+            Status.Text = Loc.PreviewFailed;
         }
     }
 
@@ -896,7 +872,8 @@ public partial class MainWindow : Window
 
     private void Complain(string what, Exception ex)
     {
-        string msg = $"{what}: {ex.Message.Split('\n')[0].Trim()}";
+        ErrorLog.Write(what + ": " + ex);
+        string msg = Loc.FileActionFailed;
         Status.Text = msg;
         if (System.Windows.Application.Current is App app) app.ShowNote(msg);
     }
@@ -964,6 +941,9 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
+        InvalidateSearch();
+        _engine.Changed -= _engineChanged;
         _debounce.Dispose();
         base.OnClosed(e);
     }

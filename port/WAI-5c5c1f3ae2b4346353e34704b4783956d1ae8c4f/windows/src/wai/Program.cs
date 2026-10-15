@@ -22,7 +22,7 @@ internal static class Program
         Options:
           --index DIR          index folder (default: %LocalAppData%\WAI\index.noindex)
           --limit N            stop after N files (index only)
-          --workers N          model helpers at once, 1-4 (default: 2)
+          --workers N          model helpers at once, 1-4 (default: 1)
           -n N                 how many hits to show (default: 10)
           --kind K,K           screenshot, image, pdf, doc, audio, video
           --json               machine-readable output
@@ -30,6 +30,7 @@ internal static class Program
         The model: EmbeddingGemma 2 in wai-embed.exe (next to this exe), models from %WAI_MODELS%,
         else %LocalAppData%\WAI\Models. Build it with windows\scripts\build-llama-windows.ps1.
         Without it, index stores words only and search says "words only".
+        WAI_MODEL selects the model ID; WAI_BACKEND=cpu forces CPU for headless verification.
         """;
 
     private static int Main(string[] args)
@@ -317,7 +318,7 @@ internal static class Program
             Console.WriteLine($"(words only: {exe} is not built yet; see windows\\scripts\\build-llama-windows.ps1)");
             return new WordsOnlyEmbedder();
         }
-        return new WorkerClient(new WorkerConfig(exe, [], LogPath: Path.Combine(indexDir, "worker.log")));
+        return new WorkerClient(new WorkerConfig(exe, WorkerArguments(), LogPath: Path.Combine(indexDir, "worker.log")));
     }
 
     // Null when the helper or model files are missing (caller falls back to words).
@@ -327,11 +328,11 @@ internal static class Program
         {
             string exe = EmbedExe();
             if (!File.Exists(exe)) return null;
-            using IEmbedder w = new WorkerClient(new WorkerConfig(exe, [], TextOnly: true,
+            using IEmbedder w = new WorkerClient(new WorkerConfig(exe, WorkerArguments(), TextOnly: true,
                 LogPath: Path.Combine(indexDir, "worker.log")));
             string prompted = code ? Prompts.CodeQuery(query) : Prompts.Query(query);
             var rows = w.EmbedTexts([prompted]);
-            if (rows.Length == 0 || rows[0].Length != Vectors.Dimension) return null;
+            if (rows.Length == 0 || rows[0].Length != w.Info.Dim) return null;
             return rows[0];
         }
         catch (Exception ex)
@@ -339,6 +340,16 @@ internal static class Program
             if (!quiet) Console.Error.WriteLine($"(meaning off: {FirstLine(ex.Message)})");
             return null;
         }
+    }
+
+    private static IReadOnlyList<string> WorkerArguments()
+    {
+        string model = Environment.GetEnvironmentVariable("WAI_MODEL") ?? ModelCatalog.DefaultModelId;
+        string backend = Environment.GetEnvironmentVariable("WAI_BACKEND") ?? "auto";
+        if (backend is not ("auto" or "cpu" or "vulkan" or "cuda"))
+            throw new ArgumentException("WAI_BACKEND must be auto, cpu, vulkan or cuda.");
+        if (!ModelCatalog.All.Any(m => m.Id == model)) throw new ArgumentException("WAI_MODEL is not a supported model ID.");
+        return ["--model", model, "--backend", backend];
     }
 
     private static bool AnyModelReady() => File.Exists(EmbedExe());

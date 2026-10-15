@@ -1,9 +1,4 @@
-// Engine: owns the Core pieces (stores, searchers, indexer) on background
-// threads. The UI thread never embeds and never touches SQLite: Search()
-// marshals a copy back. Indexing pauses in battery saver and when asked.
-// First run: EnsureModelsAsync fetches EmbeddingGemma 2 once (865 MB,
-// resumable, hash-checked) while the UI shows progress.
-
+// Coordinates indexing, search snapshots and embedding workers.
 using System.IO;
 using WAI.Core;
 
@@ -11,771 +6,557 @@ namespace WAI.App;
 
 public sealed class Engine : IDisposable
 {
+    private sealed record Configuration(string[] Folders, bool Code, bool SetupDone, string Model, string Hardware, bool QueryFastPathCpu)
+    {
+        public static Configuration Capture(Settings settings) => new(settings.Folders.ToArray(), settings.Code,
+            settings.SetupDone, settings.EmbeddingModel, settings.HardwareMode, settings.QueryFastPathCpu);
+    }
+
     private readonly Settings _settings;
-    private readonly IndexOptions _options = new();
-    private readonly IndexOptions _codeOptions = new() { Code = true };
-    private IndexStore? _store;
-    private Searcher? _searcher;
-    private IndexStore? _codeStore;
-    private Searcher? _codeSearcher;
-    private string? _activeStoreModel;
+    private Configuration _configuration;
+    private readonly object _controlGate = new(), _loopGate = new(), _searchGate = new(), _queryGate = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private CancellationTokenSource _queryCancellation = new();
     private CancellationTokenSource? _run;
-    private int _wanted; // indexing requested while one is running
-    private bool _paused;
-    private bool _disposed;
-    // Keystroke searches read the searchers while a finished indexing pass
-    // swaps them: the swap waits for running searches instead of freeing
-    // a searcher one is inside.
-    private readonly object _searchGate = new();
-    // One query worker for all keystrokes: starting a helper per keystroke
-    // costs ~2 s of model load each time (measured 1859 ms spawn+load vs
-    // 15 ms on a warm one). It lives until pause, model change, or quit.
+    private Task _loop = Task.CompletedTask;
+    private bool _requested, _fullScan, _loopRunning;
+    private volatile bool _transitioning, _paused, _disposed, _batterySaver;
+    private readonly HashSet<string> _changedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Threading.Timer _powerTimer;
+    private IndexStore? _store, _codeStore;
+    private Searcher? _searcher, _codeSearcher;
+    private string? _activeStoreModel;
     private IEmbedder? _queryWorker;
-    private readonly object _queryGate = new();
 
-    public string Status { get; private set; } = "starting…";
+    public string Status { get; private set; } = "Подготовка…";
     public event Action? Changed;
+    public bool IsPaused => _paused;
+    public bool IsIndexing { get; private set; }
+    public bool IsSemanticAvailable { get; private set; }
+    public int ProgressDone { get; private set; }
+    public int ProgressTotal { get; private set; }
 
-    public Engine(Settings settings) { _settings = settings; }
+    public Engine(Settings settings)
+    {
+        _settings = settings;
+        _configuration = Configuration.Capture(settings);
+        _batterySaver = OnBatterySaver();
+        if (_batterySaver) Status = "Обработка приостановлена для экономии батареи";
+        _powerTimer = new System.Threading.Timer(_ => PowerChanged(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
 
     public void Start() => RequestIndex();
 
     public void SetPaused(bool paused)
     {
-        _paused = paused;
-        Status = paused ? "paused" : "running…";
-        Changed?.Invoke();
-        // Paused means quiet: the query helper's GPU memory goes back too.
-        if (paused) DropQueryWorker();
-        else RequestIndex();
-    }
-
-    /// <summary>Settings window saved: pick up folders/code without a restart.</summary>
-    public void ApplySettings() => RequestIndex();
-
-    public bool IsPaused => _paused;
-    public bool IsIndexing { get; private set; }
-    public int ProgressDone { get; private set; }
-    public int ProgressTotal { get; private set; }
-
-    public (int Indexed, int Remaining) GetIndexProgress()
-    {
-        try
+        lock (_controlGate)
         {
-            OpenStores();
-            if (_store is null) return (0, 0);
-
-            if (IsIndexing && ProgressTotal > 0)
-            {
-                int remaining = Math.Max(0, ProgressTotal - ProgressDone);
-                return (ProgressDone, remaining);
-            }
-
-            var (done, _, pending, _) = _store.GetFileCounts();
-            if (_codeStore is not null)
-            {
-                var (cDone, _, cPending, _) = _codeStore.GetFileCounts();
-                done += cDone;
-                pending += cPending;
-            }
-            return (done, pending);
-        }
-        catch
-        {
-            return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
+            if (_disposed || _paused == paused) return;
+            _paused = paused;
+            StopIndexing();
+            DropQueryWorker();
+            ResumeIndexing();
+            Say(paused ? "Приостановлено" : "Подготовка индекса…");
+            if (!paused) RequestIndex();
         }
     }
 
-    public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetDetailedProgress()
+    public void ApplySettings()
     {
-        try
+        lock (_controlGate)
         {
-            OpenStores();
-            if (_store is null) return (0, 0, 0, 0);
-            var (done, total, pending, vectors) = _store.GetFileCounts();
-            if (_codeStore is not null)
-            {
-                var (cDone, cTotal, cPending, cVec) = _codeStore.GetFileCounts();
-                done += cDone;
-                total += cTotal;
-                pending += cPending;
-                vectors += cVec;
-            }
-            return (done, total, pending, vectors);
-        }
-        catch
-        {
-            return (0, 0, 0, 0);
-        }
-    }
-
-    /// <summary>
-    /// Computes files and vectors in the database belonging to folders that were removed from settings.
-    /// </summary>
-    public FolderVectorStats? GetOrphanedStats()
-    {
-        try
-        {
-            OpenStores();
-            if (_store is null) return null;
-            var s = _store.GetOrphanedStats(_settings.Folders);
-            if (_codeStore is not null)
-            {
-                var cs = _codeStore.GetOrphanedStats(_settings.Folders);
-                return new FolderVectorStats(
-                    "Неактивные / удаленные папки",
-                    s.Files + cs.Files,
-                    s.Segments + cs.Segments,
-                    s.Vectors + cs.Vectors,
-                    s.Bytes + cs.Bytes);
-            }
-            return s;
-        }
-        catch { return null; }
-    }
-
-    /// <summary>
-    /// Purges all indexed files and vectors belonging to folders no longer in settings.
-    /// </summary>
-    public int PurgeOrphaned()
-    {
-        try
-        {
-            OpenStores();
-            int purged = _store?.PurgeOrphaned(_settings.Folders) ?? 0;
-            if (_codeStore is not null)
-                purged += _codeStore.PurgeOrphaned(_settings.Folders);
-            Say($"очищено {purged} файлов удаленных папок из базы");
-            Changed?.Invoke();
-            return purged;
-        }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("PurgeOrphaned: " + ex);
-            return 0;
-        }
-    }
-
-    /// <summary>Clears vectors and segments in the index database, resetting files to pending,
-    /// and immediately triggers a fresh re-indexing pass.</summary>
-    public void ResetIndex(IReadOnlyList<string>? roots = null)
-    {
-        try
-        {
-            _run?.Cancel();
+            if (_disposed) return;
+            StopIndexing();
             DropQueryWorker();
             lock (_searchGate)
             {
-                _searcher?.Dispose(); _searcher = null;
-                _codeSearcher?.Dispose(); _codeSearcher = null;
+                _configuration = Configuration.Capture(_settings);
+                OpenStores();
+                RefreshSearchers();
             }
-            OpenStores();
-            _store?.ClearVectors(roots);
-            _codeStore?.ClearVectors(roots);
-            Say("векторный индекс очищен; переиндексация…");
+            ResumeIndexing();
             RequestIndex();
         }
-        catch (Exception ex)
+    }
+
+    // A full scan supersedes queued paths. Only this loop owns indexer lifetimes.
+    public void RequestIndex(IReadOnlyCollection<string>? changedPaths = null)
+    {
+        lock (_loopGate)
         {
-            ErrorLog.Write("ResetIndex: " + ex);
-            Say("ошибка очистки индекса: " + FirstLine(ex.Message));
+            if (_disposed) return;
+            _requested = true;
+            if (changedPaths is null) { _fullScan = true; _changedPaths.Clear(); }
+            else if (!_fullScan) foreach (string path in changedPaths) _changedPaths.Add(path);
+            if (_transitioning || _paused || _batterySaver || _loopRunning) return;
+            _loopRunning = true;
+            _loop = Task.Run(IndexLoop);
         }
     }
 
-    public FolderVectorStats? GetFolderStats(string folder)
+    private void IndexLoop()
     {
-        try
+        while (true)
         {
-            OpenStores();
-            return _store?.GetFolderStats(folder);
-        }
-        catch { return null; }
-    }
-
-    public FolderVectorStats? GetTotalStats()
-    {
-        try
-        {
-            OpenStores();
-            return _store?.GetTotalStats();
-        }
-        catch { return null; }
-    }
-
-    public long GetDatabaseFileSize()
-    {
-        try
-        {
-            string dbPath = Path.Combine(Settings.IndexDir, GetMainIndexFileName());
-            return IndexStore.SizeOf(dbPath);
-        }
-        catch { return 0; }
-    }
-
-    public bool ModelsReady
-    {
-        get
-        {
-            var def = ModelCatalog.Get(_settings.EmbeddingModel);
-            return def.IsDownloaded(ModelFiles.InstalledDirectory);
-        }
-    }
-
-    public void RequestIndex() => Task.Run(() => IndexPass());
-
-    private void IndexPass()
-    {
-        if (_disposed || _paused) return;
-        if (Interlocked.Exchange(ref _wanted, 0) == 0 && _run is not null) { _wanted = 1; return; }
-        _run = new CancellationTokenSource();
-        IsIndexing = true;
-        Changed?.Invoke();
-        try
-        {
-            if (OnBatterySaver()) { Say("waiting for power…"); return; }
-            if (!_settings.SetupDone) { Say("finish the one-time setup first (tray menu → Open search)."); return; }
-            if (_settings.Folders.Count == 0) { Say("pick folders to search (tray menu → Settings)."); return; }
-            if (!ModelsReady)
+            CancellationTokenSource run;
+            Configuration configuration;
+            string[]? changes;
+            lock (_loopGate)
             {
-                var def = ModelCatalog.Get(_settings.EmbeddingModel);
-                Say($"загрузка модели {def.Name}…");
-                EnsureModelsAsync(null, _run.Token).GetAwaiter().GetResult();
+                if (_disposed || _transitioning || _paused || _batterySaver || !_requested) { _loopRunning = false; return; }
+                configuration = _configuration;
+                changes = _fullScan ? null : _changedPaths.ToArray();
+                _requested = false; _fullScan = false; _changedPaths.Clear();
+                _run = run = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
             }
-            OpenStores();
-            Say("looking through your folders… (first time takes a while)");
-            IndexOne(_store!, _options, "main");
-            if (_settings.Code) IndexOne(_codeStore!, _codeOptions, "code");
-            RefreshSearchers();
-            var counts = _store!.Counts();
-            if (_codeStore is not null)
-            {
-                // Code lives in its own index: count it too, or the status
-                // line pretends thousands of indexed files don't exist.
-                var code = _codeStore.Counts();
-                Say($"{counts.Segments + code.Segments} pieces, " +
-                    $"{counts.Vectors + code.Vectors} vectors (code {code.Vectors}). Type to search.");
-            }
-            else
-            {
-                Say($"{counts.Segments} pieces, {counts.Vectors} vectors. Type to search.");
-            }
-            WarmQueryWorker(); // still on the background thread: first keystroke is instant
-        }
-        catch (OperationCanceledException) { Say("paused"); }
-        catch (Exception ex) { ErrorLog.Write("index: " + ex); Say($"indexer stopped: {FirstLine(ex.Message)}"); }
-        finally
-        {
-            IsIndexing = false;
-            _run = null;
+            IsIndexing = true;
             Changed?.Invoke();
-            if (Interlocked.CompareExchange(ref _wanted, 0, 0) == 1) RequestIndex();
+            try { IndexPass(configuration, changes, run.Token); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { ErrorLog.Write("index: " + ex); Say(ex is IOException ? "Обработка остановлена: проверьте свободное место и доступ к файлам." : "Обработка остановлена. Подробности сохранены в журнале."); }
+            finally
+            {
+                lock (_loopGate) { if (ReferenceEquals(_run, run)) _run = null; }
+                run.Dispose();
+                IsIndexing = false;
+                Changed?.Invoke();
+            }
         }
     }
 
-    private void IndexOne(IndexStore store, IndexOptions options, string _)
+    private void StopIndexing()
     {
-        using var indexer = MakeIndexer(store, options);
-        store.Scope = _settings.Folders;
-        var sync = indexer.Sync(_settings.Folders);
-        int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
-        Say($"reading {sync.Queued.Count + recovered} new or recovered files…");
-        indexer.Run(shouldStop: () => _paused || (_run?.IsCancellationRequested == true),
-            onEvent: e => {
-                ProgressDone = e.Done;
-                ProgressTotal = e.Total;
-                Say($"[{e.Done}/{e.Total}] {e.State} {Short(e.Path)}");
-            });
-        indexer.FinishLongFiles(shouldStop: () => _paused || (_run?.IsCancellationRequested == true));
-        indexer.CloseWorker();
+        Task loop;
+        lock (_loopGate)
+        {
+            _transitioning = true;
+            _run?.Cancel();
+            _queryCancellation.Cancel();
+            loop = _loop;
+        }
+        loop.GetAwaiter().GetResult();
     }
 
-    /// <summary>Fetch missing model files with progress (0..1 per file).
-    /// Copies from the Hugging Face cache when it's there; downloads with
-    /// resume + hash check otherwise. Throws with a plain message on failure.</summary>
+    private void ResumeIndexing()
+    {
+        lock (_loopGate)
+        {
+            _queryCancellation.Dispose();
+            _queryCancellation = new CancellationTokenSource();
+            _transitioning = false;
+        }
+    }
+
+    private void IndexPass(Configuration configuration, string[]? changes, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!configuration.SetupDone) { Say("Выберите папки для поиска при первом запуске."); return; }
+        if (configuration.Folders.Length == 0) { Say("Выберите папки для поиска в настройках."); return; }
+        var definition = ModelCatalog.Get(configuration.Model);
+        if (!definition.IsDownloaded(ModelFiles.InstalledDirectory))
+            ModelFiles.EnsureModelAsync(definition, ModelFiles.InstalledDirectory, null, ct).GetAwaiter().GetResult();
+        lock (_searchGate) OpenStores();
+        Say(changes is null ? "Проверка выбранных папок…" : "Обновление изменённых файлов…");
+        int failures = IndexOne(_store!, new IndexOptions(), configuration, changes, ct);
+        if (configuration.Code) failures += IndexOne(_codeStore!, new IndexOptions { Code = true }, configuration, changes, ct);
+        ct.ThrowIfCancellationRequested();
+        RefreshSearchers();
+        Say(failures == 0 ? "Готово к поиску" : $"Готово к поиску. Не удалось прочитать файлов: {failures}. Подробности в журнале.");
+        WarmQueryWorker(ct);
+    }
+
+    private int IndexOne(IndexStore store, IndexOptions options, Configuration configuration, string[]? changes, CancellationToken ct)
+    {
+        var extractor = new DefaultExtractor(options, new WicImageDecoder(), new CompositeOcrEngine(),
+            new PdfiumEngine(ExeNextTo("pdfium.dll")), FindFFmpeg(), null, ct);
+        using var indexer = new Indexer(store, options, new Crawler(), () => MakeEmbedder(configuration, ct), extractor);
+        indexer.ResetOnModelChange = (_, _) => DropQueryWorker();
+        indexer.WorkerCount = 1;
+        var sync = changes is null ? indexer.Sync(configuration.Folders, ct) : indexer.SyncChanges(configuration.Folders, changes, ct);
+        int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
+        Say($"Ожидают обработки: {sync.Queued.Count + recovered}");
+        int failures = 0;
+        var refresh = System.Diagnostics.Stopwatch.StartNew();
+        indexer.Run(shouldStop: () => ct.IsCancellationRequested, onEvent: e => {
+            ProgressDone = e.Done; ProgressTotal = e.Total;
+            if (e.State == FileState.Failed)
+            {
+                failures++;
+                ErrorLog.Write($"Cannot read {e.Path}: {e.Note}");
+            }
+            Say($"Обрабатывается {e.Done} из {e.Total}: {Short(e.Path)}");
+            if (refresh.Elapsed >= TimeSpan.FromSeconds(5)) { RefreshSearchers(); refresh.Restart(); }
+        });
+        ct.ThrowIfCancellationRequested();
+        indexer.FinishLongFiles(shouldStop: () => ct.IsCancellationRequested);
+        return failures;
+    }
+
     public async Task EnsureModelsAsync(IProgress<(string File, double Frac)>? progress, CancellationToken ct)
     {
-        string dir = ModelFiles.InstalledDirectory;
-        Directory.CreateDirectory(dir);
-        var def = ModelCatalog.Get(_settings.EmbeddingModel);
-
-        if (def.Id == "gemma2")
-        {
-            foreach (var file in ModelFiles.Missing(dir))
-            {
-                ct.ThrowIfCancellationRequested();
-                Say($"Загрузка {file.Name}…");
-                string? cached = ModelFiles.CachedCopy(file);
-                if (cached is not null)
-                {
-                    File.Copy(cached, Path.Combine(dir, file.Name));
-                    if (ModelFiles.Sha256Of(Path.Combine(dir, file.Name)) != file.Sha256)
-                    {
-                        File.Delete(Path.Combine(dir, file.Name));
-                        throw new InvalidOperationException($"{file.Name} in the cache is broken; delete it and try again.");
-                    }
-                    progress?.Report((file.Name, 1));
-                    continue;
-                }
-                var one = new Progress<double>(f => {
-                    progress?.Report((file.Name, f));
-                    Say($"Загрузка {file.Name}: {(int)(f * 100)}%");
-                });
-                try { await ModelFiles.DownloadAsync(file, dir, one, ct).ConfigureAwait(false); }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    throw new InvalidOperationException($"couldn't download {file.Name} ({FirstLine(ex.Message)}). Check the net and try again.");
-                }
-            }
-        }
-        else
-        {
-            string targetPath = Path.Combine(dir, def.TextFile);
-            if (!File.Exists(targetPath))
-            {
-                ct.ThrowIfCancellationRequested();
-                Say($"Загрузка {def.Name}…");
-                var one = new Progress<double>(f => {
-                    progress?.Report((def.TextFile, f));
-                    Say($"Загрузка {def.Name}: {(int)(f * 100)}%");
-                });
-                try
-                {
-                    await ModelFiles.DownloadFileFromUrlAsync(def.DownloadUrl, dir, def.TextFile, def.EstimatedBytes, one, ct).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    throw new InvalidOperationException($"couldn't download {def.TextFile} ({FirstLine(ex.Message)}). Check the net and try again.");
-                }
-            }
-        }
+        var configuration = Configuration.Capture(_settings);
+        await ModelFiles.EnsureModelAsync(ModelCatalog.Get(configuration.Model), ModelFiles.InstalledDirectory, progress, ct).ConfigureAwait(false);
+        await Task.Run(() => {
+            using var probe = new WorkerClient(CreateWorkerConfig(true, configuration, ct), ct);
+            var vectors = probe.EmbedTexts([Prompts.Query("startup check")], ct);
+            if (vectors.Length != 1 || vectors[0].Length != probe.Info.Dim) throw new InvalidOperationException("The search model failed its startup check.");
+        }, ct).ConfigureAwait(false);
     }
+
+    public bool ModelsReady => ModelCatalog.Get(_settings.EmbeddingModel).IsDownloaded(ModelFiles.InstalledDirectory);
 
     public record Hit(string Path, string Kind, string Where, string? Excerpt, double Score);
 
-    /// <summary>
-    /// Phase 1 Fast-Path: Instant (<5ms) lexical full-text search against SQLite FTS5.
-    /// Does not require AI model weights or vector embeddings.
-    /// </summary>
-    public List<Hit> SearchLexical(string query, int limit = 50)
-    {
-        return SearchWithVector(query, vec: null, limit: limit);
-    }
+    public List<Hit> Search(string query, int limit = 20, HashSet<FileKind>? kinds = null, CancellationToken cancellationToken = default) =>
+        SearchInternal(query, limit, kinds, cancellationToken, semantic: true);
 
-    /// <summary>
-    /// Generates vector embedding for the query text. Uses CPU fast-path when enabled.
-    /// </summary>
-    public IReadOnlyList<float>? EmbedQuery(string query)
-    {
-        return TryEmbedQuery(query);
-    }
+    public List<Hit> SearchText(string query, int limit = 20, HashSet<FileKind>? kinds = null, CancellationToken cancellationToken = default) =>
+        SearchInternal(query, limit, kinds, cancellationToken, semantic: false);
 
-    /// <summary>
-    /// Search with optional vector embedding (null = lexical only, non-null = hybrid semantic + lexical).
-    /// </summary>
-    public List<Hit> SearchWithVector(string query, IReadOnlyList<float>? vec, int limit = 50)
+    private List<Hit> SearchInternal(string query, int limit, HashSet<FileKind>? kinds, CancellationToken cancellationToken, bool semantic)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         query = TextSanitize.Clean(query);
-        OpenStores();
-        string? codeText = CodeQuery.TextOf(query);
-        Searcher searcher;
-        Searcher? codeSearcher;
         lock (_searchGate)
         {
-            // Both searchers lazy: a search before the first indexing pass
-            // still reaches code (the fallback below needs it). Loading
-            // vectors waits for the first meaning search either way.
-            if (_settings.Code && _codeStore is not null)
-                codeSearcher = _codeSearcher ??= new Searcher(_codeStore, loadVectors: false);
-            else
-                codeSearcher = null;
-            searcher = codeText is not null && codeSearcher is not null
-                ? codeSearcher
-                : (_searcher ??= new Searcher(_store!, loadVectors: false));
+            if (_disposed || _transitioning) return [];
+            OpenStores();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token, _queryCancellation.Token);
+            string? codeText = CodeQuery.TextOf(query);
+            var codeSearcher = _configuration.Code && _codeStore is not null
+                ? _codeSearcher ??= new Searcher(_codeStore, loadVectors: false) : null;
+            var searcher = codeText is not null && codeSearcher is not null
+                ? codeSearcher : _searcher ??= new Searcher(_store!, loadVectors: false);
+            IReadOnlyList<float>? vector = semantic && !_paused && !_batterySaver ? TryEmbedQuery(query, linked.Token) : null;
+            linked.Token.ThrowIfCancellationRequested();
+            if (semantic) IsSemanticAvailable = vector is not null;
+            var hits = searcher.Search(query, vector, limit: limit, kinds: kinds, cancellationToken: linked.Token);
+            if (hits.Count == 0 && codeText is null && codeSearcher is not null)
+                hits = codeSearcher.Search(query, vector, limit: limit, kinds: kinds, cancellationToken: linked.Token);
+            return hits.Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score)).ToList();
         }
-
-        var hits = searcher.Search(query, vec, limit: limit)
-            .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score))
-            .ToList();
-        if (hits.Count == 0 && codeText is null && codeSearcher is not null)
-        {
-            // Nothing outside code: fall back to the code index, so a bare
-            // query on a code folder doesn't come back empty without saying
-            // why. (An explicit "code:" still searches code only.)
-            hits = codeSearcher.Search(query, vec, limit: limit)
-                .Select(h => new Hit(h.Path, h.Kind.ToString(), WhereOf(h), EncodingHelper.FixMojibake(Clean(h.Excerpt)), h.Score))
-                .ToList();
-        }
-        return hits;
     }
 
-    // Words always; meaning added when wai-embed.exe + model files answer.
-    public List<Hit> Search(string query, int limit = 20)
+    // This lock pins stores and searchers for each complete operation.
+    private T ReadStores<T>(Func<T> read, T fallback)
     {
-        var vec = EmbedQuery(query);
-        return SearchWithVector(query, vec, limit: limit);
+        lock (_searchGate)
+        {
+            if (_disposed) return fallback;
+            try { OpenStores(); return read(); }
+            catch (Exception ex) { ErrorLog.Write("index statistics: " + ex.Message); return fallback; }
+        }
     }
 
-    /// <summary>First-pass size for folders, off the UI thread.</summary>
-    public static (int Files, double Seconds, Dictionary<FileKind, int> ByKind) Estimate(
-        IEnumerable<string> folders, bool code)
+    public (int Indexed, int Remaining) GetIndexProgress() => ReadStores(() => {
+        if (IsIndexing && ProgressTotal > 0) return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
+        var (done, _, pending, _) = _store!.GetFileCounts();
+        if (_codeStore is not null) { var (cDone, _, cPending, _) = _codeStore.GetFileCounts(); done += cDone; pending += cPending; }
+        return (done, pending);
+    }, (0, 0));
+
+    public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetDetailedProgress() => ReadStores(() => {
+        var (done, total, pending, vectors) = _store!.GetFileCounts();
+        if (_codeStore is not null) { var (d, t, p, v) = _codeStore.GetFileCounts(); done += d; total += t; pending += p; vectors += v; }
+        return (done, total, pending, vectors);
+    }, (0, 0, 0, 0));
+
+    public FolderVectorStats? GetOrphanedStats() => ReadStores<FolderVectorStats?>(() => {
+        var main = _store!.GetOrphanedStats(_configuration.Folders);
+        if (_codeStore is null) return main;
+        var code = _codeStore.GetOrphanedStats(_configuration.Folders);
+        return new FolderVectorStats("Неактивные папки", main.Files + code.Files, main.Segments + code.Segments,
+            main.Vectors + code.Vectors, main.Bytes + code.Bytes);
+    }, null);
+
+    public int PurgeOrphaned()
+    {
+        lock (_controlGate)
+        {
+            if (_disposed) return 0;
+            StopIndexing();
+            try
+            {
+                return ReadStores(() => {
+                    int count = _store!.PurgeOrphaned(_configuration.Folders) + (_codeStore?.PurgeOrphaned(_configuration.Folders) ?? 0);
+                    RefreshSearchers();
+                    return count;
+                }, 0);
+            }
+            finally { ResumeIndexing(); RequestIndex(); }
+        }
+    }
+    public FolderVectorStats? GetFolderStats(string folder) => ReadStores<FolderVectorStats?>(() => _store!.GetFolderStats(folder), null);
+    public FolderVectorStats? GetTotalStats() => ReadStores<FolderVectorStats?>(() => _store!.GetTotalStats(), null);
+    public long GetDatabaseFileSize() => IndexStore.SizeOf(Path.Combine(Settings.IndexDir, GetMainIndexFileName()));
+
+    public void ResetIndex(IReadOnlyList<string>? roots = null)
+    {
+        lock (_controlGate)
+        {
+            if (_disposed) return;
+            StopIndexing(); DropQueryWorker();
+            try
+            {
+                lock (_searchGate) { OpenStores(); _store?.ClearVectors(roots); _codeStore?.ClearVectors(roots); RefreshSearchers(); }
+                Say("Индекс очищен. Подготовка к повторной обработке…");
+            }
+            catch (Exception ex) { ErrorLog.Write("ResetIndex: " + ex); Say("Не удалось очистить индекс: " + FirstLine(ex.Message)); }
+            finally { ResumeIndexing(); }
+            RequestIndex();
+        }
+    }
+
+    public static (int Files, double Seconds, Dictionary<FileKind, int> ByKind) Estimate(IEnumerable<string> folders, bool code)
     {
         var options = new IndexOptions { Code = code };
-        var result = Crawler.CrawlDetailed(folders, options);
-        var estimate = Estimator.Estimate(result.Candidates, options);
-        return (result.Candidates.Count, estimate.Seconds, estimate.Files);
+        var report = Crawler.CrawlDetailed(folders, options);
+        var estimate = Estimator.Estimate(report.Candidates, options);
+        return (report.Candidates.Count, estimate.Seconds, estimate.Files);
     }
 
-    private void Say(string s) { Status = s; Changed?.Invoke(); }
+    public string GetMainIndexFileName(string? model = null) => (model ?? _configuration.Model) is "gemma2" ? IndexStore.MainFile : $"index_{model ?? _configuration.Model}.db";
+    public string GetCodeIndexFileName(string? model = null) => (model ?? _configuration.Model) is "gemma2" ? IndexStore.CodeFile : $"code_{model ?? _configuration.Model}.db";
 
-    public string GetMainIndexFileName(string? model = null)
-    {
-        model ??= _settings.EmbeddingModel;
-        return model switch
-        {
-            "gemma2" => IndexStore.MainFile,
-            _ => $"index_{model}.db"
-        };
-    }
-
-    public string GetCodeIndexFileName(string? model = null)
-    {
-        model ??= _settings.EmbeddingModel;
-        return model switch
-        {
-            "gemma2" => IndexStore.CodeFile,
-            _ => $"code_{model}.db"
-        };
-    }
-
+    // Caller holds _searchGate; stores are switched only after the index loop stopped.
     private void OpenStores()
     {
-        string currentModel = _settings.EmbeddingModel;
-        if (_activeStoreModel != null && !string.Equals(_activeStoreModel, currentModel, StringComparison.OrdinalIgnoreCase))
+        string model = _configuration.Model;
+        if (_activeStoreModel is not null && !string.Equals(_activeStoreModel, model, StringComparison.OrdinalIgnoreCase))
         {
-            lock (_searchGate)
-            {
-                _searcher?.Dispose(); _searcher = null;
-                _codeSearcher?.Dispose(); _codeSearcher = null;
-            }
-            _store?.Dispose(); _store = null;
-            _codeStore?.Dispose(); _codeStore = null;
-            DropQueryWorker();
+            _searcher?.Dispose(); _searcher = null; _codeSearcher?.Dispose(); _codeSearcher = null;
+            _store?.Dispose(); _store = null; _codeStore?.Dispose(); _codeStore = null;
         }
-
-        _activeStoreModel = currentModel;
-        string mainFile = GetMainIndexFileName(currentModel);
-        string codeFile = GetCodeIndexFileName(currentModel);
-
-        if (_store is null)
-        {
-            Directory.CreateDirectory(Settings.IndexDir);
-            _store = OpenIndex(Settings.IndexDir, mainFile);
-        }
-        if (_settings.Code && _codeStore is null)
-            _codeStore = OpenIndex(Settings.IndexDir, codeFile);
-        if (!_settings.Code && _codeStore is not null)
-        {
-            lock (_searchGate)
-            {
-                _codeSearcher?.Dispose(); _codeSearcher = null;
-            }
-            _codeStore.Dispose(); _codeStore = null;
-        }
+        _activeStoreModel = model;
+        Directory.CreateDirectory(Settings.IndexDir);
+        _store ??= OpenIndex(Settings.IndexDir, GetMainIndexFileName(model));
+        _store.Scope = _configuration.Folders.ToList();
+        if (_configuration.Code) { _codeStore ??= OpenIndex(Settings.IndexDir, GetCodeIndexFileName(model)); _codeStore.Scope = _configuration.Folders.ToList(); }
+        else if (_codeStore is not null) { _codeSearcher?.Dispose(); _codeSearcher = null; _codeStore.Dispose(); _codeStore = null; }
     }
 
-    /// <summary>Opens an index, starting over (loudly) when its file is
-    /// corrupt: an index is rebuildable, a crash on launch is not.</summary>
     private IndexStore OpenIndex(string dir, string file)
     {
-        try
-        {
-            return file == IndexStore.MainFile ? new IndexStore(dir) : new IndexStore(dir, file);
-        }
+        try { return new IndexStore(dir, file, isCodeIndex: file.StartsWith("code", StringComparison.OrdinalIgnoreCase)); }
         catch (Exception ex) when (IsCorrupt(ex))
         {
-            string bad = Path.Combine(dir, file);
-            string aside = bad + $".corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
-            try { File.Move(bad, aside); } catch { }
-            try { File.Delete(bad + "-wal"); } catch { }
-            try { File.Delete(bad + "-shm"); } catch { }
-            Say($"the index was broken, starting fresh (old one kept as {System.IO.Path.GetFileName(aside)}).");
-            return file == IndexStore.MainFile ? new IndexStore(dir) : new IndexStore(dir, file);
+            string path = Path.Combine(dir, file);
+            string aside = path + $".corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+            // Keep every journal beside the corrupt database for recovery.
+            File.Move(path, aside);
+            foreach (string suffix in new[] { "-wal", "-shm" })
+                if (File.Exists(path + suffix)) File.Move(path + suffix, aside + suffix);
+            Say("Повреждённый индекс сохранён отдельно. Создаётся новый индекс.");
+            return new IndexStore(dir, file, isCodeIndex: file.StartsWith("code", StringComparison.OrdinalIgnoreCase));
         }
     }
-
-    private static bool IsCorrupt(Exception ex)
-    {
-        string m = ex.Message.ToLowerInvariant();
-        return m.Contains("not a database") || m.Contains("malformed") || m.Contains("corrupt");
-    }
+    private static bool IsCorrupt(Exception ex) => ex.Message.ToLowerInvariant() is var text &&
+        (text.Contains("not a database") || text.Contains("malformed") || text.Contains("corrupt"));
 
     private void RefreshSearchers()
     {
         lock (_searchGate)
         {
-            _searcher?.Dispose();
-            _searcher = new Searcher(_store!, loadVectors: false);
-            if (_codeStore is not null)
-            {
-                _codeSearcher?.Dispose();
-                _codeSearcher = new Searcher(_codeStore, loadVectors: false);
-            }
+            _searcher?.Dispose(); _searcher = _store is null ? null : new Searcher(_store, loadVectors: false);
+            _codeSearcher?.Dispose(); _codeSearcher = _codeStore is null ? null : new Searcher(_codeStore, loadVectors: false);
         }
     }
 
-    private Indexer MakeIndexer(IndexStore store, IndexOptions options)
+    private WorkerConfig CreateWorkerConfig(bool textOnly, Configuration configuration, CancellationToken ct)
     {
-        var extractor = new DefaultExtractor(options,
-            new WicImageDecoder(), new CompositeOcrEngine(),
-            new PdfiumEngine(ExeNextTo("pdfium.dll")), FindFFmpeg(), null);
-        var indexer = new Indexer(store, options, new Crawler(), () => MakeEmbedder(store.Directory), extractor);
-        // A new model means new vectors: the index rebuilds and the warm
-        // query helper (old model) is dropped with it.
-        indexer.ResetOnModelChange = (_, _) => DropQueryWorker();
-        indexer.WorkerCount = 1; // measured fastest on one GPU (see Indexer)
-        return indexer;
+        var (backend, device, _) = HardwareDetector.ResolveBackend(configuration.Hardware, HardwareDetector.Detect());
+        if (textOnly && configuration.QueryFastPathCpu) { backend = "cpu"; device = -1; }
+        var args = new List<string> { "--backend", backend, "--model", configuration.Model };
+        var environment = new Dictionary<string, string> {
+            ["OMP_NUM_THREADS"] = Math.Clamp(Environment.ProcessorCount / 2, 1, 8).ToString()
+        };
+        if (device >= 0 && backend is "cuda" or "vulkan")
+        {
+            args.AddRange(["--device", device.ToString()]);
+            environment[backend == "cuda" ? "CUDA_VISIBLE_DEVICES" : "GGML_VULKAN_DEVICE"] = device.ToString();
+        }
+        return new WorkerConfig(ExeNextTo("wai-embed.exe"), args, environment,
+            Path.Combine(Settings.LogsDir, textOnly ? "query-worker.log" : "worker.log"), textOnly,
+            RequestTimeout: textOnly ? TimeSpan.FromSeconds(20) : TimeSpan.FromMinutes(3), LifetimeCancellation: ct);
     }
 
-    public void ResetEmbedderWorker()
-    {
-        DropQueryWorker();
-    }
+    private IEmbedder MakeEmbedder(Configuration configuration, CancellationToken ct) =>
+        File.Exists(ExeNextTo("wai-embed.exe")) ? new WorkerClient(CreateWorkerConfig(false, configuration, ct)) : new WordsOnly();
 
-    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly, bool forceCpu = false)
-    {
-        var hwInfo = HardwareDetector.Detect();
-        var (backend, deviceIdx, _) = forceCpu
-            ? ("cpu", -1, "CPU (Fast-Path)")
-            : HardwareDetector.ResolveBackend(_settings.HardwareMode, hwInfo);
-
-        var args = new List<string>();
-        var env = new Dictionary<string, string>();
-
-        if (backend == "cpu")
-        {
-            args.Add("--backend");
-            args.Add("cpu");
-        }
-        else if (backend == "vulkan")
-        {
-            args.Add("--backend");
-            args.Add("vulkan");
-            if (deviceIdx >= 0)
-            {
-                env["GGML_VULKAN_DEVICE"] = deviceIdx.ToString();
-                args.Add("--device");
-                args.Add(deviceIdx.ToString());
-            }
-        }
-        else if (backend == "cuda")
-        {
-            args.Add("--backend");
-            args.Add("cuda");
-            if (deviceIdx >= 0)
-            {
-                env["CUDA_VISIBLE_DEVICES"] = deviceIdx.ToString();
-                args.Add("--device");
-                args.Add(deviceIdx.ToString());
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(_settings.EmbeddingModel))
-        {
-            args.Add("--model");
-            args.Add(_settings.EmbeddingModel);
-        }
-
-        return new WorkerConfig(
-            exe,
-            args,
-            Environment: env.Count > 0 ? env : null,
-            LogPath: Path.Combine(Settings.LogsDir, "worker.log"),
-            TextOnly: textOnly);
-    }
-
-    private IEmbedder MakeEmbedder(string indexDir)
-    {
-        string exe = ExeNextTo("wai-embed.exe");
-        if (!File.Exists(exe)) return new WordsOnly();
-        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false, forceCpu: false));
-    }
-
-    private IReadOnlyList<float>? TryEmbedQuery(string query)
-    {
-        IEmbedder? worker;
-        lock (_queryGate)
-        {
-            string exe = ExeNextTo("wai-embed.exe");
-            if (!File.Exists(exe)) return null;
-            if (_queryWorker is null)
-            {
-                // Creation loads the model (~2 s, once): failure here is
-                // worth one log line; per-keystroke embed failures stay quiet
-                // (the search simply goes words-only that once).
-                try
-                {
-                    bool forceCpu = _settings.QueryFastPathCpu;
-                    _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true, forceCpu: forceCpu));
-                    Vectors.Dimension = _queryWorker.Info.Dim;
-                }
-                catch (Exception ex)
-                {
-                    ErrorLog.Write("query helper won't start: " + ex.Message);
-                    _queryWorker = null;
-                    return null;
-                }
-            }
-            worker = _queryWorker;
-        }
-        try
-        {
-            string prompted = CodeQuery.TextOf(query) is not null ? Prompts.CodeQuery(query) : Prompts.Query(query);
-            var rows = worker.EmbedTexts([prompted]);
-            return rows.Length > 0 && rows[0].Length == worker.Info.Dim ? rows[0] : null;
-        }
-        catch
-        {
-            // A dead helper must not wedge every later keystroke: drop it,
-            // this search goes words-only, the next keystroke starts fresh.
-            DropQueryWorker();
-            return null;
-        }
-    }
-
-    /// <summary>Load the query helper now (background), so the first real
-    /// keystroke embeds in milliseconds instead of seconds.</summary>
-    private void WarmQueryWorker()
+    private IReadOnlyList<float>? TryEmbedQuery(string query, CancellationToken ct)
     {
         try
         {
             lock (_queryGate)
             {
-                string exe = ExeNextTo("wai-embed.exe");
-                if (!File.Exists(exe) || _queryWorker is not null) return;
-                bool forceCpu = _settings.QueryFastPathCpu;
-                _queryWorker = new WorkerClient(CreateWorkerConfig(exe, textOnly: true, forceCpu: forceCpu));
+                ct.ThrowIfCancellationRequested();
+                if (!File.Exists(ExeNextTo("wai-embed.exe"))) return null;
+                _queryWorker ??= new WorkerClient(CreateWorkerConfig(true, _configuration, _queryCancellation.Token), ct);
+                string prompted = CodeQuery.TextOf(query) is not null ? Prompts.CodeQuery(query) : Prompts.Query(query);
+                var rows = _queryWorker.EmbedTexts([prompted], ct);
+                return rows.Length > 0 && rows[0].Length == _queryWorker.Info.Dim ? rows[0] : null;
             }
-            _queryWorker.EmbedTexts([Prompts.Query("warmup")]);
         }
-        catch
-        {
-            DropQueryWorker();
-        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { DropQueryWorker(); throw; }
+        catch (Exception ex) { ErrorLog.Write("query helper: " + FirstLine(ex.Message)); DropQueryWorker(); return null; }
     }
 
+    private void WarmQueryWorker(CancellationToken ct)
+    {
+        if (_paused || _batterySaver) return;
+        try { TryEmbedQuery("warmup", ct); }
+        catch (OperationCanceledException) { }
+    }
+
+    public void ResetEmbedderWorker() => DropQueryWorker();
     private void DropQueryWorker()
     {
-        lock (_queryGate)
-        {
-            try { _queryWorker?.Close(); } catch { }
-            try { _queryWorker?.Dispose(); } catch { }
-            _queryWorker = null;
-        }
+        // Interrupt first, then wait for ownership of the handle.
+        try { Volatile.Read(ref _queryWorker)?.Close(); } catch { }
+        lock (_queryGate) { try { _queryWorker?.Dispose(); } catch { } _queryWorker = null; }
     }
 
     private sealed class WordsOnly : IEmbedder
     {
-        public WorkerInfo Info { get; } = new("none", "words-only", "words-only", "none", 0, true, null);
-        public float[][] EmbedTexts(IReadOnlyList<string> texts)
-        {
-            var rows = new float[texts.Count][];
-            for (int i = 0; i < rows.Length; i++) rows[i] = new float[Vectors.Dimension];
-            return rows;
-        }
-        public Embedding[] EmbedImages(IReadOnlyList<string> paths, int budget)
-            => paths.Select(_ => new Embedding(null, "words only")).ToArray();
-        public Embedding[] EmbedAudio(IReadOnlyList<string> paths)
-            => paths.Select(_ => new Embedding(null, "words only")).ToArray();
+        public WorkerInfo Info { get; } = new("none", "words-only", "words-only", "none", 768, true, null);
+        public float[][] EmbedTexts(IReadOnlyList<string> texts) => texts.Select(_ => new float[768]).ToArray();
+        public Embedding[] EmbedImages(IReadOnlyList<string> paths, int budget) => paths.Select(_ => new Embedding(null, "words only")).ToArray();
+        public Embedding[] EmbedAudio(IReadOnlyList<string> paths) => paths.Select(_ => new Embedding(null, "words only")).ToArray();
         public void Close() { }
         public void Dispose() { }
     }
 
-    private static string ExeNextTo(string name) =>
-        Path.Combine(AppContext.BaseDirectory, name);
-
+    private static string ExeNextTo(string name) => Path.Combine(AppContext.BaseDirectory, name);
     private static FFmpegPaths FindFFmpeg()
     {
-        if (Environment.GetEnvironmentVariable("WAI_FFMPEG") is { Length: > 0 } dir)
-            return new FFmpegPaths(Path.Combine(dir, "ffmpeg.exe"), Path.Combine(dir, "ffprobe.exe"));
-        if (File.Exists(ExeNextTo("ffmpeg.exe")))
-            return new FFmpegPaths(ExeNextTo("ffmpeg.exe"), ExeNextTo("ffprobe.exe"));
-        string localToolDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI", "tools", "ffmpeg");
-        if (File.Exists(Path.Combine(localToolDir, "ffmpeg.exe")))
-            return new FFmpegPaths(Path.Combine(localToolDir, "ffmpeg.exe"), Path.Combine(localToolDir, "ffprobe.exe"));
-        return new FFmpegPaths(ExeNextTo("ffmpeg.exe"), ExeNextTo("ffprobe.exe"));
+        string local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI", "tools", "ffmpeg");
+        string dir = Environment.GetEnvironmentVariable("WAI_FFMPEG") is { Length: > 0 } configured ? configured :
+            File.Exists(ExeNextTo("ffmpeg.exe")) ? AppContext.BaseDirectory : local;
+        return new FFmpegPaths(Path.Combine(dir, "ffmpeg.exe"), Path.Combine(dir, "ffprobe.exe"));
     }
 
-    private static bool OnBatterySaver()
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct SystemPowerStatus
     {
-        try { return System.Windows.Forms.SystemInformation.PowerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Critical); }
-        catch { return false; }
+        public byte AcLineStatus, BatteryFlag, BatteryLifePercent, SystemStatusFlag;
+        public uint BatteryLifeTime, BatteryFullLifeTime;
     }
-
-    private static string WhereOf(SearchHit h) =>
-        h.Loc is null ? "" : h.Segment is SegmentKind.Lines or SegmentKind.Cells
-            ? $"lines {Num(h.Loc)}-{Num(h.LocEnd)}" : $"@{Num(h.Loc)}";
-
-    private static string Num(double? d) => d?.ToString("0.##") ?? "";
-    private static string? Clean(string? s)
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetSystemPowerStatus(out SystemPowerStatus status);
+    private static bool OnBatterySaver() { try { return GetSystemPowerStatus(out var status) && status.SystemStatusFlag == 1; } catch { return false; } }
+    private void PowerChanged()
     {
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        string t = TextSanitize.Clean(s.Replace("«", "").Replace("»", "").Trim());
-        return t.Length > 160 ? TextSanitize.Cut(t, 160) + "…" : t;
+        lock (_controlGate)
+        {
+            if (_disposed) return;
+            bool saver = OnBatterySaver();
+            if (saver == _batterySaver) return;
+            _batterySaver = saver;
+            StopIndexing(); DropQueryWorker(); ResumeIndexing();
+            Say(saver ? "Обработка приостановлена для экономии батареи" : "Подготовка индекса…");
+            RequestIndex();
+        }
     }
-    private static string Short(string p) => p.Length > 70 ? "…" + p[^69..] : p;
-    private static string FirstLine(string s) => s.Split('\n')[0].Trim();
+
+    private void Say(string text) { Status = text; Changed?.Invoke(); }
+    private static string WhereOf(SearchHit hit) => hit.Loc is null ? "" : hit.Segment is SegmentKind.Lines or SegmentKind.Cells
+        ? $"lines {Num(hit.Loc)}-{Num(hit.LocEnd)}" : $"@{Num(hit.Loc)}";
+    private static string Num(double? value) => value?.ToString("0.##") ?? "";
+    private static string? Clean(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string clean = TextSanitize.Clean(text.Replace("«", "").Replace("»", "").Trim());
+        return clean.Length > 160 ? TextSanitize.Cut(clean, 160) + "…" : clean;
+    }
+    private static string Short(string path) => path.Length > 70 ? "…" + path[^69..] : path;
+    private static string FirstLine(string text) => text.Split('\n')[0].Trim();
 
     public void Dispose()
     {
-        _disposed = true;
-        _run?.Cancel();
-        DropQueryWorker();
-        lock (_searchGate)
+        lock (_controlGate)
         {
-            _searcher?.Dispose();
-            _codeSearcher?.Dispose();
-            _searcher = null;
-            _codeSearcher = null;
+            if (_disposed) return;
+            _disposed = true;
+            _powerTimer.Dispose();
+            _shutdown.Cancel();
+            StopIndexing(); DropQueryWorker();
+            lock (_searchGate)
+            {
+                _searcher?.Dispose(); _searcher = null; _codeSearcher?.Dispose(); _codeSearcher = null;
+                _store?.Dispose(); _store = null; _codeStore?.Dispose(); _codeStore = null;
+            }
+            _queryCancellation.Dispose(); _shutdown.Dispose();
         }
-        _store?.Dispose();
-        _codeStore?.Dispose();
     }
 }
 
-// Watches chosen folders. A change re-indexes after 5 quiet seconds; an
-// overflow (buffer overrun) triggers a full rescan, never silent loss.
+// Debounce restarts on every event. Rename includes both names; overflow forces reconciliation.
 public sealed class FileSystemWatcherRunner : IDisposable
 {
     private readonly List<FileSystemWatcher> _watchers = [];
-    private readonly System.Timers.Timer _debounce = new(5000) { AutoReset = false };
-    private readonly Action _onCalm;
+    private readonly System.Timers.Timer _debounce;
+    private readonly Action<IReadOnlyCollection<string>?> _onCalm;
+    private readonly object _gate = new();
+    private readonly HashSet<string> _paths = new(StringComparer.OrdinalIgnoreCase);
+    private bool _fullScan, _disposed;
 
-    public FileSystemWatcherRunner(Settings settings, Action onCalm)
+    public FileSystemWatcherRunner(Settings settings, Action onCalm) : this(settings, _ => onCalm()) { }
+    public FileSystemWatcherRunner(Settings settings, Action<IReadOnlyCollection<string>?> onCalm, double debounceMilliseconds = 5000)
     {
         _onCalm = onCalm;
-        _debounce.Elapsed += (_, _) => _onCalm();
-        foreach (string folder in settings.Folders)
+        _debounce = new System.Timers.Timer(debounceMilliseconds) { AutoReset = false };
+        _debounce.Elapsed += (_, _) => Flush();
+        foreach (string folder in settings.Folders.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!Directory.Exists(folder)) continue;
-            var w = new FileSystemWatcher(folder)
+            try
             {
-                IncludeSubdirectories = true,
-                InternalBufferSize = 64 * 1024,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName,
-            };
-            w.Changed += (_, _) => _debounce.Start();
-            w.Created += (_, _) => _debounce.Start();
-            w.Deleted += (_, _) => _debounce.Start();
-            w.Renamed += (_, _) => _debounce.Start();
-            w.Error += (_, _) => _onCalm(); // overflow: rescan everything
-            w.EnableRaisingEvents = true;
-            _watchers.Add(w);
+                var watcher = new FileSystemWatcher(folder) {
+                    IncludeSubdirectories = true, InternalBufferSize = 64 * 1024,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName | NotifyFilters.Size
+                };
+                watcher.Changed += (_, e) => Queue(e.FullPath);
+                watcher.Created += (_, e) => Queue(e.FullPath);
+                watcher.Deleted += (_, e) => Queue(e.FullPath);
+                watcher.Renamed += (_, e) => { Queue(e.OldFullPath); Queue(e.FullPath); };
+                watcher.Error += (_, _) => Queue(null);
+                watcher.EnableRaisingEvents = true;
+                _watchers.Add(watcher);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            { ErrorLog.Write("watch folder: " + ex.Message); Queue(null); }
         }
     }
 
+    private void Queue(string? path)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            if (path is null || _paths.Count >= 10000) { _fullScan = true; _paths.Clear(); }
+            else if (!_fullScan) _paths.Add(path);
+            _debounce.Stop(); _debounce.Start();
+        }
+    }
+    private void Flush()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            var paths = _fullScan ? null : _paths.ToArray();
+            _fullScan = false; _paths.Clear();
+            _onCalm(paths);
+        }
+    }
     public void Dispose()
     {
-        _debounce.Dispose();
-        foreach (var w in _watchers) w.Dispose();
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _debounce.Stop(); _debounce.Dispose();
+            foreach (var watcher in _watchers) watcher.Dispose();
+        }
     }
 }

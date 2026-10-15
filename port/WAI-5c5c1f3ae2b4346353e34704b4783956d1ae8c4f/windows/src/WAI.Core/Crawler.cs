@@ -36,6 +36,8 @@ public sealed class CrawlResult
     /// <summary>Files the crawler decided to index.</summary>
     public List<CrawlCandidate> Candidates { get; } = new();
 
+    public List<string> InaccessiblePaths { get; } = new();
+
     /// <summary>Reason -> files.</summary>
     public Dictionary<string, int> Skipped { get; } = new(StringComparer.Ordinal);
 
@@ -48,11 +50,16 @@ public sealed class CrawlResult
 
 public sealed class Crawler : ICrawler
 {
-    public CrawlReport Crawl(IReadOnlyList<string> roots, IndexOptions options) =>
-        new CrawlReport(CrawlDetailed(roots, options).Candidates);
+    public CrawlReport Crawl(IReadOnlyList<string> roots, IndexOptions options) => Crawl(roots, options, CancellationToken.None);
+
+    public CrawlReport Crawl(IReadOnlyList<string> roots, IndexOptions options, CancellationToken cancellationToken)
+    {
+        var report = CrawlDetailed(roots, options, cancellationToken);
+        return new CrawlReport(report.Candidates) { InaccessiblePaths = report.InaccessiblePaths };
+    }
 
     /// <summary>Walk with full skip accounting (Crawler.swift:27).</summary>
-    public static CrawlResult CrawlDetailed(IEnumerable<string> roots, IndexOptions options)
+    public static CrawlResult CrawlDetailed(IEnumerable<string> roots, IndexOptions options, CancellationToken cancellationToken = default)
     {
         var report = new CrawlResult();
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -71,13 +78,19 @@ public sealed class Crawler : ICrawler
 
         foreach (string root in rootList)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (options.Code)
             {
                 repos.EnterRoot(root);
             }
-            else if (Rules.IsProjectRoot(root))
+            else
             {
-                projectRoots.Add(root);
+                string? ancestor = root;
+                while (!string.IsNullOrEmpty(ancestor))
+                {
+                    if (Rules.IsProjectRoot(ancestor)) { projectRoots.Add(ancestor); break; }
+                    ancestor = Path.GetDirectoryName(ancestor);
+                }
             }
 
             // A skip applies inside the chosen folders that contain it; a
@@ -99,19 +112,22 @@ public sealed class Crawler : ICrawler
             stack.Push(root);
             while (stack.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string dir = stack.Pop();
                 string[] entries;
                 try
                 {
                     entries = Directory.GetFileSystemEntries(dir);
                 }
-                catch
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 {
+                    report.InaccessiblePaths.Add(dir);
                     continue;
                 }
 
                 foreach (string entry in entries)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     VisitEntry(entry, options, home, skips, repos, projectRoots, found, foundPaths, stack, report);
                 }
             }
@@ -196,6 +212,7 @@ public sealed class Crawler : ICrawler
         }
         catch
         {
+            report.InaccessiblePaths.Add(entry);
             VisitUnstatable(entry, options, report);
             return;
         }
@@ -276,7 +293,8 @@ public sealed class Crawler : ICrawler
         }
         catch
         {
-            Bump(report.Skipped, "link or special file");
+            report.InaccessiblePaths.Add(entry);
+            Bump(report.Skipped, "temporarily unreadable");
             return;
         }
 

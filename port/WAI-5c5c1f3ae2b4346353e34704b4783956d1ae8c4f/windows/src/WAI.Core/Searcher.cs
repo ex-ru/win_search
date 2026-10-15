@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace WAI.Core;
@@ -28,6 +29,7 @@ public sealed record SearchHit(
 public sealed class Searcher : IDisposable
 {
     private readonly IndexStore _store;
+    private readonly Database _db;
     private VectorStore? _vectors;
     private bool _disposed;
     // Keystroke searches share one searcher across threads while Reload
@@ -39,7 +41,15 @@ public sealed class Searcher : IDisposable
     private readonly List<Modality> _rowModality = new();
     /// <summary>False for the vectors the later pass adds: scored, but they don't set the scale.</summary>
     private readonly List<bool> _rowSetsScale = new();
-    private readonly Dictionary<long, FileKind> _fileKind = new();
+    private int _dimension = 768;
+    private readonly Dictionary<long, FileVersion> _fileVersions = new();
+    private readonly record struct FileVersion(string Path, FileKind Kind, long Size, double Modified,
+        long Device, long Inode, string State, double? IndexedAt);
+    private const string VersionColumns = "id, kind, path, size, mtime, device, inode, state, indexed_at";
+
+    private static FileVersion ReadFileVersion(Microsoft.Data.Sqlite.SqliteDataReader row) =>
+        new(row.GetString(2), FileKindStrings.Parse(row.NullableText(1)), row.GetInt64(3), row.GetDouble(4),
+            row.GetInt64(5), row.GetInt64(6), row.GetString(7), row.IsDBNull(8) ? null : row.GetDouble(8));
 
     public string? VectorSource { get; private set; }
     /// <summary>False after <see cref="ReleaseVectors"/>: keyword search still works,
@@ -49,8 +59,7 @@ public sealed class Searcher : IDisposable
     public int VectorCount { get { lock (_gate) return _rowFile.Count; } }
 
     /// <summary>This is the code index's searcher: names are looked up as names.</summary>
-    public bool IsCode =>
-        System.IO.Path.GetFileName(_store.FilePath).Equals(IndexStore.CodeFile, StringComparison.Ordinal);
+    public bool IsCode => _store.IsCodeIndex;
 
     public const double WordWeight = 2.0;
     public const double CodeWordWeight = 1.0;
@@ -60,10 +69,13 @@ public sealed class Searcher : IDisposable
     public Searcher(IndexStore store, bool loadVectors = true)
     {
         _store = store;
-        if (loadVectors)
-            Reload();
-        else
-            ReloadFiles();
+        _db = store.Db.OpenReader();
+        try
+        {
+            if (loadVectors) Reload();
+            else _db.Transaction(ReloadFiles);
+        }
+        catch { _db.Dispose(); throw; }
     }
 
     /// <summary>Reads the files and all vectors again (after indexing added some).</summary>
@@ -71,23 +83,24 @@ public sealed class Searcher : IDisposable
     {
         lock (_gate)
         {
-            ReloadLocked();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _db.Transaction(() => ReloadLocked());
         }
     }
 
-    private void ReloadLocked()
+    private void ReloadLocked(CancellationToken cancellationToken = default)
     {
         ReleaseVectors();
         ReloadFiles();
         int rows = 0;
-        _store.Db.Query("SELECT COUNT(*) FROM segments WHERE vec IS NOT NULL",
+        _db.Query("SELECT COUNT(*) FROM segments WHERE vec IS NOT NULL",
             r => { rows = (int)r.GetInt64(0); });
         if (rows <= 0)
         {
             VectorsLoaded = true; // nothing to load
             return;
         }
-        var matrix = VectorStore.Create(rows);
+        var matrix = VectorStore.Create(rows, _dimension);
         if (matrix is null)
         {
             VectorsLoaded = true;
@@ -96,13 +109,14 @@ public sealed class Searcher : IDisposable
         var steps = new IndexOptions();
         try
         {
-            _store.Db.Query("SELECT s.id, s.file, s.modality, s.vec, s.kind, s.loc, f.kind, " +
+            _db.Query("SELECT s.id, s.file, s.modality, s.vec, s.kind, s.loc, f.kind, " +
                             "CAST(json_extract(f.info, '$.pages') AS INTEGER) " +
                             "FROM segments s JOIN files f ON f.id = s.file " +
                             "WHERE s.vec IS NOT NULL ORDER BY s.id", r =>
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 byte[]? blob = r.NullableBlob(3);
-                if (blob is null || blob.Length != Vectors.BytesPerVector || _rowFile.Count >= rows)
+                if (blob is null || blob.Length != matrix.BytesPerRow || _rowFile.Count >= rows)
                     return;
                 matrix.SetRow(_rowFile.Count, blob);
                 _rowSegment.Add(r.GetInt64(0));
@@ -150,6 +164,7 @@ public sealed class Searcher : IDisposable
             if (_disposed)
                 return;
             _disposed = true;
+            _db.Dispose();
             _vectors?.Dispose();
             _vectors = null;
             _rowFile.Clear();
@@ -162,27 +177,20 @@ public sealed class Searcher : IDisposable
 
     private void ReloadFiles()
     {
-        _fileKind.Clear();
-        _store.Db.Query("SELECT id, kind FROM files",
-            r => { _fileKind[r.GetInt64(0)] = FileKindStrings.Parse(r.NullableText(1)); });
-        VectorSource = _store.Meta("vector_source");
-        string? dimMeta = _store.Meta("vector_dim");
-        if (int.TryParse(dimMeta, out int storedDim) && storedDim > 0)
+        _fileVersions.Clear();
+        _db.Query("SELECT " + VersionColumns + " FROM files", r => _fileVersions[r.GetInt64(0)] = ReadFileVersion(r));
+        VectorSource = null;
+        _dimension = 768;
+        _db.Query("SELECT key, value FROM meta WHERE key IN ('vector_source','vector_dim')", r =>
         {
-            Vectors.Dimension = storedDim;
-        }
-        else
+            if (r.GetString(0) == "vector_source") VectorSource = r.GetString(1);
+            else if (int.TryParse(r.GetString(1), out int stored) && stored > 0) _dimension = stored;
+        });
+        _db.Query("SELECT length(vec) FROM segments WHERE vec IS NOT NULL LIMIT 1", r =>
         {
-            // Auto-detect dimension from first stored vector blob if meta is absent
-            _store.Db.Query("SELECT vec FROM segments WHERE vec IS NOT NULL LIMIT 1", r =>
-            {
-                byte[]? b = r.NullableBlob(0);
-                if (b is not null && b.Length > 0 && b.Length % 2 == 0)
-                {
-                    Vectors.Dimension = b.Length / 2;
-                }
-            });
-        }
+            int bytes = r.GetInt32(0);
+            if (bytes > 0 && bytes % 2 == 0) _dimension = bytes / 2;
+        });
     }
 
     public List<SearchHit> Search(
@@ -192,13 +200,16 @@ public sealed class Searcher : IDisposable
         int limit = 20,
         double zGate = 2.0,
         double? wordWeight = null,
-        bool prefixLast = false)
+        bool prefixLast = false,
+        CancellationToken cancellationToken = default)
     {
         // One search at a time per searcher: Reload/Dispose wait instead of
         // pulling the vectors out from under a running search.
         lock (_gate)
         {
-            return SearchLocked(text, queryVector, kinds, limit, zGate, wordWeight, prefixLast);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            return _db.Transaction(() => SearchLocked(text, queryVector, kinds, limit, zGate, wordWeight, prefixLast, cancellationToken));
         }
     }
 
@@ -209,25 +220,45 @@ public sealed class Searcher : IDisposable
         int limit,
         double zGate,
         double? wordWeight,
-        bool prefixLast)
+        bool prefixLast,
+        CancellationToken cancellationToken)
     {
+        if (limit <= 0 || kinds is { Count: 0 }) return new();
         text = TextSanitize.Clean(text); // typed or pasted text can hold lone surrogates
         double ww = wordWeight ?? (IsCode ? CodeWordWeight : WordWeight);
         if (queryVector is not null && !VectorsLoaded)
-            Reload();
-        var fileKind = _fileKind;
-        bool Allowed(long file) =>
-            kinds is null || (fileKind.TryGetValue(file, out var k) && kinds.Contains(k));
+            ReloadLocked(cancellationToken);
+        // Capture one scope and one committed SQLite snapshot for the entire request.
+        var scope = _store.ScopeSnapshot;
+        var fileKind = new Dictionary<long, FileKind>();
+        if (scope.Roots is { Count: 0 }) return new();
+        // Keyword-only searches do not need an O(all files) metadata scan on every keystroke.
+        if (queryVector is not null && _rowFile.Count > 0)
+            _db.Query("SELECT " + VersionColumns + " FROM files WHERE 1" + scope.Sql(), scope.Values, r =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                long id = r.GetInt64(0);
+                var current = ReadFileVersion(r);
+                // Requeue/deletion can replace segment IDs while this vector snapshot is loaded.
+                // Until Reload, changed files still participate through their current keyword rows.
+                if (_fileVersions.TryGetValue(id, out var loaded) && loaded == current &&
+                    (kinds is null || kinds.Contains(current.Kind))) fileKind[id] = current.Kind;
+            });
+        bool Allowed(long file) => fileKind.ContainsKey(file);
 
         // Meaning: score every vector on this query's scale, keep each file's best segment.
         var best = new Dictionary<long, (double Z, double Cosine, int Row)>();
-        int searchDim = _vectors?.Dimension ?? Vectors.Dimension;
+        int searchDim = _vectors?.Dimension ?? _dimension;
         if (queryVector is not null && queryVector.Count == searchDim && _rowFile.Count > 0)
         {
-            float[] scores = Score(queryVector);
-            double[] meaning = VectorMath.Meaning(scores, _rowModality, _rowSetsScale);
+            float[] scores = Score(queryVector, cancellationToken);
+            IReadOnlyList<bool> scale = _rowSetsScale;
+            if (scope.Roots is not null || kinds is not null || fileKind.Count < _fileVersions.Count)
+                scale = _rowSetsScale.Select((setsScale, row) => setsScale && Allowed(_rowFile[row])).ToArray();
+            double[] meaning = VectorMath.Meaning(scores, _rowModality, scale);
             for (int row = 0; row < scores.Length; row++)
             {
+                if ((row & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
                 if (!Allowed(_rowFile[row]))
                     continue;
                 double z = meaning[row];
@@ -248,14 +279,24 @@ public sealed class Searcher : IDisposable
         if (patterns.Count > 0)
         {
             var seen = new HashSet<long>();
-            _store.Db.Query("SELECT s.file, s.id, snippet(fts, 1, '«', '»', '…', 12), fts.original FROM fts " +
-                            "JOIN segments s ON s.id = fts.rowid " +
-                            "WHERE fts MATCH ? ORDER BY bm25(fts, 3.0, 1.0) LIMIT 1000",
-                new[] { SqlValue.Text(string.Join(" OR ", patterns)) }, r =>
+            var values = new List<SqlValue> { SqlValue.Text(string.Join(" OR ", patterns)) };
+            values.AddRange(scope.Values);
+            string kindFilter = "";
+            if (kinds is not null)
+            {
+                kindFilter = " AND f.kind IN (" + string.Join(",", kinds.Select(_ => "?")) + ")";
+                values.AddRange(kinds.Select(k => SqlValue.Text(k.ToStorageString())));
+            }
+            _db.Query("SELECT s.file, s.id, snippet(fts, 1, '«', '»', '…', 12), fts.original, f.kind FROM fts " +
+                            "JOIN segments s ON s.id = fts.rowid JOIN files f ON f.id = s.file " +
+                            "WHERE fts MATCH ?" + scope.Sql("f.path") + kindFilter +
+                            " ORDER BY bm25(fts, 3.0, 1.0) LIMIT 1000", values, r =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     long file = r.GetInt64(0);
-                    if (words.Count >= 100 || !Allowed(file) || !seen.Add(file))
+                    if (words.Count >= 100 || !seen.Add(file))
                         return;
+                    fileKind[file] = FileKindStrings.Parse(r.NullableText(4));
                     string? original = r.NullableText(3);
                     string? fallback = r.NullableText(2);
                     string? snippet = fallback;
@@ -273,7 +314,8 @@ public sealed class Searcher : IDisposable
                 string files = string.Join(",", words.Select(w => w.File));
                 foreach (string pattern in patterns)
                 {
-                    _store.Db.Query("SELECT DISTINCT s.file FROM fts JOIN segments s ON s.id = fts.rowid " +
+                    cancellationToken.ThrowIfCancellationRequested();
+                    _db.Query("SELECT DISTINCT s.file FROM fts JOIN segments s ON s.id = fts.rowid " +
                                     "WHERE fts MATCH ? AND s.file IN (" + files + ")",
                         new[] { SqlValue.Text(pattern) }, r =>
                         {
@@ -319,61 +361,66 @@ public sealed class Searcher : IDisposable
                 wordRank[words[i].File] = (i + 1, (words[i].Segment, words[i].Snippet));
         }
 
-        var hits = new List<SearchHit>();
-        foreach (var kv in scored.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Take(limit))
+        var top = scored.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Take(limit).ToArray();
+        var places = new Dictionary<long, (long Segment, double? Focus)>();
+        var wantedSegments = new HashSet<long>();
+        foreach (var kv in top)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            bool hasSemantic = best.TryGetValue(kv.Key, out var semantic);
+            bool hasKeyword = wordRank.TryGetValue(kv.Key, out var keyword);
+            bool useMeaning = hasSemantic && (semantic.Z >= zGate || !hasKeyword);
+            if (!useMeaning && !hasKeyword) continue;
+            long segmentId = useMeaning ? _rowSegment[semantic.Row] : keyword.Match.Segment;
+            (long Segment, double? Focus) place = (segmentId, null);
+            if (IsCode)
+                place = CodePlace(kv.Key, segmentId, places.Count < 10 ? identifier : null, text, terms,
+                    hasKeyword && keyword.Match.Segment == segmentId || identifier is not null);
+            places[kv.Key] = place;
+            wantedSegments.Add(place.Segment);
+            if (hasKeyword) wantedSegments.Add(keyword.Match.Segment);
+        }
+        var fileMetadata = new Dictionary<long, (string Path, FileKind Kind, double Modified, long Size, string? Json)>();
+        var segments = new Dictionary<long, (SegmentKind Kind, double? Loc, double? End, string? Excerpt)>();
+        foreach (var batch in top.Chunk(400))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string ids = string.Join(",", batch.Select(kv => kv.Key));
+            _db.Query("SELECT id, path, kind, mtime, size, info FROM files WHERE id IN (" + ids + ")", r =>
+                fileMetadata[r.GetInt64(0)] = (r.GetString(1), FileKindStrings.Parse(r.NullableText(2)), r.GetDouble(3), r.GetInt64(4), r.NullableText(5)));
+        }
+        foreach (var batch in wantedSegments.Chunk(400))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _db.Query("SELECT id, kind, loc, loc_end, excerpt FROM segments WHERE id IN (" + string.Join(",", batch) + ")", r =>
+                segments[r.GetInt64(0)] = (SegmentKindStrings.Parse(r.NullableText(1)), r.IsDBNull(2) ? null : r.GetDouble(2),
+                    r.IsDBNull(3) ? null : r.GetDouble(3), EncodingHelper.FixMojibake(r.NullableText(4))));
+        }
+        var hits = new List<SearchHit>();
+        foreach (var kv in top)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             long file = kv.Key;
             double score = kv.Value;
-            int rank = hits.Count;
             bool hasSemantic = best.TryGetValue(file, out var semantic);
             bool hasKeyword = wordRank.TryGetValue(file, out var keyword);
-            // Point at the best meaning segment if it stands out; else at the segment the words matched.
-            bool useMeaning = hasSemantic && (semantic.Z >= zGate || !hasKeyword);
-            if ((!useMeaning && !hasKeyword) || (useMeaning && !hasSemantic))
-                continue;
-            long segmentId = useMeaning ? _rowSegment[semantic.Row] : keyword.Match.Segment;
-            double? focus = null;
-            if (IsCode)
-            {
-                (segmentId, focus) = CodePlace(file, segmentId,
-                    rank < 10 ? identifier : null, text, terms,
-                    hasKeyword && keyword.Match.Segment == segmentId || identifier is not null);
-            }
-            string path = "";
-            FileKind kind = FileKind.Doc;
-            double modified = 0;
-            long size = 0;
+            if (!places.TryGetValue(file, out var place)) continue;
+            long segmentId = place.Segment;
+            double? focus = place.Focus;
+            if (!fileMetadata.TryGetValue(file, out var metadata) || !segments.TryGetValue(segmentId, out var segmentMetadata)) continue;
+            string path = metadata.Path;
+            FileKind kind = metadata.Kind;
+            double modified = metadata.Modified;
+            long size = metadata.Size;
             var info = new Dictionary<string, string>();
-            _store.Db.Query("SELECT path, kind, mtime, size, info FROM files WHERE id = ?",
-                new[] { SqlValue.Int(file) }, r =>
-                {
-                    path = r.NullableText(0) ?? "";
-                    kind = FileKindStrings.Parse(r.NullableText(1));
-                    modified = r.GetDouble(2);
-                    size = r.GetInt64(3);
-                    string? json = r.NullableText(4);
-                    if (json is not null)
-                    {
-                        try
-                        {
-                            info = System.Text.Json.JsonSerializer
-                                       .Deserialize<Dictionary<string, string>>(json) ??
-                                   new Dictionary<string, string>();
-                        }
-                        catch (System.Text.Json.JsonException) { }
-                    }
-                });
-            SegmentKind segment = SegmentKind.Name;
-            double? loc = null, locEnd = null;
-            string? storedExcerpt = null;
-            _store.Db.Query("SELECT kind, loc, loc_end, excerpt FROM segments WHERE id = ?",
-                new[] { SqlValue.Int(segmentId) }, r =>
-                {
-                    segment = SegmentKindStrings.Parse(r.NullableText(0));
-                    loc = r.IsDBNull(1) ? null : r.GetDouble(1);
-                    locEnd = r.IsDBNull(2) ? null : r.GetDouble(2);
-                    storedExcerpt = EncodingHelper.FixMojibake(r.NullableText(3));
-                });
+            if (metadata.Json is not null)
+            {
+                try { info = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(metadata.Json) ?? new(); }
+                catch (System.Text.Json.JsonException) { }
+            }
+            SegmentKind segment = segmentMetadata.Kind;
+            double? loc = segmentMetadata.Loc, locEnd = segmentMetadata.End;
+            string? storedExcerpt = segmentMetadata.Excerpt;
             // Quote the matched words only when they come from the segment we point at.
             // A segment with no place and no text of its own (a screenshot's image
             // vector) can borrow them from its file's OCR text.
@@ -384,11 +431,7 @@ public sealed class Searcher : IDisposable
             if (snippet is null && storedExcerpt is null && loc is null && hasKeyword &&
                 keyword.Match.Snippet is not null && keyword.Match.Snippet.Contains('«'))
             {
-                string? matchedKind = null;
-                _store.Db.Query("SELECT kind FROM segments WHERE id = ?",
-                    new[] { SqlValue.Int(keyword.Match.Segment) },
-                    r => { matchedKind = r.NullableText(0); });
-                if (matchedKind != SegmentKind.Name.ToStorageString())
+                if (segments.TryGetValue(keyword.Match.Segment, out var matched) && matched.Kind != SegmentKind.Name)
                     snippet = EncodingHelper.FixMojibake(Excerpt(keyword.Match.Snippet, 400));
             }
             var hit = new SearchHit(path, kind, score,
@@ -412,7 +455,7 @@ public sealed class Searcher : IDisposable
         if (identifier is not null)
         {
             (long Segment, int Line, int Strength)? foundBest = null;
-            _store.Db.Query("SELECT s.id, s.loc, coalesce(fts.original, fts.body) FROM fts " +
+            _db.Query("SELECT s.id, s.loc, coalesce(fts.original, fts.body) FROM fts " +
                             "JOIN segments s ON s.id = fts.rowid " +
                             "WHERE fts MATCH ? AND s.file = ? ORDER BY s.loc LIMIT 300",
                 new[] { SqlValue.Text(CodeLookup.Phrase(identifier)), SqlValue.Int(file) }, r =>
@@ -435,7 +478,7 @@ public sealed class Searcher : IDisposable
         if ((!wordsHere && identifier is null) || TextOfSegment(segment) is not string text)
             return (segment, null);
         int first = 1; // name rows have no place: point at the file's first line
-        _store.Db.Query("SELECT loc FROM segments WHERE id = ?",
+        _db.Query("SELECT loc FROM segments WHERE id = ?",
             new[] { SqlValue.Int(segment) }, r => { if (!r.IsDBNull(0)) first = (int)r.GetDouble(0); });
         var words = identifier is null ? terms : new List<string> { name.ToLowerInvariant() };
         int? line = CodeLookup.FirstLineWith(words, text, first);
@@ -457,13 +500,14 @@ public sealed class Searcher : IDisposable
             return hits.Count;
         double top = hits[0].Score;
         int n = 0;
+        while (n < hits.Count && hits[n].Score >= top * ratio) n++;
         return n;
     }
 
     /// <summary>Cosine similarity of <paramref name="query"/> with every stored vector
     /// (all are L2-normalized): a matrix-vector product, done a block of rows at a time,
     /// each block turned into float32 first. Accelerated by SIMD via <see cref="Vectors.DotProduct"/>.</summary>
-    private float[] Score(IReadOnlyList<float> query)
+    private float[] Score(IReadOnlyList<float> query, CancellationToken cancellationToken)
     {
         int rows = _rowFile.Count;
         var scores = new float[rows];
@@ -472,31 +516,41 @@ public sealed class Searcher : IDisposable
         int dim = _vectors.Dimension;
         float[] q = query is float[] arr ? arr : query.ToArray();
         ReadOnlySpan<float> qSpan = q.AsSpan(0, Math.Min(q.Length, dim));
-        var block = new float[VectorStore.BlockRows * dim];
-        int row = 0;
-        while (row < rows)
+        // Half -> float conversion dominates large scans. Schedule partitions once per query,
+        // rather than creating a Parallel.For for every 1,024 rows. Leave cores for indexing/UI.
+        int workers = Math.Min(8, Environment.ProcessorCount / 2);
+        if (workers > 1 && (long)rows * dim >= 16_000_000)
         {
-            int count = Math.Min(VectorStore.BlockRows, rows - row);
-            _vectors.CopyBlockAsFloat(row, count, block);
-            int baseRow = row;
-            if (count >= 128)
-            {
-                Parallel.For(0, count, r =>
+            var vectors = _vectors;
+            int blocks = (rows + VectorStore.BlockRows - 1) / VectorStore.BlockRows;
+            Parallel.For(0, blocks, new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = workers },
+                () => (Half: ArrayPool<Half>.Shared.Rent(VectorStore.BlockRows * dim),
+                       Float: ArrayPool<float>.Shared.Rent(VectorStore.BlockRows * dim)),
+                (blockIndex, _, buffers) =>
                 {
-                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * dim, dim);
-                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, q.AsSpan(0, dim));
-                });
-            }
-            else
-            {
-                for (int r = 0; r < count; r++)
-                {
-                    ReadOnlySpan<float> rowSpan = block.AsSpan(r * dim, dim);
-                    scores[baseRow + r] = Vectors.DotProduct(rowSpan, qSpan);
-                }
-            }
-            row += count;
+                    int first = blockIndex * VectorStore.BlockRows;
+                    int count = Math.Min(VectorStore.BlockRows, rows - first);
+                    vectors.CopyBlockAsFloat(first, count, buffers.Float, buffers.Half);
+                    for (int r = 0; r < count; r++)
+                        scores[first + r] = Vectors.DotProduct(buffers.Float.AsSpan(r * dim, dim), q.AsSpan(0, dim));
+                    return buffers;
+                },
+                buffers => { ArrayPool<Half>.Shared.Return(buffers.Half); ArrayPool<float>.Shared.Return(buffers.Float); });
+            return scores;
         }
+        var block = ArrayPool<float>.Shared.Rent(VectorStore.BlockRows * dim);
+        try
+        {
+            for (int row = 0; row < rows; row += VectorStore.BlockRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                int count = Math.Min(VectorStore.BlockRows, rows - row);
+                _vectors.CopyBlockAsFloat(row, count, block);
+                for (int r = 0; r < count; r++)
+                    scores[row + r] = Vectors.DotProduct(block.AsSpan(r * dim, dim), qSpan);
+            }
+        }
+        finally { ArrayPool<float>.Shared.Return(block); }
         return scores;
     }
 
@@ -504,10 +558,14 @@ public sealed class Searcher : IDisposable
     /// written: the preview shows the part of a document that matched.</summary>
     public string? TextOfSegment(long id)
     {
-        string? text = null;
-        _store.Db.Query("SELECT coalesce(original, body) FROM fts WHERE rowid = ?",
-            new[] { SqlValue.Int(id) }, r => { text = r.NullableText(0); });
-        return text;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            string? text = null;
+            _db.Query("SELECT coalesce(original, body) FROM fts WHERE rowid = ?",
+                new[] { SqlValue.Int(id) }, r => { text = r.NullableText(0); });
+            return text;
+        }
     }
 
     public static readonly HashSet<string> Stopwords = new(StringComparer.Ordinal)
@@ -588,7 +646,10 @@ public sealed class Searcher : IDisposable
         for (int i = 0; i < terms.Count; i++)
         {
             bool prefix = (prefixLast && i == terms.Count - 1) || SearchText.Inflects(terms[i]);
-            output.Add("\"" + terms[i] + "\"" + (prefix ? "*" : ""));
+            var forms = SearchText.RussianForms(terms[i]);
+            output.Add(forms.Count > 1 && !prefix
+                ? "(" + string.Join(" OR ", forms.Select(f => "\"" + f + "\"")) + ")"
+                : "\"" + terms[i] + "\"" + (prefix ? "*" : ""));
         }
         return output;
     }

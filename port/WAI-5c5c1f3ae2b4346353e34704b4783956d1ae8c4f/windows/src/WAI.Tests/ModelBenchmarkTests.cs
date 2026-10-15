@@ -54,7 +54,17 @@ public class ModelBenchmarkTests
         int Total,
         List<(string Query, string Direction, string Expected, string Top1, double Sim, bool Pass, double LatMs)> Details);
 
-    [Fact]
+    public sealed class ModelIntegrationFactAttribute : FactAttribute
+    {
+        public ModelIntegrationFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("WAI_RUN_MODEL_BENCHMARKS") != "1")
+                Skip = "Explicit integration benchmark: set WAI_RUN_MODEL_BENCHMARKS=1 with local worker and models.";
+        }
+    }
+
+    [ModelIntegrationFact]
+    [Trait("Category", "Integration")]
     public void Benchmark_AllEmbeddingModels_RetrievalAccuracyAndLatency()
     {
         string repoRoot = FindRepoRoot();
@@ -65,12 +75,10 @@ public class ModelBenchmarkTests
         string resultsDir = Path.Combine(repoRoot, "results");
         Directory.CreateDirectory(resultsDir);
 
-        if (!File.Exists(evalJsonPath) || !Directory.Exists(testbedDir) || !File.Exists(workerExe) || !Directory.Exists(modelsDir))
-        {
-            _output.WriteLine($"Skipping benchmark: missing required benchmark dependencies ({workerExe} or {modelsDir})");
-            return;
-        }
-
+        Assert.True(File.Exists(evalJsonPath), $"Missing required evaluation manifest: {evalJsonPath}");
+        Assert.True(Directory.Exists(testbedDir), $"Missing required testbed: {testbedDir}");
+        Assert.True(File.Exists(workerExe), $"Missing required real worker: {workerExe}");
+        Assert.True(Directory.Exists(modelsDir), $"Missing required local models: {modelsDir}");
         // 1. Load evaluation dataset
         using var jsonDoc = JsonDocument.Parse(File.ReadAllText(evalJsonPath));
         var queries = new List<QueryEvalItem>();
@@ -255,7 +263,7 @@ public class ModelBenchmarkTests
         sb.AppendLine("# 🔬 Отчет бенчмарка моделей эмбеддингов (Release 1.1.0)");
         sb.AppendLine($"**Дата тестирования:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC  ");
         sb.AppendLine("**Платформа:** Windows x64 CPU, llama.cpp b11461, WAI Native Engine  ");
-        sb.AppendLine("**Тестовый стенд:** `testbed/` (документы TXT/MD/HTML, изображения PNG/JPG с OCR, аудио WAV, видео MP4)  ");
+        sb.AppendLine("**Тестовый стенд:** `testbed/` (реальный текст TXT/MD/HTML; остальные файлы представлены синтетическими описаниями, без OCR и медиа-извлечения)  ");
         sb.AppendLine("**Датасет валидации:** `testbed-russian-eval.json` (русскоязычные и кросс-язычные запросы, OCR счетов, номера, негативные запросы)\n");
         sb.AppendLine("---");
         sb.AppendLine("\n## 📊 Сводная таблица сравнения моделей на CPU\n");
@@ -284,24 +292,8 @@ public class ModelBenchmarkTests
         }
 
         sb.AppendLine("---");
-        sb.AppendLine("\n## 💡 Выводы и архитектурные решения\n");
-        sb.AppendLine("1. **BGE-M3 (BAAI, 1024 dim)**:");
-        sb.AppendLine("   - **Абсолютный лидер по качеству русскоязычного и мультиязычного поиска (100% Top-1 Accuracy)**.");
-        sb.AppendLine("   - Идеально ранжирует как точные реквизиты счетов из OCR («88392», «15400»), так и сложные семантические кросс-язычные запросы.");
-        sb.AppendLine("   - Потребление памяти скромное (~640 МБ), скорость на CPU составляет ~60-80 мс на запрос.");
-        sb.AppendLine("");
-        sb.AppendLine("2. **Nomic Embed v1.5 (Nomic, 768 dim)**:");
-        sb.AppendLine("   - **Абсолютный чемпион по скорости на CPU (~25 мс на запрос, загрузка за 0.4 сек, всего ~250 МБ RAM)**.");
-        sb.AppendLine("   - Прекрасно подходит для маломощных ноутбуков и мгновенного фонового поиска.");
-        sb.AppendLine("");
-        sb.AppendLine("3. **EmbeddingGemma 2 (Google, 768 dim)**:");
-        sb.AppendLine("   - Единственная модель с прямой нативной поддержкой аудио/видео проектора mmproj (мультимодальная архитектура).");
-        sb.AppendLine("   - Требует больше памяти (~1.4 ГБ RAM) и дольше стартует на CPU (~11 сек), но обладает нативным пониманием медиафайлов.");
-        sb.AppendLine("");
-        sb.AppendLine("4. **Мультимодальность сохранена для всех моделей**:");
-        sb.AppendLine("   - Fallback-механизм в `Indexer.cs` обеспечивает, что при выборе чисто текстовых моделей (BGE-M3, Nomic) изображения индексируются через встроенный OCR и метаданные, а аудио/видео — через медиа-информацию FFmpeg.");
-        sb.AppendLine("   - **Все типы файлов (картинки, документы, аудио, видео) остаются на 100% доступными для поиска!**");
-
+        sb.AppendLine("This is a synthetic model comparison over the listed text representations, not an extraction or production-quality acceptance test.");
+        sb.AppendLine("No model or hardware recommendation is inferred from this small corpus. See WAI.ReleaseSmoke for file-pipeline checks.");
         string reportPath = Path.Combine(resultsDir, "benchmark-models-report.md");
         File.WriteAllText(reportPath, sb.ToString(), Encoding.UTF8);
 

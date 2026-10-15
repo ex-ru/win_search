@@ -264,8 +264,10 @@ public static class AudioVideoExtractor
 
         using (var process = new System.Diagnostics.Process { StartInfo = StartInfo(paths.FFmpegExe, BuildPcmArgs(path)) })
         {
+            ct.ThrowIfCancellationRequested();
             process.Start();
             JobObjectManager.AssignProcess(process);
+            using var interrupted = ct.Register(() => StopProcess(process));
             var stderrTask = process.StandardError.ReadToEndAsync();
             var stdout = process.StandardOutput.BaseStream;
             byte[] chunk = new byte[64 * 1024];
@@ -444,8 +446,10 @@ public static class AudioVideoExtractor
         string exe, string args, System.Threading.CancellationToken ct)
     {
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
+        ct.ThrowIfCancellationRequested();
         process.Start();
         JobObjectManager.AssignProcess(process);
+        using var interrupted = ct.Register(() => StopProcess(process));
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync(ct);
@@ -456,8 +460,10 @@ public static class AudioVideoExtractor
         string exe, string args, System.Threading.CancellationToken ct)
     {
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
+        ct.ThrowIfCancellationRequested();
         process.Start();
         JobObjectManager.AssignProcess(process);
+        using var interrupted = ct.Register(() => StopProcess(process));
         var stderrTask = process.StandardError.ReadToEndAsync();
         using var memory = new System.IO.MemoryStream();
         await process.StandardOutput.BaseStream.CopyToAsync(memory, ct);
@@ -479,6 +485,17 @@ public static class AudioVideoExtractor
         {
             throw ExtractError.Unreadable("ffmpeg failed: " + Tail(stderr));
         }
+    }
+
+    private static void StopProcess(System.Diagnostics.Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            process.WaitForExit(3000);
+        }
+        catch (System.InvalidOperationException) { }
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     private static string Tail(string stderr, int max = 300)

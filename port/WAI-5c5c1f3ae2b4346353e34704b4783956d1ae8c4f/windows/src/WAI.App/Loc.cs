@@ -186,4 +186,40 @@ public static class Loc
 
     // Mascot
     public static string MascotSubtitle => IsRu ? "Windows AI Search — быстрый поиск по смыслу" : "Windows AI Search — semantic file search";
+    public static string Advanced => IsRu ? "Дополнительно" : "Advanced";
+    public static string Searching => IsRu ? "Поиск…" : "Searching…";
+    public static string SearchResults(int count, int limit) => count == 0
+        ? (IsRu ? "Совпадений нет. Попробуйте другие слова или тип файла." : "No matches. Try different words or file types.")
+        : (IsRu ? $"Показано результатов: {count}" : $"Results shown: {count}")
+          + (count >= limit ? (IsRu ? ". Уточните запрос, чтобы найти больше." : ". Refine the query to find more.") : "");
+    public static string SearchFailed => IsRu ? "Не удалось выполнить поиск. Попробуйте ещё раз; подробности в журнале." : "Search failed. Try again; details are in the log.";
+    public static string PreviewFailed => IsRu ? "Предпросмотр недоступен. Файл можно открыть отдельно." : "Preview unavailable. You can open the file separately.";
+    public static string FileActionFailed => IsRu ? "Не удалось выполнить действие с файлом. Подробности в журнале." : "The file action failed. Details are in the log.";
+    public static string DownloadFailed => IsRu ? "Не удалось загрузить модель. Проверьте подключение и свободное место, затем повторите." : "Could not download the model. Check your connection and free disk space, then retry.";
+    public static string Retry => IsRu ? "Повторить" : "Retry";
+    public static string SetupTitle => IsRu ? "Настройка WAI" : "WAI setup";
+    public static string SetupHeading => IsRu ? "Найдите свои файлы" : "Find your files";
+    public static string SetupStep(int step) => IsRu ? $"Шаг {step} из 3" : $"Step {step} of 3";
+    public static string SetupFolders => IsRu ? "Выберите папки для поиска. Файлы обрабатываются только на вашем компьютере." : "Choose folders to search. Files are processed only on your computer.";
+    public static string SetupPickFolder => IsRu ? "Сначала добавьте хотя бы одну папку." : "Add at least one folder first.";
+    public static string SetupDownload => IsRu ? "Загрузим модель поиска. После загрузки поиск работает без интернета." : "Download the search model. After downloading, search works offline.";
+    public static string SetupReady => IsRu ? "Всё готово. WAI обработает ваши файлы в фоне; результаты будут появляться постепенно." : "Ready. WAI will read your files in the background; results appear as files are processed.";
+    public static string SetupShortcut(string hotkey) => IsRu ? $"Поиск: {hotkey}. Папки и клавиши можно изменить в настройках через значок WAI в трее." : $"Search: {hotkey}. Change folders and shortcuts in Settings through the WAI tray icon.";
+    public static string Next => IsRu ? "Далее" : "Next";
+    public static string Back => IsRu ? "Назад" : "Back";
+    public static string ModelReady => IsRu ? "Модель загружена и проверена." : "Model downloaded and verified.";
+    public static string DownloadStopped => IsRu ? "Загрузка остановлена. Можно повторить." : "Download stopped. You can retry.";
+    public static string EstimateRunning => IsRu ? "Подсчёт файлов…" : "Counting files…";
+    public static string SetupEstimate(int count) => IsRu ? $"Найдено файлов: {count}." : $"Files found: {count}.";
+    public static string NoReadableFiles => IsRu ? "Подходящих файлов пока нет. Можно добавить их позже." : "No supported files yet. You can add them later.";
+    public static string SemanticUnavailable => IsRu ? "Пока показаны совпадения по словам. Поиск по смыслу недоступен." : "Showing keyword matches. Semantic search is unavailable.";
+    public static string Pin => IsRu ? "Закрепить поверх всех окон" : "Keep above other windows";
+    public static string Unpin => IsRu ? "Открепить от верха" : "Stop keeping above other windows";
+    public static string NoExcerpt => IsRu ? "Нет текстового фрагмента — найдено по смыслу или изображению" : "No text excerpt — matched by meaning or image";
+    public static string Video => IsRu ? "Видео" : "Video";
+    public static string Audio => IsRu ? "Аудио" : "Audio";
+    public static string Page => IsRu ? "страница" : "page";
+    public static string CodeLabel => IsRu ? "Код" : "Code";
+    public static string PreviewLabel => IsRu ? "Предпросмотр" : "Preview";
+    public static string HideSearch => IsRu ? "Скрыть" : "Hide";
 }

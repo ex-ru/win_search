@@ -336,7 +336,8 @@ public partial class PreviewWindow : Window
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show(this, $"Ошибка сохранения: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                ErrorLog.Write("preview save: " + ex);
+                System.Windows.MessageBox.Show(this, Loc.FileActionFailed, AppConstants.AppName, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

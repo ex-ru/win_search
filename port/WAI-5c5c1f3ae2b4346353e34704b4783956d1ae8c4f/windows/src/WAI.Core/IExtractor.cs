@@ -164,6 +164,7 @@ public sealed class DefaultExtractor : IExtractor
     private readonly IPdfEngine _pdf;
     private readonly FFmpegPaths _ffmpeg;
     private readonly IGitIgnore? _gitIgnore;
+    private readonly System.Threading.CancellationToken _cancellationToken;
 
     public DefaultExtractor(
         IndexOptions options,
@@ -171,7 +172,8 @@ public sealed class DefaultExtractor : IExtractor
         IOcrEngine ocr,
         IPdfEngine pdf,
         FFmpegPaths ffmpeg,
-        IGitIgnore? gitIgnore = null)
+        IGitIgnore? gitIgnore = null,
+        System.Threading.CancellationToken cancellationToken = default)
     {
         _options = options;
         _images = images;
@@ -179,10 +181,12 @@ public sealed class DefaultExtractor : IExtractor
         _pdf = pdf;
         _ffmpeg = ffmpeg;
         _gitIgnore = gitIgnore;
+        _cancellationToken = cancellationToken;
     }
 
     public PreparedBatch Prepare(Job job, string folder)
     {
+        _cancellationToken.ThrowIfCancellationRequested();
         var batch = job.Files;
         var prepared = new PreparedBatch(job, folder);
         try
@@ -229,6 +233,7 @@ public sealed class DefaultExtractor : IExtractor
 
             prepared.Payload = ExtractPayload.Nothing.Instance;
         }
+        catch (System.OperationCanceledException) when (_cancellationToken.IsCancellationRequested) { throw; }
         catch (System.Exception error)
         {
             for (int slot = 0; slot < batch.Count; slot++)
@@ -239,6 +244,7 @@ public sealed class DefaultExtractor : IExtractor
             prepared.Payload = ExtractPayload.Nothing.Instance;
         }
 
+        _cancellationToken.ThrowIfCancellationRequested();
         return prepared;
     }
 
@@ -249,6 +255,7 @@ public sealed class DefaultExtractor : IExtractor
         var ready = new System.Collections.Generic.List<ReadyImage>();
         for (int slot = 0; slot < batch.Count; slot++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var image = ImageExtractor.Prepare(
@@ -320,7 +327,7 @@ public sealed class DefaultExtractor : IExtractor
     {
         var task = AudioVideoExtractor.DecodeAudioWindowsAsync(
             file.Path, _options.AudioWindow, _options.AudioHop,
-            AudioVideoExtractor.TailMinimumSeconds, folder, _ffmpeg);
+            AudioVideoExtractor.TailMinimumSeconds, folder, _ffmpeg, _cancellationToken);
         var (pieces, duration) = task.GetAwaiter().GetResult();
         return new ExtractPayload.Audio(pieces, duration);
     }
@@ -329,14 +336,14 @@ public sealed class DefaultExtractor : IExtractor
     {
         var framesTask = AudioVideoExtractor.ExtractKeyframesAsync(
             file.Path, _options.FrameInterval, AudioVideoExtractor.FrameMaxPixel,
-            AudioVideoExtractor.MaxFrames, folder, _ffmpeg);
+            AudioVideoExtractor.MaxFrames, folder, _ffmpeg, _cancellationToken);
         var (frames, duration, hasAudio) = framesTask.GetAwaiter().GetResult();
         var sound = new System.Collections.Generic.List<MediaPiece>();
         if (hasAudio)
         {
             var soundTask = AudioVideoExtractor.DecodeAudioWindowsAsync(
                 file.Path, _options.AudioWindow, _options.AudioHop,
-                AudioVideoExtractor.TailMinimumSeconds, folder, _ffmpeg);
+                AudioVideoExtractor.TailMinimumSeconds, folder, _ffmpeg, _cancellationToken);
             sound.AddRange(soundTask.GetAwaiter().GetResult().Pieces);
         }
 
