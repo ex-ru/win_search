@@ -34,7 +34,7 @@ for package in mingw-w64-common gcc-mingw-w64-base; do
 done
 dpkg-query -W gcc-mingw-w64-x86-64 gcc-mingw-w64-base mingw-w64-common nasm make > "$output/tools/licenses/ffmpeg/toolchain-packages.txt"
 x86_64-w64-mingw32-gcc --version > "$output/tools/licenses/ffmpeg/compiler-version.txt"
-cp config.log "$output/tools/licenses/ffmpeg/"
+cp ffbuild/config.log "$output/tools/licenses/ffmpeg/"
 python3 - "$repo" "$output" <<'PY'
 import hashlib,json,pathlib,subprocess,sys,zipfile
 repo,out=map(pathlib.Path,sys.argv[1:])

@@ -20,9 +20,12 @@ jobs:
       - name: Compile official source without external codec libraries
         run: bash scripts/build-ffmpeg.sh "$RUNNER_TEMP/ffmpeg"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ffmpeg-win-x64
           compression-level: 0
           path: |
             ${{ runner.temp }}/ffmpeg/ffmpeg-tools-win-x64.zip
             ${{ runner.temp }}/ffmpeg/ffmpeg-corresponding-source.zip
+            ${{ runner.temp }}/ffmpeg/tools/
+            ${{ runner.temp }}/ffmpeg/sources/
