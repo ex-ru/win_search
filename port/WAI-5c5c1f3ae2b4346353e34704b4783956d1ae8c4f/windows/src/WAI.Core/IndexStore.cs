@@ -162,52 +162,44 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     public string FilePath { get; }
     public Database Db => _db;
 
-    private List<string>? _scope;
-    private string _scopeSql = "";
-    private List<SqlValue> _scopeValues = new();
+    private PathScope _scopeFilter = new(null);
 
-    /// <summary>When set, pending/unfinished/counts see only files under these folders.</summary>
+    /// <summary>Null includes all files; an empty list includes none. Values are copied.</summary>
     public List<string>? Scope
     {
-        get => _scope;
-        set
-        {
-            _scope = value;
-            if (value is null)
-            {
-                _scopeSql = "";
-                _scopeValues = new();
-                return;
-            }
-            if (value.Count == 0)
-            {
-                _scopeSql = " AND 0";
-                _scopeValues = new();
-                return;
-            }
-            var parts = new List<string>();
-            var vals = new List<SqlValue>();
-            foreach (var root in value)
-            {
-                string prefix = NormalizePath(root);
-                if (!prefix.EndsWith('/'))
-                    prefix += "/";
-                parts.Add("(path >= ? AND path < ?)");
-                vals.Add(SqlValue.Text(prefix));
-                vals.Add(SqlValue.Text(prefix + "\U0010FFFF"));
-            }
-            _scopeSql = " AND (" + string.Join(" OR ", parts) + ")";
-            _scopeValues = vals;
-        }
+        get => Volatile.Read(ref _scopeFilter).Roots?.ToList();
+        set => Volatile.Write(ref _scopeFilter, new PathScope(value));
     }
 
-    public IndexStore(string directory, string fileName = MainFile)
+    internal PathScope ScopeSnapshot => Volatile.Read(ref _scopeFilter);
+    public bool IsCodeIndex { get; }
+
+    /// <summary>Dimension belongs to this index, never to a concurrently loaded model.</summary>
+    public int VectorDimension => StoredVectorDimension() ?? 768;
+
+    private int? StoredVectorDimension()
+    {
+        if (int.TryParse(Meta("vector_dim"), out int dimension) && dimension > 0)
+            return dimension;
+        int? detected = null;
+        _db.Query("SELECT length(vec) FROM segments WHERE vec IS NOT NULL LIMIT 1", r =>
+        {
+            int bytes = r.GetInt32(0);
+            if (bytes > 0 && bytes % 2 == 0) detected = bytes / 2;
+        });
+        return detected;
+    }
+
+    public IndexStore(string directory, string fileName = MainFile, bool? isCodeIndex = null)
     {
         System.IO.Directory.CreateDirectory(directory);
         Directory = directory;
         FilePath = System.IO.Path.Combine(directory, fileName);
         _db = new Database(FilePath);
         Migrate();
+        IsCodeIndex = isCodeIndex ?? (System.IO.Path.GetFileNameWithoutExtension(fileName).Equals("code", StringComparison.OrdinalIgnoreCase)
+            || System.IO.Path.GetFileNameWithoutExtension(fileName).StartsWith("code_", StringComparison.OrdinalIgnoreCase));
+        _db.Execute("CREATE INDEX IF NOT EXISTS files_path_windows ON files(path COLLATE WAI_PATH)");
     }
 
     /// <summary>Bytes on disk: the database and its write-ahead log.</summary>
@@ -237,7 +229,7 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         string f = NormalizePath(folder);
         if (!f.EndsWith('/'))
             f += "/";
-        return p.StartsWith(f, StringComparison.Ordinal);
+        return p.StartsWith(f, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -260,8 +252,8 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 "SELECT COUNT(DISTINCT f.id), COUNT(s.id), COUNT(s.vec), COALESCE(SUM(LENGTH(s.vec)), 0) " +
                 "FROM files f " +
                 "LEFT JOIN segments s ON s.file = f.id " +
-                "WHERE f.path >= ? AND f.path < ?",
-                [SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF")],
+                "WHERE f.path COLLATE WAI_PATH >= ? AND f.path COLLATE WAI_PATH < ?",
+                [SqlValue.Text(prefix), SqlValue.Text(prefix[..^1] + "0")],
                 r =>
                 {
                     files = (int)r.GetInt64(0);
@@ -379,6 +371,7 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     /// </summary>
     public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetFileCounts()
     {
+        var scope = ScopeSnapshot;
         int done = 0;
         int total = 0;
         int pending = 0;
@@ -386,7 +379,7 @@ public sealed class IndexStore : IDisposable, IIndexerStore
 
         try
         {
-            _db.Query("SELECT state, COUNT(*) FROM files WHERE 1" + _scopeSql + " GROUP BY state", _scopeValues, r =>
+            _db.Query("SELECT state, COUNT(*) FROM files WHERE 1" + scope.Sql() + " GROUP BY state", scope.Values, r =>
             {
                 string state = r.NullableText(0) ?? "";
                 int count = (int)r.GetInt64(1);
@@ -395,8 +388,8 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 else if (state == "pending") pending += count;
             });
 
-            string inScope = _scope is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + _scopeSql + ")";
-            _db.Query("SELECT COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, _scopeValues, r =>
+            string inScope = scope.Roots is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + scope.Sql() + ")";
+            _db.Query("SELECT COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, scope.Values, r =>
             {
                 vectors = (int)r.GetInt64(0);
             });
@@ -575,7 +568,7 @@ public sealed class IndexStore : IDisposable, IIndexerStore
 
     private static FileRecord Record(Microsoft.Data.Sqlite.SqliteDataReader r) =>
         new(r.GetInt64(0), r.NullableText(1) ?? "", FileKindStrings.Parse(r.NullableText(2)),
-            r.GetInt64(3), r.GetDouble(4), r.GetInt64(5), r.GetInt64(6), r.NullableText(7) ?? "pending");
+            r.GetInt64(3), r.GetDouble(4), r.GetInt64(6), r.GetInt64(5), r.NullableText(7) ?? "pending");
 
     /// <summary>Every file under one of <paramref name="roots"/>.</summary>
     public IReadOnlyList<FileRecord> FilesUnder(IReadOnlyList<string> roots)
@@ -594,8 +587,8 @@ public sealed class IndexStore : IDisposable, IIndexerStore
             string prefix = NormalizePath(root);
             if (!prefix.EndsWith('/'))
                 prefix += "/";
-            _db.Query("SELECT " + FileColumns + " FROM files WHERE path >= ? AND path < ?",
-                new[] { SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") },
+            _db.Query("SELECT " + FileColumns + " FROM files WHERE path COLLATE WAI_PATH >= ? AND path COLLATE WAI_PATH < ?",
+                new[] { SqlValue.Text(prefix), SqlValue.Text(prefix[..^1] + "0") },
                 r => output.Add(Record(r)));
         }
         return output;
@@ -604,38 +597,48 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     /// <summary>Adds a file (pending) and returns its id.</summary>
     public long Insert(CrawlCandidate file)
     {
-        _db.Run("INSERT INTO files(path, kind, size, mtime, inode, device) VALUES(?, ?, ?, ?, ?, ?)",
-            new[] { SqlValue.Text(NormalizePath(file.Path)), SqlValue.Text(file.Kind.ToStorageString()),
-                    SqlValue.Int(file.Size), SqlValue.Real(file.Mtime),
-                    SqlValue.Int(file.Inode), SqlValue.Int(file.Device) });
-        long id = _db.LastInsertId;
-        AddNameRow(id, file.Path);
-        return id;
+        return _db.Transaction(() =>
+        {
+            _db.Run("INSERT INTO files(path, kind, size, mtime, inode, device) VALUES(?, ?, ?, ?, ?, ?)",
+                new[] { SqlValue.Text(NormalizePath(file.Path)), SqlValue.Text(file.Kind.ToStorageString()),
+                        SqlValue.Int(file.Size), SqlValue.Real(file.Mtime),
+                        SqlValue.Int(file.Inode), SqlValue.Int(file.Device) });
+            long id = _db.LastInsertId;
+            AddNameRow(id, file.Path);
+            return id;
+        });
     }
 
     /// <summary>The file changed on disk: drop what was extracted from it and queue it again.</summary>
     public void Requeue(long id, CrawlCandidate file)
     {
-        DeleteSegments(id, keepingName: true);
-        _db.Run("UPDATE files SET kind = ?, size = ?, mtime = ?, inode = ?, device = ?, " +
-                "state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE id = ?",
-            new[] { SqlValue.Text(file.Kind.ToStorageString()), SqlValue.Int(file.Size),
-                    SqlValue.Real(file.Mtime),
-                    SqlValue.Int(file.Inode), SqlValue.Int(file.Device),
-                    SqlValue.Int(id) });
+        _db.Transaction(() =>
+        {
+            DeleteSegments(id, keepingName: true);
+            _db.Run("UPDATE files SET kind = ?, size = ?, mtime = ?, inode = ?, device = ?, " +
+                    "state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE id = ?",
+                new[] { SqlValue.Text(file.Kind.ToStorageString()), SqlValue.Int(file.Size),
+                        SqlValue.Real(file.Mtime),
+                        SqlValue.Int(file.Inode), SqlValue.Int(file.Device),
+                        SqlValue.Int(id) });
+        });
     }
 
     /// <summary>Extract and embed the file again, as it is.</summary>
     public void Requeue(long id)
     {
-        DeleteSegments(id, keepingName: true);
-        _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE id = ?",
-            new[] { SqlValue.Int(id) });
+        _db.Transaction(() =>
+        {
+            DeleteSegments(id, keepingName: true);
+            _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE id = ?",
+                new[] { SqlValue.Int(id) });
+        });
     }
 
     /// <summary>Requeues failed PDFs that could not be read because PDFium was missing.</summary>
     public int RetryMissingPdfiumFailures()
     {
+        var scope = ScopeSnapshot;
         const string detailPrefix = "unreadable: pdfium.dll is missing";
         return _db.Transaction(() =>
         {
@@ -645,9 +648,9 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 SqlValue.Int(detailPrefix.Length),
                 SqlValue.Text(detailPrefix),
             };
-            values.AddRange(_scopeValues);
+            values.AddRange(scope.Values);
             _db.Query("SELECT id FROM files WHERE kind = 'pdf' AND state = 'failed' " +
-                      "AND substr(detail, 1, ?) = ?" + _scopeSql,
+                      "AND substr(detail, 1, ?) = ?" + scope.Sql(),
                 values, r => ids.Add(r.GetInt64(0)));
 
             foreach (long id in ids)
@@ -659,19 +662,25 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     /// <summary>Same file at a new path (a move or rename): only the path changes.</summary>
     public void Move(long id, string toPath)
     {
-        _db.Run("UPDATE files SET path = ? WHERE id = ?",
-            new[] { SqlValue.Text(NormalizePath(toPath)), SqlValue.Int(id) });
-        _db.Run("UPDATE fts SET name = ?, body = ? " +
-                "WHERE rowid IN (SELECT id FROM segments WHERE file = ? AND kind = 'name')",
-            new[] { SqlValue.Text(SearchText.Normalized(NameText(toPath))),
-                    SqlValue.Text(SearchText.Normalized(FolderText(toPath))), SqlValue.Int(id) });
+        _db.Transaction(() =>
+        {
+            _db.Run("UPDATE files SET path = ? WHERE id = ?",
+                new[] { SqlValue.Text(NormalizePath(toPath)), SqlValue.Int(id) });
+            _db.Run("UPDATE fts SET name = ?, body = ? " +
+                    "WHERE rowid IN (SELECT id FROM segments WHERE file = ? AND kind = 'name')",
+                new[] { SqlValue.Text(SearchText.Normalized(NameText(toPath))),
+                        SqlValue.Text(SearchText.Normalized(FolderText(toPath))), SqlValue.Int(id) });
+        });
     }
 
     public void Delete(long id)
     {
-        _db.Run("DELETE FROM fts WHERE rowid IN (SELECT id FROM segments WHERE file = ?)",
-            new[] { SqlValue.Int(id) });
-        _db.Run("DELETE FROM files WHERE id = ?", new[] { SqlValue.Int(id) });
+        _db.Transaction(() =>
+        {
+            _db.Run("DELETE FROM fts WHERE rowid IN (SELECT id FROM segments WHERE file = ?)",
+                new[] { SqlValue.Int(id) });
+            _db.Run("DELETE FROM files WHERE id = ?", new[] { SqlValue.Int(id) });
+        });
     }
 
     /// <summary>Removes every file that isn't under one of <paramref name="roots"/>.
@@ -683,11 +692,6 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         var prefixes = new List<string>();
         foreach (var root in roots)
         {
-            if (!System.IO.Directory.Exists(root) && !System.IO.File.Exists(root))
-            {
-                continue;
-            }
-
             string p = NormalizePath(root);
             prefixes.Add(p.EndsWith('/') ? p : p + "/");
         }
@@ -746,12 +750,12 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 {
                     string prefix = NormalizePath(root);
                     if (!prefix.EndsWith('/')) prefix += "/";
-                    _db.Run("DELETE FROM fts WHERE rowid IN (SELECT s.id FROM segments s JOIN files f ON s.file = f.id WHERE (f.path = ? OR (f.path >= ? AND f.path < ?)) AND s.kind != 'name')",
-                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
-                    _db.Run("DELETE FROM segments WHERE file IN (SELECT id FROM files WHERE path = ? OR (path >= ? AND path < ?)) AND kind != 'name'",
-                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
-                    _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE path = ? OR (path >= ? AND path < ?)",
-                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix + "\U0010FFFF") });
+                    _db.Run("DELETE FROM fts WHERE rowid IN (SELECT s.id FROM segments s JOIN files f ON s.file = f.id WHERE (f.path COLLATE WAI_PATH = ? OR (f.path COLLATE WAI_PATH >= ? AND f.path COLLATE WAI_PATH < ?)) AND s.kind != 'name')",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix[..^1] + "0") });
+                    _db.Run("DELETE FROM segments WHERE file IN (SELECT id FROM files WHERE path COLLATE WAI_PATH = ? OR (path COLLATE WAI_PATH >= ? AND path COLLATE WAI_PATH < ?)) AND kind != 'name'",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix[..^1] + "0") });
+                    _db.Run("UPDATE files SET state = 'pending', detail = NULL, info = NULL, indexed_at = NULL WHERE path COLLATE WAI_PATH = ? OR (path COLLATE WAI_PATH >= ? AND path COLLATE WAI_PATH < ?)",
+                        new[] { SqlValue.Text(NormalizePath(root)), SqlValue.Text(prefix), SqlValue.Text(prefix[..^1] + "0") });
                 }
                 SetMeta("fingerprint", null);
             }
@@ -763,12 +767,13 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     /// narrows it to some files (just-added ones).</summary>
     public IReadOnlyList<FileRecord> Pending(int? limit, ISet<long>? only = null)
     {
+        var scope = ScopeSnapshot;
         var output = new List<FileRecord>();
         if (only is not null && only.Count == 0)
             return output;
         string filter = only is null ? "" : " AND id IN (" + string.Join(",", only) + ")";
-        var values = new List<SqlValue>(_scopeValues) { SqlValue.Int(limit ?? -1) };
-        _db.Query("SELECT " + FileColumns + " FROM files WHERE state = 'pending'" + filter + _scopeSql +
+        var values = new List<SqlValue>(scope.Values) { SqlValue.Int(limit ?? -1) };
+        _db.Query("SELECT " + FileColumns + " FROM files WHERE state = 'pending'" + filter + scope.Sql() +
                   " ORDER BY " + FileKindOrder.IndexingOrderSql + ", mtime DESC LIMIT ?",
             values, r => output.Add(Record(r)));
         return output;
@@ -776,8 +781,9 @@ public sealed class IndexStore : IDisposable, IIndexerStore
 
     public int PendingCount()
     {
+        var scope = ScopeSnapshot;
         int count = 0;
-        _db.Query("SELECT COUNT(*) FROM files WHERE state = 'pending'" + _scopeSql, _scopeValues,
+        _db.Query("SELECT COUNT(*) FROM files WHERE state = 'pending'" + scope.Sql(), scope.Values,
             r => { count = (int)r.GetInt64(0); });
         return count;
     }
@@ -785,20 +791,22 @@ public sealed class IndexStore : IDisposable, IIndexerStore
     /// <summary>Long files with pages or chunks still to read after their first step.</summary>
     public IReadOnlyList<FileRecord> Unfinished()
     {
+        var scope = ScopeSnapshot;
         var output = new List<FileRecord>();
-        _db.Query("SELECT " + FileColumns + " FROM files WHERE state = 'partial'" + _scopeSql +
+        _db.Query("SELECT " + FileColumns + " FROM files WHERE state = 'partial'" + scope.Sql() +
                   " ORDER BY " + FileKindOrder.IndexingOrderSql + ", mtime DESC",
-            _scopeValues, r => output.Add(Record(r)));
+            scope.Values, r => output.Add(Record(r)));
         return output;
     }
 
     /// <summary>How many long files are unfinished, and how many of their pages and chunks are left.</summary>
     public (int Files, int Left) UnfinishedCount()
     {
+        var scope = ScopeSnapshot;
         int files = 0, left = 0;
         _db.Query("SELECT COUNT(*), SUM(MAX(0, CAST(json_extract(info, '$.read_end') AS INTEGER) " +
                   "- CAST(json_extract(info, '$.read_to') AS INTEGER))) " +
-                  "FROM files WHERE state = 'partial'" + _scopeSql, _scopeValues,
+                  "FROM files WHERE state = 'partial'" + scope.Sql(), scope.Values,
             r =>
             {
                 files = (int)r.GetInt64(0);
@@ -886,24 +894,33 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         double? loc = null, double? locEnd = null, string? excerpt = null,
         string? text = null, float[]? vector = null)
     {
-        // Clean once on the way in: no lone surrogates ever reach FTS or
-        // the snippet path, whatever the extractor handed us.
-        excerpt = excerpt is null ? null : TextSanitize.Clean(excerpt);
-        text = text is null ? null : TextSanitize.Clean(text);
-        byte[]? blob = vector is null ? null : Vectors.ToHalfBlob(vector);
-        _db.Run("INSERT INTO segments(file, kind, modality, loc, loc_end, excerpt, vec) " +
-                "VALUES(?, ?, ?, ?, ?, ?, ?)",
-            new[] { SqlValue.Int(fileId), SqlValue.Text(kind.ToStorageString()),
-                    SqlValue.Text(vector is null ? ModalityStrings.Raw(Modality.None)
-                                                : ModalityStrings.Raw(modality)),
-                    SqlValue.Of(loc), SqlValue.Of(locEnd), SqlValue.Of(excerpt),
-                    blob is null ? SqlValue.Null : SqlValue.Blob(blob) });
-        if (!string.IsNullOrEmpty(text))
+        _db.Transaction(() =>
         {
-            var (body, original) = KeywordText(text);
-            _db.Run("INSERT INTO fts(rowid, name, body, original) VALUES(?, '', ?, ?)",
-                new[] { SqlValue.Int(_db.LastInsertId), SqlValue.Text(body), SqlValue.Of(original) });
-        }
+            // Clean once on the way in: no lone surrogates ever reach FTS or
+            // the snippet path, whatever the extractor handed us.
+            excerpt = excerpt is null ? null : TextSanitize.Clean(excerpt);
+            text = text is null ? null : TextSanitize.Clean(text);
+            byte[]? blob = null;
+            if (vector is not null)
+            {
+                int dimension = StoredVectorDimension() ?? vector.Length;
+                blob = Vectors.ToHalfBlob(vector, dimension);
+                if (Meta("vector_dim") is null) SetMeta("vector_dim", dimension.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            _db.Run("INSERT INTO segments(file, kind, modality, loc, loc_end, excerpt, vec) " +
+                    "VALUES(?, ?, ?, ?, ?, ?, ?)",
+                new[] { SqlValue.Int(fileId), SqlValue.Text(kind.ToStorageString()),
+                        SqlValue.Text(vector is null ? ModalityStrings.Raw(Modality.None)
+                                                    : ModalityStrings.Raw(modality)),
+                        SqlValue.Of(loc), SqlValue.Of(locEnd), SqlValue.Of(excerpt),
+                        blob is null ? SqlValue.Null : SqlValue.Blob(blob) });
+            if (!string.IsNullOrEmpty(text))
+            {
+                var (body, original) = KeywordText(text);
+                _db.Run("INSERT INTO fts(rowid, name, body, original) VALUES(?, '', ?, ?)",
+                    new[] { SqlValue.Int(_db.LastInsertId), SqlValue.Text(body), SqlValue.Of(original) });
+            }
+        });
     }
 
     /// <summary>Adds a <see cref="Piece"/> as one segment row (+FTS5 row / vector).</summary>
@@ -962,9 +979,10 @@ public sealed class IndexStore : IDisposable, IIndexerStore
 
     public Counts Counts()
     {
+        var scope = ScopeSnapshot;
         var counts = new Counts();
-        _db.Query("SELECT kind, state, COUNT(*) FROM files WHERE 1" + _scopeSql +
-                  " GROUP BY kind, state", _scopeValues,
+        _db.Query("SELECT kind, state, COUNT(*) FROM files WHERE 1" + scope.Sql() +
+                  " GROUP BY kind, state", scope.Values,
             r => {
                 string kind = r.NullableText(0) ?? "?";
                 string state = r.NullableText(1) ?? "?";
@@ -976,8 +994,8 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 inner[state] = (int)r.GetInt64(2);
             });
         (counts.Unfinished, counts.Left) = UnfinishedCount();
-        string inScope = _scope is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + _scopeSql + ")";
-        _db.Query("SELECT COUNT(*), COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, _scopeValues,
+        string inScope = scope.Roots is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + scope.Sql() + ")";
+        _db.Query("SELECT COUNT(*), COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, scope.Values,
             r =>
             {
                 counts.Segments = (int)r.GetInt64(0);
@@ -993,4 +1011,19 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         _disposed = true;
         _db.Dispose();
     }
+}
+
+/// <summary>Immutable scope captured once per operation, including its bound SQL values.</summary>
+internal sealed class PathScope
+{
+    public IReadOnlyList<string>? Roots { get; }
+    public IReadOnlyList<SqlValue> Values { get; }
+    public PathScope(IEnumerable<string>? roots)
+    {
+        Roots = roots?.Select(p => IndexStore.NormalizePath(p).TrimEnd('/') + "/").Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        Values = Roots?.SelectMany(p => new[] { SqlValue.Text(p), SqlValue.Text(p[..^1] + "0") }).ToArray()
+            ?? Array.Empty<SqlValue>();
+    }
+    public string Sql(string column = "path") => Roots is null ? "" : Roots.Count == 0 ? " AND 0"
+        : " AND (" + string.Join(" OR ", Roots.Select(_ => "(" + column + " COLLATE WAI_PATH >= ? AND " + column + " COLLATE WAI_PATH < ?)")) + ")";
 }

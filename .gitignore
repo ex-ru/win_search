@@ -16,7 +16,15 @@ dist/releases/legacy/
 run/
 run-vulkan/
 dist/staging/
+dist/releases/
 /releases/
+TestResults/
+**/Vendor/
+*.pfx
+*.p12
+.env
+.env.*
+!.env.example
 **/[Bb]in/
 **/[Oo]bj/
 
@@ -37,3 +45,4 @@ Thumbs.db
 [Dd]esktop.ini
 *.tmp
 *.log
+*.trx

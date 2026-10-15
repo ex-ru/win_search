@@ -55,6 +55,63 @@ public static class SearchText
         return sb.ToString();
     }
 
+    // Conservative inflection expansion: only whole Cyrillic words, never codes or numbers.
+    // Exact alternatives avoid the false positives of a broad prefix (счет -> счетчик).
+    private static readonly string[] RussianEndings =
+    {
+        "иями", "ями", "ами", "иях", "иям", "ией", "ого", "его", "ому", "ему", "ыми", "ими",
+        "ов", "ев", "ей", "ам", "ям", "ах", "ях", "ом", "ем", "ою", "ею", "ую", "юю",
+        "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий", "ой", "ым", "им", "ия", "ию", "ии", "ью",
+        "а", "я", "у", "ю", "ы", "и", "е", "о", "ь"
+    };
+
+    internal static IReadOnlyList<string> RussianForms(string word)
+    {
+        string normalized = word.ToLowerInvariant().Replace('ё', 'е');
+        if (normalized.Length < 3 || normalized.Any(c => c < 'а' || c > 'я'))
+            return new[] { word };
+        string stem = normalized;
+        foreach (string ending in RussianEndings)
+        {
+            if (normalized.EndsWith(ending, StringComparison.Ordinal) && normalized.Length - ending.Length >= 3)
+            {
+                stem = normalized[..^ending.Length];
+                break;
+            }
+        }
+        var stems = new HashSet<string>(StringComparer.Ordinal) { stem };
+        // Fleeting vowels in noun endings: попытк/попыток, поршн/поршен(ь),
+        // замк/замок, камн/камен(ь). Expand exact words rather than broad prefixes.
+        const string vowels = "аеёиоуыэюяьъ";
+        if (stem.Length >= 4 && "кцнлр".Contains(stem[^1]))
+        {
+            if (!vowels.Contains(stem[^2]))
+            {
+                stems.Add(stem[..^1] + "е" + stem[^1]);
+                if ("клр".Contains(stem[^1])) stems.Add(stem[..^1] + "о" + stem[^1]);
+            }
+            else if (stem.Length >= 5 && "ео".Contains(stem[^2]) && !vowels.Contains(stem[^3]))
+                stems.Add(stem[..^2] + stem[^1]);
+        }
+        var forms = new HashSet<string>(StringComparer.Ordinal) { normalized };
+        foreach (string variant in stems)
+        {
+            forms.Add(variant);
+            foreach (string ending in RussianEndings) forms.Add(variant + ending);
+        }
+        // Existing indexes can contain either spelling of ё. Expand each e independently.
+        foreach (string form in forms.ToArray())
+        {
+            var spellings = new List<string> { form };
+            for (int i = 0; i < form.Length; i++)
+                if (form[i] == 'е' && spellings.Count < 8)
+                    foreach (string spelling in spellings.ToArray())
+                        spellings.Add(spelling[..i] + "ё" + spelling[(i + 1)..]);
+            foreach (string spelling in spellings) forms.Add(spelling);
+        }
+        return forms.ToArray();
+    }
+
     /// <summary>True for words of scripts that attach endings to words (Bengali, Hindi,
     /// Arabic): keyword search matches them as prefixes, so "কুমির" finds "কুমিরও"
     /// and "مدرس" finds "مدرسة".</summary>
@@ -119,6 +176,18 @@ public static class SearchText
                 folded.Append(c);
                 origin.Add(i);
             }
+        }
+
+        var russianForms = RussianForms(needle);
+        if (russianForms.Count > 1)
+        {
+            foreach (Match token in Regex.Matches(text, @"[\p{L}\p{N}]+"))
+                if (russianForms.Contains(token.Value.ToLowerInvariant(), StringComparer.Ordinal))
+                {
+                    found.Add(new TextRange(token.Index, token.Length));
+                    if (found.Count >= 500) break;
+                }
+            return found;
         }
 
         var compare = CultureInfo.InvariantCulture.CompareInfo;

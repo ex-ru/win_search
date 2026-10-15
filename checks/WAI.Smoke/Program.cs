@@ -41,6 +41,19 @@ internal static class Program
         try
         {
             RunProbe(report, runDir, indexDir, manifestPath);
+            foreach (QueryResult result in report.Results)
+            {
+                if (result.Kind == "absent")
+                {
+                    if (result.LexicalTop.Count != 0) report.Failures.Add($"Absent lexical query returned documents: {result.Query}");
+                }
+                else
+                {
+                    if (result.HybridExpectedRank is null) report.Failures.Add($"Required hybrid answer missing from top-{SearchLimit}: {result.Query}");
+                    if (result.Kind == "exact" && result.LexicalExpectedRank is null) report.Failures.Add($"Required exact lexical answer missing from top-{SearchLimit}: {result.Query}");
+                }
+            }
+            if (report.Failures.Count != 0) exitCode = 1;
         }
         catch (Exception error)
         {
@@ -48,6 +61,7 @@ internal static class Program
             exitCode = 2;
         }
 
+        report.Status = exitCode == 0 ? "passed" : "failed";
         report.FinishedAtUtc = DateTimeOffset.UtcNow;
         report.PositiveMetrics = BuildPositiveMetrics(report.Results);
         report.AbsentFindings = report.Results
@@ -331,7 +345,7 @@ internal static class Program
         if (report.AbsentFindings.Count > 0)
         {
             int withHybridHits = report.AbsentFindings.Count(finding => finding.HybridReturnedAny);
-            Console.WriteLine($"Absent queries with hybrid top-5 results: {withHybridHits}/{report.AbsentFindings.Count} (reported, not asserted)");
+            Console.WriteLine($"Absent queries with hybrid top-5 results: {withHybridHits}/{report.AbsentFindings.Count} (diagnostic; lexical absence is asserted)");
         }
 
         if (report.WarmTiming is { } warm)
@@ -407,6 +421,8 @@ internal static class Program
         public Dictionary<string, Dictionary<string, HitMetrics>> PositiveMetrics { get; set; } = new();
         public List<AbsentFinding> AbsentFindings { get; set; } = new();
         public WarmTiming? WarmTiming { get; set; }
+        public string Status { get; set; } = "failed";
+        public List<string> Failures { get; } = new();
         public string? Error { get; set; }
     }
 }

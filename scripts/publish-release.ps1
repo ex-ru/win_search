@@ -1,113 +1,91 @@
-# Publish WAI Windows distribution packages to GitHub Releases
-# PowerShell 5.1 & Core safe.
+# Publish a tested package as a draft; make it public only after asset verification.
 param(
-    [string]$Version = "1.1.0",
-    [string]$Repo = "ex-ru/win_search",
-    [string]$ReleasesDir = "",
+    [string]$Version = '1.2.0',
+    [string]$Repo = 'ex-ru/win_search',
+    [string]$ReleasesDir = '',
+    [string]$TargetCommitish = '',
+    [string]$NotesFile = '',
     [string]$Token = $env:GITHUB_TOKEN
 )
-
-$ErrorActionPreference = "Stop"
-
+$ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($ReleasesDir)) {
-    $ReleasesDir = Join-Path $RepoRoot "dist\releases"
-}
-$ReleasesDir = [System.IO.Path]::GetFullPath($ReleasesDir)
-
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " WAI Release Publisher" -ForegroundColor Cyan
-Write-Host " Version:     $Version" -ForegroundColor Cyan
-Write-Host " Repository:  $Repo" -ForegroundColor Cyan
-Write-Host " Source:      $ReleasesDir" -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
-
-if (!(Test-Path $ReleasesDir)) {
-    Write-Error "Directory $ReleasesDir does not exist. Run build-package.ps1 first."
-    exit 1
-}
-
-$filesToUpload = @(Get-ChildItem -Path $ReleasesDir -File | Where-Object {
-    $_.Name -like "*.exe" -or $_.Name -like "*.zip" -or $_.Name -like "*.nupkg" -or
-    $_.Name -in @("releases.win.json", "RELEASES", "SHA256SUMS.txt")
+if (!$ReleasesDir) { $ReleasesDir = Join-Path $RepoRoot 'dist\releases' }
+$ReleasesDir = [IO.Path]::GetFullPath($ReleasesDir)
+if (!$TargetCommitish) { $TargetCommitish = (& git -C $RepoRoot rev-parse HEAD | Out-String).Trim() }
+if ($TargetCommitish -notmatch '^[a-fA-F0-9]{40}$') { throw 'TargetCommitish must be the tested full commit SHA.' }
+if (!$Token) { throw 'Pass Token or set GITHUB_TOKEN. No credentials are written to disk.' }
+if (!$NotesFile -or !(Test-Path -LiteralPath $NotesFile -PathType Leaf)) { throw 'Pass NotesFile containing the reviewed release notes.' }
+$Notes = Get-Content -LiteralPath $NotesFile -Raw -Encoding UTF8
+$Tag = "v$Version"
+$ExpectedNames = @('WinSearch.WAI-win-Setup.exe', 'WinSearch.WAI-win-Portable.zip', "WinSearch.WAI-$Version-full.nupkg",
+    'ffmpeg-tools-win-x64.zip', 'releases.win.json', 'assets.win.json', 'RELEASES', 'SHA256SUMS.txt')
+$Files = @($ExpectedNames | ForEach-Object {
+    $Path = Join-Path $ReleasesDir $_
+    if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing release artifact: $_" }
+    Get-Item -LiteralPath $Path
 })
-
-if ($filesToUpload.Count -eq 0) {
-    Write-Error "No release artifacts found in $ReleasesDir."
-    exit 1
+$Headers = @{ Authorization="Bearer $Token"; Accept='application/vnd.github+json'; 'User-Agent'='WAI-Release'; 'X-GitHub-Api-Version'='2022-11-28' }
+$Api = "https://api.github.com/repos/$Repo"
+function Invoke-Json([string]$Uri, [string]$Method, $Body) {
+    $Json = $Body | ConvertTo-Json -Depth 10 -Compress
+    Invoke-RestMethod -Uri $Uri -Headers $Headers -Method $Method -Body ([Text.Encoding]::UTF8.GetBytes($Json)) -ContentType 'application/json; charset=utf-8'
 }
-
-Write-Host "Found $($filesToUpload.Count) files to publish:" -ForegroundColor Yellow
-$filesToUpload | ForEach-Object {
-    $sizeMb = [Math]::Round($_.Length / 1MB, 2)
-    Write-Host " - $($_.Name) ($sizeMb MB)" -ForegroundColor Gray
-}
-
-# Check for GitHub CLI (gh)
-$gh = Get-Command gh -ErrorAction SilentlyContinue
-if ($gh) {
-    Write-Host "`nUsing GitHub CLI (gh)..." -ForegroundColor Green
-    $tag = "v$Version"
-    $filePaths = $filesToUpload | ForEach-Object { $_.FullName }
-    $title = "WAI v$Version (Windows)"
-    $notes = "WAI v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
-
-    Write-Host "Creating release $tag..." -ForegroundColor Yellow
-    & gh release create $tag @filePaths --repo $Repo --title $title --notes $notes
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Successfully published release $tag to https://github.com/$Repo/releases/tag/$tag" -ForegroundColor Green
-        exit 0
+function Get-Optional([string]$Uri) {
+    try { Invoke-RestMethod -Uri $Uri -Headers $Headers }
+    catch {
+        # The commits endpoint returns 422, rather than 404, for an unknown tag.
+        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(404,422)) { return $null }
+        throw
     }
 }
-
-# REST API upload with GITHUB_TOKEN
-if (![string]::IsNullOrWhiteSpace($Token)) {
-    Write-Host "`nPublishing via GitHub REST API with GITHUB_TOKEN..." -ForegroundColor Green
-    $tag = "v$Version"
-    $headers = @{
-        "Authorization" = "token $Token"
-        "Accept" = "application/vnd.github.v3+json"
-        "User-Agent" = "WAI-Publisher/1.0"
-    }
-
-    $releaseBody = @{
-        tag_name = $tag
-        name = "WAI v$Version (Windows)"
-        body = "WAI v$Version Windows Release with universal hardware acceleration (CPU, NVIDIA CUDA/Vulkan, AMD Radeon Vulkan, Intel Arc/Iris Xe Vulkan)."
-        draft = $false
-        prerelease = $false
-    } | ConvertTo-Json
-
-    $releaseUrl = "https://api.github.com/repos/$Repo/releases"
-    $created = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -Method Post -Body $releaseBody -ContentType "application/json"
-    $uploadBase = $created.upload_url -replace '\{\?name,label\}', ''
-
-    foreach ($file in $filesToUpload) {
-        $uploadUrl = "$uploadBase?name=$($file.Name)"
-        Write-Host "Uploading $($file.Name)..." -ForegroundColor Yellow
-        $uploadHeaders = @{
-            "Authorization" = "token $Token"
-            "Content-Type" = "application/octet-stream"
-            "User-Agent" = "WAI-Publisher/1.0"
-        }
-        Invoke-RestMethod -Uri $uploadUrl -Headers $uploadHeaders -Method Post -InFile $file.FullName | Out-Null
-    }
-
-    Write-Host "Successfully published release $tag via API!" -ForegroundColor Green
-    exit 0
+function Assert-Asset($Asset, $File) {
+    if ($Asset.state -ne 'uploaded' -or $Asset.size -ne $File.Length) { throw "Asset incomplete: $($File.Name)" }
+    if ($Asset.digest) {
+        $Digest = 'sha256:' + (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($Asset.digest -ne $Digest) { throw "Remote asset digest differs: $($File.Name)" }
+    } else { throw "GitHub did not return a SHA-256 digest for $($File.Name); draft retained." }
 }
-
-# Manual Instructions
-Write-Host "`n----------------------------------------------------------" -ForegroundColor Yellow
-Write-Host "Для загрузки релиза на GitHub выполните одно из действий:" -ForegroundColor Cyan
-Write-Host "1. Установите GitHub CLI (winget install GitHub.cli) и запустите:" -ForegroundColor White
-Write-Host "   gh auth login" -ForegroundColor Gray
-Write-Host "   .\scripts\publish-release.ps1 -Version $Version" -ForegroundColor Gray
-Write-Host "`n2. Либо установите переменную окружения с персональным токеном GitHub:" -ForegroundColor White
-Write-Host "   `$env:GITHUB_TOKEN = 'ghp_...'" -ForegroundColor Gray
-Write-Host "   .\scripts\publish-release.ps1 -Version $Version" -ForegroundColor Gray
-Write-Host "`n3. Либо откройте веб-интерфейс создания релиза в браузере:" -ForegroundColor White
-Write-Host "   👉 https://github.com/$Repo/releases/new" -ForegroundColor Yellow
-Write-Host "   И перетащите файлы из папки:" -ForegroundColor White
-Write-Host "   $ReleasesDir" -ForegroundColor Cyan
-Write-Host "----------------------------------------------------------`n" -ForegroundColor Yellow
+# Verify local checksums before any remote mutation.
+foreach ($Line in Get-Content -LiteralPath (Join-Path $ReleasesDir 'SHA256SUMS.txt')) {
+    if ([string]::IsNullOrWhiteSpace($Line)) { continue }
+    if ($Line -notmatch '^([a-fA-F0-9]{64})\s+\*?(.+)$') { throw "Malformed checksum: $Line" }
+    $Hash = $Matches[1]; $Name = $Matches[2]
+    if ([IO.Path]::GetFileName($Name) -ne $Name) { throw 'Checksum paths must be local filenames.' }
+    if ((Get-FileHash -LiteralPath (Join-Path $ReleasesDir $Name) -Algorithm SHA256).Hash -ne $Hash) { throw "Checksum mismatch: $Name" }
+}
+$ExistingCommit = Get-Optional "$Api/commits/$Tag"
+if ($ExistingCommit -and $ExistingCommit.sha -ne $TargetCommitish) { throw "$Tag already points to another commit; no tag was replaced." }
+$Releases = @(Invoke-RestMethod -Uri "$Api/releases?per_page=100" -Headers $Headers)
+$Release = @($Releases | Where-Object { $_.tag_name -eq $Tag }) | Select-Object -First 1
+if ($Release -and !$Release.draft) { throw "$Tag is already published; public assets were not changed." }
+if (!$Release) {
+    $Release = Invoke-Json "$Api/releases" 'Post' @{tag_name=$Tag;target_commitish=$TargetCommitish;name="WAI $Version for Windows";body=$Notes;draft=$true;prerelease=$false}
+} else {
+    $Release = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{tag_name=$Tag;target_commitish=$TargetCommitish;body=$Notes;name="WAI $Version for Windows"}
+}
+$UploadBase = $Release.upload_url -replace '\{.*$', ''
+foreach ($File in $Files) {
+    $Asset = @($Release.assets | Where-Object { $_.name -eq $File.Name }) | Select-Object -First 1
+    if (!$Asset) {
+        Write-Host "Uploading $($File.Name) ($($File.Length) bytes)"
+        $UploadUrl = "${UploadBase}?name=$([Uri]::EscapeDataString($File.Name))"
+        $Asset = Invoke-RestMethod -Uri $UploadUrl -Headers $Headers -Method Post -InFile $File.FullName -ContentType 'application/octet-stream' -TimeoutSec 1800
+    }
+    Assert-Asset $Asset $File
+    Write-Host "Verified $($File.Name)"
+}
+$Release = Invoke-RestMethod -Uri "$Api/releases/$($Release.id)" -Headers $Headers
+foreach ($File in $Files) {
+    $Asset = @($Release.assets | Where-Object { $_.name -eq $File.Name }) | Select-Object -First 1
+    if (!$Asset) { throw "Missing uploaded artifact: $($File.Name)" }
+    Assert-Asset $Asset $File
+}
+if (!$ExistingCommit) {
+    $CreatedRef = Invoke-Json "$Api/git/refs" 'Post' @{ref="refs/tags/$Tag";sha=$TargetCommitish}
+    if ($CreatedRef.object.sha -ne $TargetCommitish) { throw 'Created tag does not resolve to the tested commit; draft retained.' }
+}
+# Keep tag_name explicit on every update. Draft tags without a real Git ref can
+# otherwise be published under GitHub's generated untagged-* name.
+$Published = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{tag_name=$Tag;target_commitish=$TargetCommitish;draft=$false;make_latest='true'}
+if ($Published.draft -or $Published.tag_name -ne $Tag) { throw 'Release was not published under the requested tag.' }
+Write-Host "Published and verified $($Published.html_url) at $TargetCommitish"

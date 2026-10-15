@@ -221,7 +221,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string Display(string spec)
+    internal static string Display(string spec)
     {
         var parts = spec.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return string.Join("+", parts.Select(p =>
@@ -347,6 +347,7 @@ public partial class SettingsWindow : Window
     private void UpdateTextsForLanguage()
     {
         Title = Loc.SettingsTitle;
+        if (AdvancedPanel is not null) AdvancedPanel.Header = Loc.Advanced;
         if (TxtHeaderTitle is not null) TxtHeaderTitle.Text = Loc.SettingsHeader;
         if (TxtBannerDesc is not null) TxtBannerDesc.Text = Loc.BannerInitialIndex;
         if (TxtFoldersTitle is not null) TxtFoldersTitle.Text = Loc.FoldersTitle;
@@ -481,7 +482,8 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            TxtHardwareStatus.Text = Loc.IsRu ? $"Ошибка детектора: {ex.Message}" : $"Hardware detector error: {ex.Message}";
+            ErrorLog.Write("hardware detector: " + ex);
+            TxtHardwareStatus.Text = Loc.IsRu ? "Не удалось определить оборудование. Можно выбрать процессор." : "Could not detect hardware. You can select CPU.";
         }
     }
 
@@ -506,7 +508,8 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            TxtModelStatus.Text = Loc.IsRu ? $"Ошибка каталога моделей: {ex.Message}" : $"Model catalog error: {ex.Message}";
+            ErrorLog.Write("model catalog: " + ex);
+            TxtModelStatus.Text = Loc.IsRu ? "Не удалось прочитать список моделей. Подробности в журнале." : "Could not read the model list. Details are in the log.";
         }
     }
 
@@ -614,52 +617,16 @@ public partial class SettingsWindow : Window
             string dir = ModelFiles.InstalledDirectory;
             Directory.CreateDirectory(dir);
 
-            if (model.Id == "gemma2")
+            var progress = new Progress<(string File, double Frac)>(value =>
             {
-                var missing = ModelFiles.Missing(dir);
-                long totalBytes = missing.Count > 0 ? missing.Sum(m => m.Bytes) : model.EstimatedBytes;
-                long baseBytes = 0;
-                foreach (var file in missing)
-                {
-                    ct.ThrowIfCancellationRequested();
-                    string? cached = ModelFiles.CachedCopy(file);
-                    if (cached is not null)
-                    {
-                        File.Copy(cached, Path.Combine(dir, file.Name), overwrite: true);
-                        baseBytes += file.Bytes;
-                        continue;
-                    }
-                    var one = new Progress<double>(frac =>
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            double overallFrac = totalBytes > 0 ? Math.Clamp((baseBytes + frac * file.Bytes) / totalBytes, 0, 1) : frac;
-                            if (ProgressModelDownload is not null) ProgressModelDownload.Value = (int)(overallFrac * 100);
-                            if (TxtModelDownloadPercent is not null) TxtModelDownloadPercent.Text = $"{(int)(overallFrac * 100)}%";
-                            long cur = (long)(baseBytes + frac * file.Bytes);
-                            if (TxtModelDownloadBytes is not null)
-                                TxtModelDownloadBytes.Text = $"{(cur / (1024.0 * 1024.0)):F1} / {(totalBytes / (1024.0 * 1024.0)):F1} {(Loc.IsRu ? "МБ" : "MB")}";
-                        });
-                    });
-                    await ModelFiles.DownloadAsync(file, dir, one, ct);
-                    baseBytes += file.Bytes;
-                }
-            }
-            else
-            {
-                var prog = new Progress<double>(frac =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        if (ProgressModelDownload is not null) ProgressModelDownload.Value = (int)(frac * 100);
-                        if (TxtModelDownloadPercent is not null) TxtModelDownloadPercent.Text = $"{(int)(frac * 100)}%";
-                        long cur = (long)(frac * model.EstimatedBytes);
-                        if (TxtModelDownloadBytes is not null)
-                            TxtModelDownloadBytes.Text = $"{(cur / (1024.0 * 1024.0)):F1} / {(model.EstimatedBytes / (1024.0 * 1024.0)):F1} {(Loc.IsRu ? "МБ" : "MB")}";
-                    });
-                });
-                await ModelFiles.DownloadFileFromUrlAsync(model.DownloadUrl, dir, model.TextFile, model.EstimatedBytes, prog, ct);
-            }
+                if (ct.IsCancellationRequested) return;
+                double fraction = Math.Clamp(value.Frac, 0, 1);
+                ProgressModelDownload.Value = fraction * 100;
+                TxtModelDownloadPercent.Text = $"{fraction * 100:0}%";
+                TxtModelDownloadBytes.Text = $"{fraction * model.EstimatedBytes / (1024.0 * 1024.0):F1} / {model.EstimatedBytes / (1024.0 * 1024.0):F1} {(Loc.IsRu ? "МБ" : "MB")}";
+            });
+            await Task.Run(() => ModelFiles.EnsureModelAsync(model, dir, progress, ct), ct);
+            ct.ThrowIfCancellationRequested();
 
             _isDownloadingModel = false;
             UpdateModelStatus(model);
@@ -674,12 +641,19 @@ public partial class SettingsWindow : Window
         {
             _isDownloadingModel = false;
             UpdateModelStatus(model);
-            MessageBox.Show(this, ex.Message, Loc.ModelDownloadErrorTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ErrorLog.Write("model download: " + ex);
+            MessageBox.Show(this, Loc.DownloadFailed, Loc.ModelDownloadErrorTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
-    private void ApplyCurrentSettings()
+    private bool ApplyCurrentSettings()
     {
+        if (_isDownloadingModel)
+        {
+            MessageBox.Show(this, Loc.IsRu ? "Дождитесь загрузки модели или отмените её." : "Wait for the model download or cancel it.",
+                Loc.SettingsTitle, MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
         string updateSource = UpdateSource.Text.Trim();
         if (string.IsNullOrWhiteSpace(updateSource) ||
             string.Equals(updateSource, "dist\\releases", StringComparison.OrdinalIgnoreCase) ||
@@ -692,7 +666,7 @@ public partial class SettingsWindow : Window
             MessageBox.Show(this,
                 Loc.IsRu ? "Укажите абсолютный путь к папке обновлений или оставьте пустым для GitHub." : "Specify the absolute path to update directory or leave empty for GitHub.",
                 Loc.SettingsTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            return false;
         }
         _settings.Hotkey = _hotkey;
         _settings.Code = Code.IsChecked == true;
@@ -706,13 +680,14 @@ public partial class SettingsWindow : Window
             _ => ThemeManager.ThemeSystem
         };
 
+        bool restartWorker = false;
         if (ComboEmbeddingModel.SelectedItem is ModelComboItem modelItem)
         {
             bool modelChanged = !string.Equals(_settings.EmbeddingModel, modelItem.Model.Id, StringComparison.OrdinalIgnoreCase);
             if (modelChanged)
             {
                 _settings.EmbeddingModel = modelItem.Model.Id;
-                _engine?.ResetEmbedderWorker();
+                restartWorker = true;
             }
         }
 
@@ -722,16 +697,13 @@ public partial class SettingsWindow : Window
             _settings.HardwareMode = hwItem.Id;
             if (modeChanged)
             {
-                _engine?.ResetEmbedderWorker();
+                restartWorker = true;
             }
         }
 
         bool fastPath = CheckQueryFastPathCpu.IsChecked == true;
-        if (_settings.QueryFastPathCpu != fastPath)
-        {
-            _settings.QueryFastPathCpu = fastPath;
-            _engine?.ResetEmbedderWorker();
-        }
+        if (_settings.QueryFastPathCpu != fastPath) { _settings.QueryFastPathCpu = fastPath; restartWorker = true; }
+        if (restartWorker) _engine?.ResetEmbedderWorker();
 
         _settings.CheckUpdates = Updates.IsChecked == true;
         if (!string.Equals(_settings.UpdateSource, updateSource, StringComparison.OrdinalIgnoreCase))
@@ -739,11 +711,12 @@ public partial class SettingsWindow : Window
         _settings.UpdateSource = updateSource;
         _settings.StartWithWindows = Startup.IsChecked == true;
         _settings.Save();
+        return true;
     }
 
     private void OnApply(object sender, RoutedEventArgs e)
     {
-        ApplyCurrentSettings();
+        if (!ApplyCurrentSettings()) return;
         _onApplyCallback?.Invoke();
         ApplyTheme(ThemeManager.IsDark(_settings.Theme));
         if (_mainWindow is not null)
@@ -755,7 +728,7 @@ public partial class SettingsWindow : Window
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
-        ApplyCurrentSettings();
+        if (!ApplyCurrentSettings()) return;
         _onApplyCallback?.Invoke();
         if (_mainWindow is not null)
         {

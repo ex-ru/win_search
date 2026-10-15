@@ -63,66 +63,11 @@ public static class ComponentDownloader
     }
 
     /// <summary>Downloads a file with range resuming and progress reporting.</summary>
-    public static async Task DownloadFileWithResumeAsync(
-        string url,
-        string destinationPath,
-        long? expectedBytes = null,
-        IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
-        string? dir = Path.GetDirectoryName(destinationPath);
-        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-
-        if (File.Exists(destinationPath))
-        {
-            progress?.Report(1.0);
-            return;
-        }
-
-        string part = destinationPath + ".part";
-        long have = 0;
-        if (File.Exists(part))
-        {
-            have = new FileInfo(part).Length;
-            if (expectedBytes.HasValue && have > expectedBytes.Value)
-            {
-                File.Delete(part);
-                have = 0;
-            }
-        }
-
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("WAI-ComponentDownloader/1.1");
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (have > 0)
-            request.Headers.Range = new RangeHeaderValue(have, null);
-
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        bool resumed = have > 0 && response.StatusCode == HttpStatusCode.PartialContent;
-        if (!resumed) have = 0;
-
-        long total = (response.Content.Headers.ContentLength ?? 0) + have;
-        if (expectedBytes.HasValue && expectedBytes.Value > 0) total = expectedBytes.Value;
-
-        using var network = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var output = new FileStream(part, resumed ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, 1 << 17, useAsync: true);
-
-        var buffer = new byte[1 << 17];
-        int read;
-        while ((read = await network.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            have += read;
-            if (total > 0) progress?.Report(Math.Min(1.0, (double)have / total));
-        }
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        output.Close();
-
-        File.Move(part, destinationPath, overwrite: true);
-        progress?.Report(1.0);
-    }
+    public static Task DownloadFileWithResumeAsync(string url, string destinationPath,
+        long? expectedBytes = null, IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default) =>
+        VerifiedDownload.DownloadAsync(url, destinationPath, expectedBytes ?? 0, progress: progress,
+            cancellationToken: cancellationToken);
 
     /// <summary>Ensures model files are present, downloading if necessary.</summary>
     public static async Task EnsureModelAsync(
@@ -130,12 +75,9 @@ public static class ComponentDownloader
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(ModelsDir);
-        string textDest = Path.Combine(ModelsDir, model.TextFile);
-        if (!File.Exists(textDest))
-        {
-            await DownloadFileWithResumeAsync(model.DownloadUrl, textDest, model.EstimatedBytes, progress, cancellationToken).ConfigureAwait(false);
-        }
+        await ModelFiles.EnsureModelAsync(model, ModelsDir,
+            progress is null ? null : new Progress<(string File, double Frac)>(p => progress.Report(p.Frac)),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Ensures FFmpeg tools are present in local tools directory, downloading if needed.</summary>

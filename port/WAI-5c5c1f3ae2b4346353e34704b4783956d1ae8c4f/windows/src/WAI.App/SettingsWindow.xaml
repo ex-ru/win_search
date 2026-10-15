@@ -1,7 +1,7 @@
 <Window x:Class="WAI.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WAI — Настройки" Width="660" Height="780" MinWidth="580" MinHeight="620" MaxHeight="960"
+        Title="WAI — Настройки" Width="660" Height="680" MinWidth="420" MinHeight="400" MaxHeight="960"
         WindowStartupLocation="CenterScreen" Background="#1E1E1E" Foreground="White">
   <Window.Resources>
     <!-- Base Button Style -->
@@ -320,6 +320,30 @@
               <Button x:Name="BtnRemoveFolder" Content="Удалить" Click="OnRemove" />
             </StackPanel>
 
+          </StackPanel>
+        </Border>
+
+        <!-- Section 4: Shortcut -->
+        <Border Style="{StaticResource CardStyle}">
+          <StackPanel>
+            <TextBlock x:Name="TxtHotkeyTitle" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Горячая клавиша (быстрый вызов)" />
+            <TextBox x:Name="Hotkey" Margin="0,0,0,6" ToolTip="Кликните сюда и нажмите клавишу Пробел с зажатыми Shift, Ctrl, Alt или Win. Например: Ctrl+Space." />
+            <TextBlock x:Name="TxtHotkeyDesc" Foreground="#888888" FontSize="12" TextWrapping="Wrap"
+                       Text="По умолчанию: Ctrl+Space. Избегайте Win+Space (системная смена языка) и Shift+Alt (переключение раскладки)." />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardStyle}">
+          <StackPanel>
+            <TextBlock x:Name="TxtThemeLabel" Text="Тема оформления интерфейса:" Foreground="#BBBBBB" FontSize="12" Margin="0,4,0,4" />
+            <ComboBox x:Name="ComboTheme" Margin="0,0,0,4" />
+            <CheckBox x:Name="Startup" Content="Запускать WAI при старте Windows" />
+          </StackPanel>
+        </Border>
+        <Expander x:Name="AdvancedPanel" Header="Дополнительно" IsExpanded="False" Margin="0,4,0,8">
+          <StackPanel Margin="0,12,0,0">
+            <Border Style="{StaticResource CardStyle}">
+              <StackPanel>
             <!-- Folder & Embeddings Storage Stats -->
             <Border Background="#1A2733" BorderBrush="#256B9E" BorderThickness="1" CornerRadius="6" Padding="10,8">
               <StackPanel>
@@ -343,9 +367,9 @@
                            Text="В базе сохранены векторы неактивных папок..." />
               </StackPanel>
             </Border>
-          </StackPanel>
-        </Border>
 
+              </StackPanel>
+            </Border>
         <!-- Section 2: Vector index management -->
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
@@ -449,18 +473,7 @@
                     TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,0,0,10"
                     ValueChanged="OnOpacitySliderChanged" />
 
-            <TextBlock x:Name="TxtThemeLabel" Text="Тема оформления интерфейса:" Foreground="#BBBBBB" FontSize="12" Margin="0,4,0,4" />
-            <ComboBox x:Name="ComboTheme" Margin="0,0,0,4" />
-          </StackPanel>
-        </Border>
 
-        <!-- Section 4: Shortcut -->
-        <Border Style="{StaticResource CardStyle}">
-          <StackPanel>
-            <TextBlock x:Name="TxtHotkeyTitle" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Горячая клавиша (быстрый вызов)" />
-            <TextBox x:Name="Hotkey" Margin="0,0,0,6" ToolTip="Кликните сюда и нажмите клавишу Пробел с зажатыми Shift, Ctrl, Alt или Win. Например: Ctrl+Space." />
-            <TextBlock x:Name="TxtHotkeyDesc" Foreground="#888888" FontSize="12" TextWrapping="Wrap"
-                       Text="По умолчанию: Ctrl+Space. Избегайте Win+Space (системная смена языка) и Shift+Alt (переключение раскладки)." />
           </StackPanel>
         </Border>
 
@@ -478,7 +491,7 @@
         <Border Style="{StaticResource CardStyle}">
           <StackPanel>
             <TextBlock x:Name="TxtSystemTitle" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" Text="Система и обновления" />
-            <CheckBox x:Name="Startup" Content="Запускать WAI при старте Windows" />
+
             <CheckBox x:Name="Updates" Content="Проверять обновления программы раз в день" />
             <TextBlock x:Name="TxtUpdateSourceLabel" Text="Источник пакетов обновлений (GitHub Releases или папка):" Foreground="#BBBBBB" Margin="0,4,0,4" />
             <TextBox x:Name="UpdateSource" Margin="0,0,0,6" ToolTip="По умолчанию: https://github.com/ex-ru/win_search. Оставьте репозиторий GitHub или укажите локальную папку." />
@@ -495,6 +508,8 @@
             </Border>
           </StackPanel>
         </Border>
+          </StackPanel>
+        </Expander>
       </StackPanel>
     </ScrollViewer>
   </DockPanel>

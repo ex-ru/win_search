@@ -1,0 +1,36 @@
+name: Windows checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.402
+      - name: Unit and WPF regressions
+        run: dotnet test port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/WAI.Windows.sln -c Release --logger trx --results-directory TestResults -warnaserror:NU1903,NU1904
+      - name: Real file lifecycle and crash recovery
+        run: dotnet run --project checks/WAI.ReleaseSmoke -c Release -- --report TestResults/lifecycle.json
+      - name: Publish self-contained applications
+        shell: pwsh
+        run: |
+          $source = 'port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src'
+          foreach ($project in @('WAI.App/WAI.App.csproj', 'wai/wai.csproj', 'WAI.Embed/WAI.Embed.csproj')) {
+            dotnet publish "$source/$project" -c Release -r win-x64 --self-contained true -o "TestResults/publish/$([IO.Path]::GetFileNameWithoutExtension($project))" -warnaserror:NU1903,NU1904
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-checks
+          path: |
+            TestResults/*.trx
+            TestResults/*.json

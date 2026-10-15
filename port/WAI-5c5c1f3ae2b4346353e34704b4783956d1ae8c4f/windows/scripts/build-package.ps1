@@ -1,14 +1,14 @@
 # Build and package WAI (Windows AI Search) for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.1.2",
+    [string]$Version = "1.2.0",
     [string]$OutputDir = "",
-    [switch]$Slim = $true,
+    [switch]$Slim = $false,
     [switch]$Full = $false
 )
 
-if ($Full) {
-    $Slim = $false
+if ($Slim -and $Full) {
+    throw "Choose either -Slim or -Full, not both."
 }
 
 $ErrorActionPreference = "Stop"
@@ -79,7 +79,7 @@ foreach ($license in @($OpenMpLicenseSource, $RepoLicenseSource)) {
     }
 }
 
-$NuGetConfig = Join-Path $RepoRoot "tools\NuGet.Config"
+$NuGetConfig = Join-Path $RepoRoot "NuGet.Config"
 if (!(Test-Path -LiteralPath $NuGetConfig -PathType Leaf)) {
     $NuGetConfig = $null
 }
@@ -89,7 +89,7 @@ Write-Host " Building WAI (Windows AI Search) Windows Distribution v$Version" -F
 Write-Host " Output: $OutputDir" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Locate .NET 9 SDK
+# 1. Locate the SDK pinned in global.json.
 $DotnetExe = "dotnet"
 if (Test-Path (Join-Path $RepoRoot "tools\dotnet\dotnet.exe")) {
     $DotnetRoot = Join-Path $RepoRoot "tools\dotnet"
@@ -173,33 +173,49 @@ if (!(Test-Path -LiteralPath $PdfiumTarget -PathType Leaf)) {
 }
 Write-Host "Payload validation passed." -ForegroundColor Green
 
-# 6. Move legacy PackId artifacts aside and remove them from active feeds.
-$LegacyNupkgPattern = '^(?:DigUp|WAI|WinSearch\.WAI)-.+-(?:full|delta)\.nupkg$'
-$LegacyArtifactPattern = '^(?:(?:DigUp|WAI|WinSearch\.WAI)-.+-(?:full|delta)\.nupkg|(?:DigUp|WAI|WinSearch\.WAI)-win-(?:Setup|Portable)\.(?:exe|zip))$'
+# 6. Archive artifacts whose package ID differs from the current package ID.
+$PackageId = "WinSearch.WAI"
+$LegacyNupkgPattern = '^(?<PackageId>.+)-(?<Version>\d+(?:\.\d+){1,3}(?:-[0-9A-Za-z.-]+)?)-(?<Type>full|delta)\.nupkg$'
+$LegacySetupPattern = '^(?<PackageId>.+)-win-(?:Setup|Portable)\.(?:exe|zip)$'
+function Test-LegacyPackageArtifact([string]$Name) {
+    if ($Name -cmatch $LegacyNupkgPattern) { return $Matches.PackageId -cne $PackageId }
+    if ($Name -cmatch $LegacySetupPattern) { return $Matches.PackageId -cne $PackageId }
+    return $false
+}
+function Test-LegacyNupkg([string]$Name) {
+    if ($Name -cmatch $LegacyNupkgPattern) { return $Matches.PackageId -cne $PackageId }
+    return $false
+}
+function Get-LegacyArchivePath([string]$Name) {
+    $destination = Join-Path $LegacyDir $Name
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+    $extension = [System.IO.Path]::GetExtension($Name)
+    $suffix = 1
+    while (Test-Path -LiteralPath $destination) {
+        $destination = Join-Path $LegacyDir ("$baseName.legacy-$suffix$extension")
+        $suffix++
+    }
+    return $destination
+}
 $LegacyDir = Join-Path $ReleasesDir "legacy"
 $LegacyArtifacts = @()
 if (Test-Path -LiteralPath $ReleasesDir -PathType Container) {
     $LegacyArtifacts = @(Get-ChildItem -LiteralPath $ReleasesDir -File | Where-Object {
-        $_.Name -cmatch $LegacyArtifactPattern
+        Test-LegacyPackageArtifact $_.Name
     })
 }
-$LegacyNupkgs = @($LegacyArtifacts | Where-Object { $_.Name -cmatch $LegacyNupkgPattern })
-
-$ExistingLegacyNupkgs = @()
 if (Test-Path -LiteralPath $LegacyDir) {
     $legacyDirItem = Get-Item -LiteralPath $LegacyDir -Force
     if (($legacyDirItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
         !$legacyDirItem.PSIsContainer) {
         throw "Refusing to use legacy path that is not a regular directory: $LegacyDir"
     }
-    $ExistingLegacyNupkgs = @(Get-ChildItem -LiteralPath $LegacyDir -File | Where-Object {
-        $_.Name -cmatch $LegacyNupkgPattern
-    })
 }
 
+$HasLegacyPackage = $LegacyArtifacts.Count -gt 0
 $MetadataNames = @("RELEASES", "releases.win.json", "assets.win.json")
 $MetadataBackups = @()
-if ($LegacyNupkgs.Count -gt 0) {
+if ($HasLegacyPackage) {
     foreach ($name in $MetadataNames) {
         $source = Join-Path $ReleasesDir $name
         if (Test-Path -LiteralPath $source -PathType Leaf) {
@@ -209,57 +225,48 @@ if ($LegacyNupkgs.Count -gt 0) {
 }
 
 $MetadataReplacements = @{}
-$HasLegacyNupkg = $LegacyNupkgs.Count -gt 0 -or $ExistingLegacyNupkgs.Count -gt 0
-if ($HasLegacyNupkg) {
-    $releasesPath = Join-Path $ReleasesDir "RELEASES"
-    if (Test-Path -LiteralPath $releasesPath -PathType Leaf) {
-        $keptLines = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($line in [System.IO.File]::ReadAllLines($releasesPath)) {
-            $columns = $line -split '\s+'
-            if ($columns.Length -ge 3 -and $columns[1] -cmatch $LegacyNupkgPattern) {
-                continue
-            }
-            $keptLines.Add($line)
+$releasesPath = Join-Path $ReleasesDir "RELEASES"
+if (Test-Path -LiteralPath $releasesPath -PathType Leaf) {
+    $keptLines = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($line in [System.IO.File]::ReadAllLines($releasesPath)) {
+        $columns = $line -split '\s+'
+        if ($columns.Length -ge 3 -and (Test-LegacyNupkg $columns[1])) {
+            continue
         }
-        $MetadataReplacements["RELEASES"] = $keptLines.ToArray()
+        $keptLines.Add($line)
     }
+    $MetadataReplacements["RELEASES"] = $keptLines.ToArray()
+}
 
-    $releaseJsonPath = Join-Path $ReleasesDir "releases.win.json"
-    if (Test-Path -LiteralPath $releaseJsonPath -PathType Leaf) {
-        $releaseManifest = [System.IO.File]::ReadAllText($releaseJsonPath) | ConvertFrom-Json
-        if ($null -eq $releaseManifest -or $null -eq $releaseManifest.PSObject.Properties["Assets"]) {
-            throw "Invalid Velopack release metadata: $releaseJsonPath"
-        }
-        $releaseManifest.Assets = @($releaseManifest.Assets | Where-Object {
-            $_.PackageId -eq "WinSearch.DigUp" -and $_.FileName -cnotmatch $LegacyArtifactPattern
-        })
-        $MetadataReplacements["releases.win.json"] = ConvertTo-Json -InputObject $releaseManifest -Depth 100 -Compress
+$releaseJsonPath = Join-Path $ReleasesDir "releases.win.json"
+if (Test-Path -LiteralPath $releaseJsonPath -PathType Leaf) {
+    $releaseManifest = [System.IO.File]::ReadAllText($releaseJsonPath) | ConvertFrom-Json
+    if ($null -eq $releaseManifest -or $null -eq $releaseManifest.PSObject.Properties["Assets"]) {
+        throw "Invalid Velopack release metadata: $releaseJsonPath"
     }
+    $releaseManifest.Assets = @($releaseManifest.Assets | Where-Object {
+        $_.PackageId -eq $PackageId
+    })
+    $MetadataReplacements["releases.win.json"] = ConvertTo-Json -InputObject $releaseManifest -Depth 100 -Compress
+}
 
-    $assetsJsonPath = Join-Path $ReleasesDir "assets.win.json"
-    if (Test-Path -LiteralPath $assetsJsonPath -PathType Leaf) {
-        $assetManifest = @([System.IO.File]::ReadAllText($assetsJsonPath) | ConvertFrom-Json)
-        $assetManifest = @($assetManifest | Where-Object {
-            $_.RelativeFileName -cnotmatch $LegacyArtifactPattern
-        })
-        $MetadataReplacements["assets.win.json"] = ConvertTo-Json -InputObject $assetManifest -Depth 100 -Compress
-    }
+$assetsJsonPath = Join-Path $ReleasesDir "assets.win.json"
+if (Test-Path -LiteralPath $assetsJsonPath -PathType Leaf) {
+    $assetManifest = @([System.IO.File]::ReadAllText($assetsJsonPath) | ConvertFrom-Json)
+    $assetManifest = @($assetManifest | Where-Object {
+        !(Test-LegacyPackageArtifact ([System.IO.Path]::GetFileName($_.RelativeFileName)))
+    })
+    $MetadataReplacements["assets.win.json"] = ConvertTo-Json -InputObject $assetManifest -Depth 100 -Compress
 }
 
 $legacyTargets = @($LegacyArtifacts) + @($MetadataBackups)
-foreach ($source in $legacyTargets) {
-    $destination = Join-Path $LegacyDir $source.Name
-    if (Test-Path -LiteralPath $destination) {
-        Remove-Item -LiteralPath $destination -Force
-    }
-}
 if ($legacyTargets.Count -gt 0) {
     New-Item -ItemType Directory -Force -Path $LegacyDir | Out-Null
     foreach ($artifact in $LegacyArtifacts) {
-        Move-Item -LiteralPath $artifact.FullName -Destination (Join-Path $LegacyDir $artifact.Name) -Force
+        Move-Item -LiteralPath $artifact.FullName -Destination (Get-LegacyArchivePath $artifact.Name)
     }
     foreach ($metadata in $MetadataBackups) {
-        Copy-Item -LiteralPath $metadata.FullName -Destination (Join-Path $LegacyDir $metadata.Name) -Force
+        Copy-Item -LiteralPath $metadata.FullName -Destination (Get-LegacyArchivePath $metadata.Name)
     }
 }
 
@@ -284,7 +291,7 @@ if (Test-Path -LiteralPath $LocalVpk -PathType Leaf) {
 
 $VpkArgs = @(
     "pack",
-    "--packId", "WinSearch.DigUp",
+    "--packId", $PackageId,
     "--packVersion", $Version,
     "--runtime", "win-x64",
     "--packTitle", "WAI (Windows AI Search)",

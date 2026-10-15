@@ -10,8 +10,8 @@ internal static class Program
 {
     private const int VectorVersion = 1;
     private const string BuildTag = "b11461";
-    private const string Revision = "main";
-    private const string Dtype = "q8_0";
+    private static string _activeRevision = "bfcd298762cc34d0357ece5ebdd31791a3a374d8";
+    private static string _activeDtype = "text-q8_0+mmproj-q8_0";
     private static readonly int[] Budgets = [70, 140, 280, 560, 1120];
 
     private static Embedder? _embedder;
@@ -163,6 +163,8 @@ internal static class Program
             case "bge-m3":
             case "bge":
                 _activeModelName = "BAAI/bge-m3";
+                _activeRevision = "2d48f1737679ad900d5c26c5aad5410e9c70fdca";
+                _activeDtype = "text-q4_k_m";
                 _activeTextFile = "bge-m3-Q4_K_M.gguf";
                 _activeMediaFile = null;
                 _textOnly = true;
@@ -171,6 +173,8 @@ internal static class Program
             case "perplexity":
             case "pplx":
                 _activeModelName = "perplexity-ai/pplx-embed-v2";
+                _activeRevision = "07ebf344332880f14f72673df5d41549826872f7";
+                _activeDtype = "text-q8_0";
                 _activeTextFile = "pplx-late-Q8_0.gguf";
                 _activeMediaFile = null;
                 _textOnly = true;
@@ -178,6 +182,8 @@ internal static class Program
             case "nomic":
             case "nomic-embed":
                 _activeModelName = "nomic-ai/nomic-embed-text-v1.5";
+                _activeRevision = "0188c9bf409793f810680a5a431e7b899c46104c";
+                _activeDtype = "text-q8_0";
                 _activeTextFile = "nomic-embed-text-v1.5.Q8_0.gguf";
                 _activeMediaFile = null;
                 _textOnly = true;
@@ -187,6 +193,9 @@ internal static class Program
                 if (File.Exists(modelKey))
                 {
                     _activeModelName = Path.GetFileNameWithoutExtension(modelKey);
+                    using var stream = File.OpenRead(modelKey);
+                    _activeRevision = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream)).ToLowerInvariant();
+                    _activeDtype = "custom-gguf";
                     _activeTextFile = modelKey;
                     _activeMediaFile = null;
                 }
@@ -229,9 +238,9 @@ internal static class Program
     private static Dictionary<string, object?> Info(Embedder e) => new()
     {
         ["model"] = _activeModelName,
-        ["revision"] = Revision,
+        ["revision"] = _activeRevision,
         ["runtime"] = $"llama.cpp-vectors{VectorVersion}",
-        ["dtype"] = Dtype,
+        ["dtype"] = _activeDtype,
         ["dim"] = e.Dim,
         ["text_only"] = _textOnly,
         ["load_seconds"] = e.LoadSeconds,

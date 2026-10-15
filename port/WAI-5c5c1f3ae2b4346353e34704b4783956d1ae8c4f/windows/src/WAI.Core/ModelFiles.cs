@@ -6,11 +6,11 @@ namespace WAI.Core;
 
 /// <summary>One model file: its Hugging Face address at the pinned revision,
 /// its size, and its SHA-256.</summary>
-public sealed record ModelFile(string Name, long Bytes, string Sha256)
+public sealed record ModelFile(string Name, long Bytes, string Sha256, string? SourceUrl = null)
 {
     /// <summary>Hugging Face's address for this file at the pinned revision
     /// (it redirects to a CDN that takes HTTP ranges).</summary>
-    public string Url =>
+    public string Url => SourceUrl ??
         $"https://huggingface.co/{ModelFiles.Repository}/resolve/{ModelFiles.Revision}/{Name}";
 }
 
@@ -79,7 +79,7 @@ public static class ModelFiles
         var missing = new List<ModelFile>();
         foreach (var file in All)
         {
-            if (!File.Exists(Path.Combine(folder, file.Name)))
+            if (!VerifiedDownload.IsValid(Path.Combine(folder, file.Name), file.Bytes, file.Sha256))
                 missing.Add(file);
         }
         return missing;
@@ -103,137 +103,53 @@ public static class ModelFiles
     /// <summary>Downloads <paramref name="file"/> into <paramref name="folder"/>,
     /// resuming a previous partial download (HTTP range over a ".part" file), then
     /// verifies size and SHA-256 before moving it into place. Throws on mismatch.</summary>
-    public static async Task DownloadAsync(
-        ModelFile file,
-        string folder,
-        IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+    public static Task DownloadAsync(ModelFile file, string folder,
+        IProgress<double>? progress = null, CancellationToken cancellationToken = default) =>
+        VerifiedDownload.DownloadAsync(file.Url, Path.Combine(folder, file.Name), file.Bytes,
+            file.Sha256, progress, cancellationToken);
+
+    public static Task DownloadFileFromUrlAsync(string url, string folder, string fileName,
+        long expectedBytes, IProgress<double>? progress = null, CancellationToken cancellationToken = default) =>
+        DownloadAsync(ModelCatalog.All.SelectMany(m => m.Files).FirstOrDefault(f => f.Name == fileName)
+            ?? throw new InvalidOperationException("This model is not in the verified download catalog."),
+            folder, progress, cancellationToken);
+
+    public static async Task EnsureModelAsync(EmbeddingModelDef model, string directory,
+        IProgress<(string File, double Frac)>? progress = null, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(folder);
-        string dest = Path.Combine(folder, file.Name);
-        if (File.Exists(dest))
+        long completedBytes = 0;
+        long totalBytes = model.Files.Sum(file => file.Bytes);
+        foreach (var file in model.Files)
         {
-            progress?.Report(1);
-            return;
-        }
-
-        string part = dest + ".part";
-        long have = 0;
-        if (File.Exists(part))
-        {
-            have = new FileInfo(part).Length;
-            if (have > file.Bytes)
+            cancellationToken.ThrowIfCancellationRequested();
+            var target = Path.Combine(directory, file.Name);
+            if (VerifiedDownload.IsValid(target, file.Bytes, file.Sha256))
+            { completedBytes += file.Bytes; progress?.Report((file.Name, (double)completedBytes / totalBytes)); continue; }
+            string? existing = EmbeddingModelDef.ResolvePath(file.Name, directory);
+            string? cached = file.Name == Text.Name || file.Name == Media.Name ? CachedCopy(file) : null;
+            foreach (var source in new[] { existing, cached }.Where(p => p is not null).Distinct())
             {
-                File.Delete(part);
-                have = 0;
+                if (!VerifiedDownload.IsValid(source!, file.Bytes, file.Sha256)) continue;
+                Directory.CreateDirectory(directory);
+                if (!Path.GetFullPath(source!).Equals(Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase))
+                {
+                    string copying = target + ".copying";
+                    await using (var input = File.OpenRead(source!))
+                    await using (var output = new FileStream(copying, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 17, true))
+                        await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                    File.Move(copying, target, true);
+                }
+                break;
             }
+            if (!VerifiedDownload.IsValid(target, file.Bytes, file.Sha256))
+                await DownloadAsync(file, directory, new InlineProgress<double>(f => progress?.Report((file.Name, (completedBytes + f * file.Bytes) / totalBytes))), cancellationToken).ConfigureAwait(false);
+            completedBytes += file.Bytes;
+            progress?.Report((file.Name, (double)completedBytes / totalBytes));
         }
-
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("WAI/1.0");
-        using var request = new HttpRequestMessage(HttpMethod.Get, file.Url);
-        if (have > 0)
-            request.Headers.Range = new RangeHeaderValue(have, null);
-        using var response = await client
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        bool resumed = have > 0 && response.StatusCode == HttpStatusCode.PartialContent;
-        if (!resumed)
-            have = 0;
-        using var network = await response.Content
-            .ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var output = new FileStream(part, resumed ? FileMode.Append : FileMode.Create,
-            FileAccess.Write, FileShare.None, 1 << 17, useAsync: true);
-
-        var buffer = new byte[1 << 17];
-        int read;
-        while ((read = await network.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            have += read;
-            progress?.Report((double)have / file.Bytes);
-        }
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        output.Close();
-
-        if (new FileInfo(part).Length != file.Bytes)
-            throw new InvalidDataException(
-                $"{file.Name}: expected {file.Bytes} bytes, got {new FileInfo(part).Length}");
-        if (!Sha256Of(part).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"{file.Name}: SHA-256 mismatch");
-        File.Move(part, dest, overwrite: false);
-        progress?.Report(1);
     }
 
-    /// <summary>Downloads any model file from a URL into target directory with resume support.</summary>
-    public static async Task DownloadFileFromUrlAsync(
-        string url,
-        string folder,
-        string fileName,
-        long expectedBytes,
-        IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
     {
-        Directory.CreateDirectory(folder);
-        string dest = Path.Combine(folder, fileName);
-        if (File.Exists(dest))
-        {
-            progress?.Report(1);
-            return;
-        }
-
-        string part = dest + ".part";
-        long have = 0;
-        if (File.Exists(part))
-        {
-            have = new FileInfo(part).Length;
-            if (expectedBytes > 0 && have > expectedBytes)
-            {
-                File.Delete(part);
-                have = 0;
-            }
-        }
-
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("WAI/1.1");
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (have > 0)
-            request.Headers.Range = new RangeHeaderValue(have, null);
-
-        using var response = await client
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        bool resumed = have > 0 && response.StatusCode == HttpStatusCode.PartialContent;
-        if (!resumed)
-            have = 0;
-
-        long total = response.Content.Headers.ContentLength ?? expectedBytes;
-        if (resumed && response.Content.Headers.ContentRange?.Length is long crLen)
-            total = crLen;
-
-        using var network = await response.Content
-            .ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var output = new FileStream(part, resumed ? FileMode.Append : FileMode.Create,
-            FileAccess.Write, FileShare.None, 1 << 17, useAsync: true);
-
-        var buffer = new byte[1 << 17];
-        int read;
-        while ((read = await network.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            have += read;
-            if (total > 0)
-                progress?.Report(Math.Clamp((double)have / total, 0.0, 1.0));
-        }
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        output.Close();
-
-        File.Move(part, dest, overwrite: true);
-        progress?.Report(1);
+        public void Report(T value) => report(value);
     }
 }
-

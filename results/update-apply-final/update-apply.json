@@ -1,0 +1,74 @@
+{
+  "status": "passed",
+  "applied": true,
+  "baselineVersion": "1.1.99",
+  "targetVersion": "1.2.0",
+  "targetPackageSha256": "5374FB3E21F12DAC8C0E751EB4884AA051A009A64F73D4DCE2A1AF82D8E90A7B",
+  "verifiedPayloadSha256": {
+    "WAIApp.exe": "8BC19995609AF55322CC07F576CD4955733BF9E06462501EF9625881224EFF59",
+    "WAI.Core.dll": "2BCE7E1168E058C167D2A75EEC7F2967D79251F79A64E0986ED7E9D315E7B12E",
+    "wai.exe": "0B09C840260A85470B0BD0C44F8844828C7428C88B7D0B5296B9E867F94289EA",
+    "System.Private.CoreLib.dll": "0A175CDD09067C52F8B2477CFCEBF894B2F926D7302E55AE76FC921529662C7B",
+    "wai-embed.exe": "E219DB51B4581FFFC0B4FF853A0687BBFDB45208FD6D9B2C01D0D31CB96DBC07"
+  },
+  "startedAtUtc": "2026-10-15T12:34:41.9077074+00:00",
+  "finishedAtUtc": "2026-10-15T12:36:43.9599905+00:00",
+  "isolatedWorkspace": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-update-apply-25ac01b7bc974855b5f18fdd08eed77c",
+  "checks": [
+    {
+      "name": "target-checksum",
+      "status": "passed",
+      "seconds": 0.8923178,
+      "detail": [
+        "Verified target 1.2.0 package SHA256."
+      ]
+    },
+    {
+      "name": "build-disposable-baseline",
+      "status": "passed",
+      "seconds": 82.3364057,
+      "detail": [
+        "Baseline fixture uses current binaries with lower package version and a baseline-only marker; no historic-binary migration claim."
+      ]
+    },
+    {
+      "name": "extract-and-index-baseline",
+      "status": "passed",
+      "seconds": 14.1248595,
+      "detail": [
+        "Actual baseline CLI indexing and search passed; persistent settings artifact created."
+      ]
+    },
+    {
+      "name": "reject-corrupt-package",
+      "status": "passed",
+      "seconds": 3.7381143,
+      "detail": [
+        "Actual updater rejected invalid ZIP; baseline still launches and searches."
+      ]
+    },
+    {
+      "name": "actual-velopack-apply",
+      "status": "passed",
+      "seconds": 11.4105573,
+      "detail": [
+        "Real Update.exe applied target: installed version advanced, baseline marker removed, target executable/runtime hashes match."
+      ]
+    },
+    {
+      "name": "launch-target-and-preserve-state",
+      "status": "passed",
+      "seconds": 9.3801205,
+      "detail": [
+        "Target CLI launched in separate processes; existing index/settings preserved; mutation and relaunch search passed. GUI not opened."
+      ]
+    }
+  ],
+  "limitations": [
+    "Disposable portable installation only.",
+    "Baseline uses current binaries with lower package metadata, not historic binaries.",
+    "Actual updater hooks and CLI relaunch exercised; interactive GUI restart not tested.",
+    "Interrupted network transfer is separate from local apply."
+  ],
+  "updaterReference": "https://docs.velopack.io/reference/cli/content/update-windows"
+}

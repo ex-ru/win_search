@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "startedAtUtc": "2026-10-15T12:39:55.391923+00:00",
+  "finishedAtUtc": "2026-10-15T12:40:07.9319359+00:00",
+  "loadedCoreAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\WAI.Core.dll",
+  "loadedCoreSha256": "2BCE7E1168E058C167D2A75EEC7F2967D79251F79A64E0986ED7E9D315E7B12E",
+  "loadedRuntimeAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\System.Private.CoreLib.dll",
+  "isolatedWorkspace": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-release-aa5499d9e3394619bb44c90922843fa1",
+  "checks": [
+    {
+      "name": "arguments",
+      "status": "passed",
+      "detail": "Explicit dependency options validated.",
+      "seconds": 0.0123382
+    },
+    {
+      "name": "file-lifecycle-lexical",
+      "status": "passed",
+      "detail": "Real crawler \u2192 DefaultExtractor \u2192 Indexer \u2192 SQLite \u2192 Searcher; change, rename, delete, dispose/reopen and integrity verified.",
+      "seconds": 0.858206
+    },
+    {
+      "name": "crash-during-transaction",
+      "status": "passed",
+      "detail": "Killed a live child inside Database.Transaction after an actual 2 MB write and indexed document/FTS insertion; reopen rolled back all uncommitted rows and retained committed data.",
+      "seconds": 0.5035701
+    },
+    {
+      "name": "sqlite-disk-full",
+      "status": "passed",
+      "detail": "Real SQLite write reached SQLITE_FULL via max_page_count (no host disk filled); rollback, integrity and subsequent write verified.",
+      "seconds": 0.0407069
+    },
+    {
+      "name": "packaged-worker-cpu",
+      "status": "passed",
+      "detail": "Actual packaged worker launched with --cpu, model=gemma2; embeddings, hybrid search, update, rename, deletion and reopen passed. GPU hardware matrix is not tested.",
+      "seconds": 10.3178026
+    },
+    {
+      "name": "native-pdfium-ffmpeg",
+      "status": "passed",
+      "detail": "PDFium text extraction and PNG rendering; real FFprobe probing, FFmpeg PCM decoding and video generation/frame decoding passed.",
+      "seconds": 0.793278
+    }
+  ]
+}

@@ -1,110 +1,39 @@
-# WAI for Windows — User Guide
+# WAI for Windows 1.2.0 — User Guide
 
-WAI finds your files by what is in them. Describe what you look for
-in your own words. It finds photos, screenshots, PDFs, documents,
-recordings, videos, and (if you turn it on) code.
+WAI searches files in folders you choose. Describe what you remember, or search for exact words. Search and indexing run on your PC. The app downloads a model on first use and can check for updates if that setting is enabled; it does not send indexed file contents to a cloud search service.
 
-Some words used here, said once in plain language:
+## Get started in three steps
 
-- **Index** — a private list WAI keeps of what is in your files, so
-  search is fast. It lives on your PC only.
-- **Embedding** — a list of 768 numbers that stands for the meaning of
-  a picture, page, or sound clip. Files with close meanings have close
-  numbers. The model that makes them is EmbeddingGemma 2.
-- **Tray** — the small icons by the clock (bottom right). WAI lives there.
-- **Hotkey** — keys you press anywhere to open search
-  (default: Ctrl+Alt+Space).
+1. Install WAI for your Windows account. Administrator access is not required.
+2. Open WAI, choose the folders you want to search, then wait while the selected model downloads and the first index is created. The standard full installer includes FFmpeg for supported audio and video files.
+3. Press Ctrl+Space, enter a description or words from a file, then open a result. The tray icon also provides access to search and settings.
 
-## Install
+WAI uses the selected model to create vectors. Model downloads are pinned to known sources and validated against expected file size and SHA-256 values.
 
-1. Run the WAI installer (per user, no admin password needed).
-2. Open WAI from Start. A one-time setup asks for folders, code
-   on/off, then downloads the model once (865 MB) with a progress bar.
-3. Press **Ctrl+Alt+Space** in any app and describe what you look for.
+## Everyday search
 
-A dimmed, blurred screen with a search card opens in front of everything.
-Results show a preview: pictures and video frames as thumbnails, words
-for documents and code. Enter opens, Esc closes.
+- Use ordinary phrases for semantic matches or distinctive words and numbers for text matches.
+- Use Up and Down to move through results, Enter to open a result, Space to preview supported items, and Esc to close the search panel.
+- New or changed files become searchable after indexing completes. The first index may take time; WAI can continue indexing after you close and reopen the app.
 
-WAI needs Windows 10 22H2 or Windows 11, and works on Intel, AMD,
-and Snapdragon PCs (NVIDIA cards are fastest, others use CPU).
+## Advanced settings (optional)
 
-## Daily use
+Open Settings from the tray to change the folders WAI watches, choose a model or CPU/Vulkan preference, enable code indexing for selected folders, or change the hotkey. These options are not required for the default search workflow.
 
-| Keys | What happens |
-|---|---|
-| Ctrl+Alt+Space | Open search from any app (change it in settings) |
-| Down / Up | Move through results |
-| Enter | Open it: videos and sound at the moment, PDFs at the page, code at the line |
-| Space | Preview the selected file itself: pictures full-size, PDFs at the page, videos and sound playing from the moment, code around the lines (same as the Mac: arrows, then Space; Space in the search box still types) |
-| Ctrl+O | Same search, bigger window |
-| Ctrl+C | Copy the file, to paste anywhere |
-| Esc | Hide the panel |
+WAI indexes supported file types from selected folders. Image decoding and OCR depend on available Windows components and installed OCR languages. Audio and video support depends on the format and codec; bundled FFmpeg removes the need to install it separately. No claim is made that every format, language, or file is supported.
 
-WAI sits in the tray. Right-click it to pause indexing, pick folders,
-or quit. New files are searchable seconds after they land.
+FTS5 full-text search complements semantic retrieval. Its Porter tokenizer is not a general Russian morphology engine, so inflected words are not guaranteed to match as if they shared a stem.
 
-## Code search (off until you turn it on)
-Turn it on in settings for the folders you pick. Then start a search
-with `code:` and say what the code does, or type a name from the code:
+## Privacy and data
 
-- `code: retry a failed call with backoff` finds the function.
-- `code: refreshAccessToken` goes to the line that defines it.
+Settings, models, and index data are kept under %LOCALAPPDATA%\WAI. Search queries and indexed content stay local. Network access is used to download model files and, when enabled, check for updates.
 
-Results open in your editor at the line (VS Code, Cursor, Visual
-Studio, JetBrains, Sublime, Notepad++). Plain words search everything
-except code — but when they match nothing else, code matches show up
-anyway (with a tip saying so).
+The package identity for version 1.2.0 is WinSearch.WAI. Existing WAI data under %LOCALAPPDATA%\WAI remains in place. Automatic update from an installation with another package identity is not guaranteed. If installing over an older identity, verify the new installation and check the data you need before removing the old app.
 
-## What it reads (only folders you choose)
+## Troubleshooting
 
-- Pictures and screenshots (by what they show; screenshots also by text).
-- PDFs, page by page (long ones: first 30 pages fast, rest later).
-- Documents: txt, md, html and more. Number-heavy exports match by exact text.
-- Sound of any length, in 30-second windows. A match points at its moment.
-- Video of any length: one picture per shot plus the soundtrack.
-- Code, only where you turned it on.
+- If a folder is missing from results, confirm it is selected in Settings and wait for indexing to finish.
+- If a file fails to index, WAI can continue with other files. Check the local error log under %LOCALAPPDATA%\WAI and include relevant details in a bug report.
+- If Vulkan does not work on a machine, select CPU in Settings. Vulkan support depends on the GPU and driver.
 
-It never reads keys, passwords, hidden folders, app data, or files that
-only live in the cloud (OneDrive placeholders are skipped, never
-downloaded). It only reads. It never changes, moves, or uploads files.
-Take a folder out of Settings and its files leave the index (and search)
-with the next pass.
-
-## Updates and privacy
-
-- Nothing you index leaves your PC. WAI goes online only to fetch the
-  model once and to check for updates once a day (no file data sent).
-  You can turn the check off.
-- Updates are small (**deltas**: only what changed is downloaded).
-
-## Remove it
-
-Quit (tray → Quit), uninstall from Settings → Apps. Your index and the
-model are removed only if you tick "remove my data". Settings live in
-`C:\Users\<you>\AppData\Local\WAI\`.
-
-## If something looks wrong
-
-- **Indexing stopped and starts again later**: normal. WAI remembers
-  what is done and goes on with the rest (even after a restart or a
-  power cut). Only new or changed files are read again.
-- **A file says "failed"**: WAI skips it and indexes everything else.
-  A file that crashes the helper three times is left out, with the
-  reason shown. Change the file and it is tried again.
-- **Search shows an error**: try again; if it stays, the details are in
-  `C:\Users\<you>\AppData\Local\WAI\error.log` — send that file with
-  the bug report.
-
-## Limits (same as Mac)
-
-- Screenshot text reading knows common languages best; Bengali, Arabic
-  and 100+ languages still match by meaning across languages.
-- Chinese, Japanese and Thai are not split into words (exact-word match
-  is weaker there; meaning still works).
-- First pass is heavy once (minutes for hundreds of files, measured
-  ~10 files a second on a fast PC; CPU and GPU spike, then rest). After
-  that, only new files are read. The model runs in a helper that quits
-  when done. The app idles around 115 MB.
-- Very long documents are read up to 200 KB (the rest is noted, not
-  indexed); code files over 1 MB are left out.
+Historic measurements in the repository used small test fixtures and specific hardware. They are not promises about search accuracy, indexing speed, memory use, or response time on other collections.

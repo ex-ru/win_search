@@ -1,118 +1,58 @@
-# WAI for Windows — Builder Guide
+# WAI for Windows 1.2.0 — Builder Guide
 
-Plain words first:
+## Requirements
 
-- **Vector** — 768 numbers holding the meaning of one picture, page,
-  passage, video frame, or 30 seconds of sound. Same space as Mac
-  (EmbeddingGemma 2, Q8_0). A search turns your words into the same
-  kind of numbers and compares.
-- **Fingerprint** — a short text naming which model and settings made
-  the vectors. A new fingerprint means "embed again".
-- **Self-contained publish** — the app folder holds .NET itself, so the
-  user installs nothing extra.
+- Windows 10 or 11, x64, with Git.
+- .NET SDK 10.0.402. The repository pins this SDK in global.json; verify the selected version with dotnet --version.
+- Python 3.12, CMake, Ninja, and Visual Studio C++ build tools are needed for rebuilding the native llama.cpp runtime. They are not required to run the packaged app.
 
-## You need (build PC only; users need none of this)
-
-- Windows 10/11, x64. Git. Python 3.12 (only for the CMake venv).
-- .NET 9 SDK (this repo used 9.0.318). Check: `dotnet --list-sdks`.
-- Visual Studio 2022 (for the llama.cpp step) + NVIDIA CUDA toolkit
-  (only for the GPU build; CPU/Vulkan build without it).
-- CMake + Ninja (or let `build-llama-windows.ps1` fetch them into
-  `Vendor\`, this window only — no system change).
-
-Users need: Windows 10 22H2+ or 11. Nothing else (no .NET, no Python,
-no FFmpeg, no admin). NVIDIA driver if they have NVIDIA.
+The shipped package uses CPU and Vulkan backends and includes FFmpeg by default. CUDA is not part of the release package. Model files are downloaded when needed and checked against pinned source, file size, and SHA-256 metadata. Users do not need a separate .NET, Python, or FFmpeg installation.
 
 ## Build
 
-```powershell
-# 1. Model runtime (pinned tag b11461 + no-logits patch, CUDA+Vulkan+CPU, mtmd on)
-powershell -File windows\scripts\build-llama-windows.ps1
-# -> windows\native\x64\llama.dll + mtmd.dll (+ ggml*.dll)
+Run commands from the repository root. Managed source checks do not require a local `run-vulkan/` application build:
 
-PDF reading is Chromium's Pdfium, prebuilt (no compile):
-`bblanchon/pdfium-binaries` release `chromium/8086` (PDFium 157.0.8086.0),
-`pdfium-win-x64.tgz` (SHA-256
-`1FD8AF952832DBB0EB16D9249F68FE09E5F5EBF7C3DD9F6066EA2720CC28487D`)
-→ `windows\native\x64\pdfium.dll`, staged to dev-run/ship by the
-`*.dll` copy in `dev-run-windows.ps1`. License: BSD-3 (already in the
-license list below).
+~~~powershell
+$win = '.\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows'
+dotnet build "$win\WAI.Windows.sln" -c Release
+dotnet test "$win\WAI.Windows.sln" -c Release
+~~~
 
-# 2. Code
-dotnet build windows\WAI.Windows.sln -c Release
+A fresh clone is **not yet sufficient to build the standard distribution**. `build-package.ps1` requires a prepared `run-vulkan/` native payload (`llama.dll`, `mtmd.dll`, `ggml*.dll`, `libomp.dll`), `tools/llama-vulkan/LICENSE-LLVM-OpenMP`, and `tools/ffmpeg/{ffmpeg,ffprobe}.exe`. PDFium is currently tracked under `windows/native/x64/`. These external binaries are not downloaded by the packaging command. See `PUB-02` and `PUB-04` in the root backlog for matching notices and reproducible native dependency preparation.
 
-# 3. Dev folder (all three exes + DLLs + loud smoke checks) and start the app
-powershell -File windows\scripts\dev-run-windows.ps1
-# CLI only: ... dev-run-windows.ps1 cli  ->  windows\dev-run\wai.exe
+The existing `build-llama-windows.ps1` is an experimental source build, **not** a bootstrap for the standard CPU/Vulkan package. It currently enables CUDA, needs the CUDA toolchain and Visual Studio 2022 C++ tools, writes to `windows/native/`, and uses PowerShell 7 syntax. Do not invoke it through Windows PowerShell 5.1 or assume it fills `run-vulkan/`.
 
-# 4. Try the CLI (words-only until step 1 + models exist)
-windows\dev-run\wai.exe estimate %USERPROFILE%\Documents
-```
+Build the standard full package with the default profile:
 
-The app exe is WAIApp.exe on purpose: WAI.dll would overwrite
-wai.dll on case-insensitive disks (the Mac build does the same).
+~~~powershell
+& "$win\scripts\build-package.ps1" -Version 1.2.0
+~~~
 
-Model files (same as Mac, checked by size + SHA-256, see
-`WAI.Core/ModelFiles.cs`): `embeddinggemma-2-Q8_0.gguf` (310 MB) +
-`mmproj-embeddinggemma-2-Q8_0.gguf` (555 MB) from
-`ggml-org/embeddinggemma-2-GGUF`. Put them in
-`%LocalAppData%\WAI\Models\` (or set `WAI_MODELS`).
+The package identity is WinSearch.WAI. The build writes its staged payload to dist\staging and release artifacts to dist\releases. The full package includes FFmpeg. Model files are not embedded in the installer.
 
-## Project map (Mac file → Windows file)
+## Model integrity
 
-| Mac (`Sources/…`) | Windows (`windows/src/…`) | Notes |
-|---|---|---|
-| `WAIKit/Crawler.swift`, `Rules.swift`, `FolderSelection.swift`, `Estimator.swift` | `WAI.Core/Crawler.cs`, `Rules.cs`, `FolderSelection.cs`, `Costs.cs`, `Classification.cs`, `FileKind.cs` | Same skips; OneDrive placeholders replace iCloud; symlinked folders never followed |
-| `WAIKit/Extractors.swift`, `MediaExtractors.swift` | `WAI.Core/ImageExtractor.cs` (WIC), `PdfExtractor.cs` (Pdfium), `AudioVideoExtractor.cs` (FFmpeg), `DocExtractor.cs`, `IExtractor.cs`, `ExtractorRunner.cs`, `Pieces.cs` | Engines are injected interfaces; stubs throw `NotSupportedException` with the wiring plan until built |
-| `WAIKit/CodeExtractor.swift` | `WAI.Core/CodeExtractor.cs` | Same gitignore/vendored/secret rules |
-| `WAIKit/Database.swift`, `IndexStore.swift`, `Vectors.swift`, `Searcher.swift`, `SearchText.swift`, `Model*.swift` | Same names in `WAI.Core/` | Same SQLite schema (v5), FTS5 porter tokenizer, float16 store, per-modality norm, word boost |
-| `WAIKit/Indexer.swift`, `Worker.swift`, `wai/*.swift` | `WAI.Core/Indexer.cs`, `WorkerClient.cs` + `wai/Program.cs` | Same JSON-lines protocol; helper quits when idle |
-| `LlamaRuntime/*.swift`, `CLlama/*` | `WAI.Embed/Program.cs` + `scripts/build-llama-windows.ps1` | Metal→CUDA/Vulkan; native encode is the open item (protocol + plumbing done, see below) |
-| `WAIApp/*.swift` (27 files) | `WAI.App/` (`App`, `MainWindow`, `Engine`, `Settings`, `Hotkey`, `Editors`) | WPF + WinForms tray; Carbon hotkey→`RegisterHotKey`; Sparkle→Velopack (notes in `setup/`) |
+Model URLs and expected size/SHA-256 values are pinned in WAI.Core/ModelCatalog.cs and WAI.Core/ModelFiles.cs. The downloader validates the file before it is used. Keep model metadata changes explicit and review the upstream revision and checksums when updating a model.
 
-## Proven on 2026-10-11 (this PC: Win11 x64, RTX 5070 Ti, CUDA 13.1)
+## Release checks
 
-- llama.cpp b11461 + no-logits patch, CUDA sm_120 + CPU, mtmd on.
-  `windows\native\x64\` holds llama.dll, mtmd.dll, ggml*.dll.
-- Reference parity: 9/9 vectors cosine >= 0.999 vs
-  `Tests/LlamaRuntimeTests/Reference/vectors.json` (worst: frame-70,
-  0.999664). Same bar as the Mac `ReferenceVectorTests`.
-- Mixed set (2 text, 2 code, 4 images, 4 spoken-word sounds, 1 video with
-  soundtrack): `wai eval` scores top1 8/8, top5 8/8.
-- Full solution builds with 0 warnings, 0 errors.
-- App idles at ~115 MB (model loads on demand, helper quits when done).
+The following commands are available to run before a release. Their presence here does not mean they have passed in the current checkout; retain and review reports from actual runs.
 
-## Open items (honest list)
+~~~powershell
+$models = Join-Path $env:LOCALAPPDATA 'WAI\Models'
+.\scripts\check-release.ps1 -PackageDir .\dist\staging -ModelsDir $models -Model gemma2
 
-1. **Vulkan build** for AMD/Intel GPUs: needs a Vulkan SDK (a system
-   install, so not done on this PC). `WITH_VULKAN=1` in
-   `build-llama-windows.ps1` covers it; CPU fallback works everywhere now.
-2. **ARM64**: `build-llama-windows.ps1` picks arm64 on ARM64 machines;
-   untested (no such machine here).
-3. **Screenshot OCR**: `WindowsOcrEngineStub` still throws (Windows.Media.Ocr
-   not wired). Screenshots index by picture alone until then; garbled PDF
-   layers fall back to the rendered page instead of OCR.
-4. **Velopack feed**: `setup/velopack-notes.md` defines the package and
-   the VM safety proof. Wire the NuGet + feed when the release page exists.
-5. **`dotnet test` projects** for Rules/SearchText/Vectors parity.
+dotnet run --project .\checks\WAI.Performance\WAI.Performance.csproj -c Release -- --counts 10000,100000 --repetitions 12 --report .\state\perf\report.json
+~~~
 
-## Checks before a release
+The release check expects a staged full package and the locally available model files. The performance tool reports measurements for the requested corpus and this machine; it is not a universal latency requirement. Add --million only when there is enough disk space for the generated test index.
 
-- `dotnet build windows\WAI.Windows.sln -c Release` — 0 errors.
-- `wai.exe estimate/eval` on the testbed; parity within 5% of Mac.
-- Unicode sanity: lone-surrogate text through Normalized/Snippet/Tokenize
-  must not throw (see TextSanitize; regression of the "invalid Unicode
-  code points" search-killer).
-- Kill the app mid-index, relaunch: pending files resume, done files are
-  not re-embedded, no file is marked done without vectors.
-- PDF checks: a text PDF indexes as text (title read), a scanned PDF as
-  a picture, a corrupt PDF fails with a plain message (no crash).
-- Fresh-VM install → run → update → uninstall (see `setup/velopack-notes.md`).
-- License file ships: EmbeddingGemma 2 (Apache 2.0), llama.cpp (MIT),
-  Pdfium, Tesseract, FFmpeg (LGPL, dynamic link + note), SQLite (public domain).
+## Distribution and data migration
 
-## What we never touch
+Version 1.2.0 uses package identity WinSearch.WAI. Existing WAI data in %LOCALAPPDATA%\WAI remains in place. The new package identity differs from older installers, so automatic in-place upgrade across package identities is not guaranteed. Test the new installation and confirm that needed data is available before uninstalling an older identity.
 
-Mac files, `build.sh`, release flow, and anything outside `windows/`.
-`git status` must show no change to tracked files — only `windows/`
-(plus this plan in `plans/`).
+The package contains CPU and Vulkan runtimes. Vulkan behavior depends on hardware and driver; test on the target systems. The shipped package does not contain CUDA.
+
+## Historical measurements
+
+Older evaluation results remain in README.md and CHANGELOG.md as historical context. The Russian quality set and mixed media set were small fixtures; their percentages and timings do not establish expected performance or accuracy for real user collections.

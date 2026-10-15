@@ -1,0 +1,12 @@
+{"files":1,"seconds":0.1,"byKind":{"Doc":1},"skipped":{}}
+sync: +1 ~0 =0 moved:0 -0
+re-indexing with new vectors (was: (none))
+[1/1] done     C:/Users/admin/AppData/Local/Temp/WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4/documents/invoice.txt
+  done            1
+read+decode 0,0 s CPU, model+store 2,0 s (0,5 files/s).
+[{"path":"C:/Users/admin/AppData/Local/Temp/WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4/documents/invoice.txt","kind":"Doc","score":4,"segment":"Chunk","loc":1,"locEnd":null,"excerpt":"Release package invoice \u00ABGATE483716\u00BB. Delivery of laboratory equipment."}]
+index: C:\Users\admin\AppData\Local\Temp\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\index
+segments: 1, vectors: 1, unfinished: 0
+  doc        done:1
+vectors from: BAAI/bge-m3@2d48f17 llama.cpp-vectors1 text-q4_k_m
+model helper: C:\Users\admin\.codex\worktrees\wai-production\win_search\dist\staging\wai-embed.exe

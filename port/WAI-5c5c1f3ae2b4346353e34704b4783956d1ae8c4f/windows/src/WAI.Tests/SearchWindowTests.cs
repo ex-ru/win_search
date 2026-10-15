@@ -98,6 +98,62 @@ public sealed class SearchWindowTests
         Assert.Equal(Visibility.Collapsed, state.PreviewVisibility);
     }
 
+    [Fact]
+    public void Type_filter_searches_beyond_the_unfiltered_result_limit()
+    {
+        using var fixture = new SearchFixture();
+        for (int i = 0; i < 65; i++)
+            fixture.AddFile($"note-{i}.txt", FileKind.Doc,
+                string.Join(" ", Enumerable.Repeat(SearchTerm, 12)));
+        string pdfPath = fixture.AddFile("matching.pdf", FileKind.Pdf, SearchTerm + " archived report");
+        using var ui = new WindowDispatcher(fixture.Engine);
+        ui.Invoke(window => Get<WpfTextBox>(window, "Query").Text = SearchTerm);
+        Assert.True(SpinWait.SpinUntil(() => ui.Invoke(window =>
+            Get<WpfListBox>(window, "Results").Items.Count == 50), TimeSpan.FromSeconds(10)),
+            "The unfiltered result page did not reach its limit.");
+
+        ui.Invoke(window =>
+        {
+            var filter = Get<WpfButton>(window, "FilterPdf");
+            filter.RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent, filter));
+        });
+        Assert.True(SpinWait.SpinUntil(() => ui.Invoke(window =>
+            Get<WpfListBox>(window, "Results").Items.Cast<ResultItemViewModel>()
+                .Any(item => Path.GetFullPath(item.Hit.Path).Equals(Path.GetFullPath(pdfPath), StringComparison.OrdinalIgnoreCase))), TimeSpan.FromSeconds(10)),
+            "The PDF filter must query all candidates, including beyond the unfiltered page.");
+        ui.Invoke(window =>
+        {
+            Assert.All(Get<WpfListBox>(window, "Results").Items.Cast<ResultItemViewModel>(),
+                item => Assert.Equal("Pdf", item.Hit.Kind));
+            Assert.Equal(Loc.FilterAll, Get<WpfButton>(window, "FilterAll").Content);
+        });
+    }
+
+    [Fact]
+    public void Rapid_requests_replace_pending_query_and_clearing_cancels_it()
+    {
+        using var fixture = new SearchFixture();
+        using var ui = new WindowDispatcher(fixture.Engine);
+        Monitor.Enter(fixture.SearchGate);
+        try
+        {
+            ui.Invoke(window => Get<WpfTextBox>(window, "Query").Text = SearchTerm);
+            Thread.Sleep(350);
+            for (int i = 0; i < 10; i++)
+            {
+                ui.Invoke(window =>
+                {
+                    Get<WpfTextBox>(window, "Query").Text = "no-match-" + i;
+                    typeof(MainWindow).GetMethod("SearchNow", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                });
+            }
+            ui.Invoke(RaiseClearClick);
+        }
+        finally { Monitor.Exit(fixture.SearchGate); }
+        Thread.Sleep(350);
+        AssertEmptyWindow(ui);
+    }
+
     private static void AssertEmptyWindow(WindowDispatcher ui)
     {
         var state = ui.Invoke(window => (
@@ -147,7 +203,7 @@ public sealed class SearchWindowTests
                 text: "The note contains the unique word crystalmarker.");
             _store.Finish(fileId, "indexed");
 
-            Engine = new Engine(new Settings());
+            Engine = new Engine(new Settings { Folders = [_folder] });
             SetField(Engine, "_store", _store);
             SetField(Engine, "_searcher", new Searcher(_store, loadVectors: false));
             SetField(Engine, "_queryWorker", new NoOpEmbedder());
@@ -155,6 +211,16 @@ public sealed class SearchWindowTests
 
             Assert.Contains(Engine.Search(SearchTerm), hit =>
                 Path.GetFullPath(hit.Path).Equals(Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+        }
+
+        public string AddFile(string name, FileKind kind, string text)
+        {
+            string path = Path.Combine(_folder, name);
+            File.WriteAllText(path, text);
+            long id = _store.Insert(new CrawlCandidate(path, new FileInfo(path).Length, 1, kind));
+            _store.AddSegment(id, SegmentKind.Chunk, Modality.Text, excerpt: text, text: text);
+            _store.Finish(id, "indexed");
+            return path;
         }
 
         public void Dispose()

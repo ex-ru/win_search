@@ -25,9 +25,9 @@ public static class Vectors
     public static int BytesPerVector => Dimension * 2;
 
     /// <summary>L2-normalized float vector → float16 blob for the <c>vec</c> column.</summary>
-    public static byte[] ToHalfBlob(IReadOnlyList<float> vector)
+    public static byte[] ToHalfBlob(IReadOnlyList<float> vector, int? dimension = null)
     {
-        int dim = Dimension;
+        int dim = dimension ?? Dimension;
         if (vector.Count != dim)
             throw new ArgumentOutOfRangeException(nameof(vector), $"expected {dim} floats, got {vector.Count}");
         int bytesPerVector = dim * 2;
@@ -38,9 +38,9 @@ public static class Vectors
         return bytes;
     }
 
-    public static float[] FromHalfBlob(byte[] blob)
+    public static float[] FromHalfBlob(byte[] blob, int? dimension = null)
     {
-        int dim = Dimension;
+        int dim = dimension ?? Dimension;
         int bytesPerVector = dim * 2;
         if (blob.Length != bytesPerVector)
             throw new ArgumentOutOfRangeException(nameof(blob), $"expected {bytesPerVector} bytes, got {blob.Length}");
@@ -168,22 +168,30 @@ public sealed class VectorStore : IDisposable
     public void GetRow(int row, Span<float> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var halves = new Half[_dim];
-        _accessor.ReadArray((long)row * BytesPerRow, halves, 0, halves.Length);
-        for (int i = 0; i < halves.Length; i++)
+        var halves = _scratch;
+        _accessor.ReadArray((long)row * BytesPerRow, halves, 0, _dim);
+        for (int i = 0; i < _dim; i++)
             destination[i] = (float)halves[i];
     }
 
     /// <summary>Converts <paramref name="rowCount"/> rows starting at
     /// <paramref name="startRow"/> into float32 in <paramref name="destination"/>
     /// (room for at least <c>rowCount × Dimension</c> floats).</summary>
-    public void CopyBlockAsFloat(int startRow, int rowCount, float[] destination)
+    public void CopyBlockAsFloat(int startRow, int rowCount, float[] destination) =>
+        CopyBlockAsFloat(startRow, rowCount, destination, _scratch);
+
+    // A partition owns its conversion buffers; the accessor supports independent positional reads.
+    internal void CopyBlockAsFloat(int startRow, int rowCount, float[] destination, Half[] scratch)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _accessor.ReadArray((long)startRow * BytesPerRow,
-            _scratch, 0, rowCount * _dim);
-        for (int i = 0; i < rowCount * _dim; i++)
-            destination[i] = (float)_scratch[i];
+        ArgumentOutOfRangeException.ThrowIfNegative(startRow);
+        ArgumentOutOfRangeException.ThrowIfNegative(rowCount);
+        if (startRow > Rows - rowCount) throw new ArgumentOutOfRangeException(nameof(rowCount));
+        int values = checked(rowCount * _dim);
+        if (destination.Length < values || scratch.Length < values)
+            throw new ArgumentException("Conversion buffer is too small");
+        _accessor.ReadArray((long)startRow * BytesPerRow, scratch, 0, values);
+        for (int i = 0; i < values; i++) destination[i] = (float)scratch[i];
     }
 
     public void Dispose()
@@ -264,9 +272,8 @@ public static class VectorMath
             squares += (centered[i] - mean) * (centered[i] - mean);
         }
         double deviation = Math.Max(Math.Sqrt(squares / Math.Max(count, 1)), 0.02);
-        var z = new double[centered.Length];
         for (int i = 0; i < centered.Length; i++)
-            z[i] = (centered[i] - mean) / deviation;
-        return z;
+            centered[i] = (centered[i] - mean) / deviation;
+        return centered;
     }
 }

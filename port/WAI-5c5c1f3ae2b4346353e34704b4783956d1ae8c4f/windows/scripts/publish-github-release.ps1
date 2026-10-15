@@ -13,7 +13,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "1.1.0",
+    [string]$Version = "1.2.0",
     [string]$Tag = "v$Version",
     [string]$Repo = "ex-ru/win_search",
     [switch]$Draft,
@@ -33,13 +33,12 @@ if (-not (Test-Path $ReleasesDir)) {
     throw "Каталог $ReleasesDir не найден. Сначала соберите пакеты через build-package.ps1."
 }
 
-$SetupExe = Join-Path $ReleasesDir "WinSearch.DigUp-win-Setup.exe"
-if (-not (Test-Path $SetupExe)) {
-    $SetupExe = Get-ChildItem -Path $ReleasesDir -Filter "*win-Setup.exe" | Select-Object -First 1 -ExpandProperty FullName
-}
-$PortableZip = Join-Path $ReleasesDir "WinSearch.DigUp-win-Portable.zip"
-if (-not (Test-Path $PortableZip)) {
-    $PortableZip = Get-ChildItem -Path $ReleasesDir -Filter "*win-Portable.zip" | Select-Object -First 1 -ExpandProperty FullName
+$SetupExe = Join-Path $ReleasesDir "WinSearch.WAI-win-Setup.exe"
+$PortableZip = Join-Path $ReleasesDir "WinSearch.WAI-win-Portable.zip"
+foreach ($requiredAsset in @($SetupExe, $PortableZip)) {
+    if (-not (Test-Path -LiteralPath $requiredAsset -PathType Leaf)) {
+        throw "Required WAI release asset is missing: $requiredAsset"
+    }
 }
 $ReleasesJson = Join-Path $ReleasesDir "releases.win.json"
 $ShaFile = Join-Path $ReleasesDir "SHA256SUMS.txt"
@@ -50,8 +49,8 @@ if (Test-Path $PortableZip) { $AssetsToUpload += $PortableZip }
 if (Test-Path $ReleasesJson) { $AssetsToUpload += $ReleasesJson }
 if (Test-Path $ShaFile) { $AssetsToUpload += $ShaFile }
 
-# Также добавляем full.nupkg для автообновлений Velopack
-$FullNupkg = Get-ChildItem -Path $ReleasesDir -Filter "*-$Version-full.nupkg" | Select-Object -First 1
+# Also attach the current package's full update payload.
+$FullNupkg = Get-ChildItem -Path $ReleasesDir -Filter "WinSearch.WAI-$Version-full.nupkg" | Select-Object -First 1
 if ($FullNupkg) { $AssetsToUpload += $FullNupkg.FullName }
 
 Write-Host "`nФайлы для публикации в релизе:" -ForegroundColor Yellow
@@ -61,45 +60,39 @@ foreach ($asset in $AssetsToUpload) {
 }
 
 $ReleaseNotes = @"
-## WAI Windows Port v$Version
+## WAI for Windows v$Version
 
-### Что нового:
-1. **Дистрибутивы и установка**:
-   - Автономный установщик: `WinSearch.DigUp-win-Setup.exe` (WAI per-user, no-admin, автозапуск, плавное обновление версий 1.0.x / 1.1.x).
-   - Портативная версия: `WinSearch.DigUp-win-Portable.zip` (распакуй и запусти).
-   - Поддержка отслеживания больших пакетов через Git LFS.
-2. **Окно предпросмотра (Quick Look)**:
-   - Устранена полоса в заголовке окна (прозрачный DWM-фрейм).
-   - Добавлены стандартные оконные кнопки: Свернуть, Развернуть, Закрыть.
-   - Добавлено меню «Файл»: Открыть, В проводнике (с выделением файла), Сохранить как…, Копировать путь.
-   - Возможность открывать несколько окон предпросмотра одновременно.
-3. **Корректные кодировки текста**:
-   - Автодетектор кодировок: Windows-1251 (CP1251), CP866, UTF-8 с/без BOM.
-   - Устранены ромбики (\uFFFD) при предпросмотре и индексации кириллических файлов.
-4. **Удобство горячих клавиш**:
-   - Клавиша \`Esc\` теперь надежно сворачивает приложение из любого состояния (поиск, выдача, скролл).
-   - Возврат фокуса после закрытия предпросмотра.
-5. **Настройки и трей**:
-   - Увеличенная высота окна настроек (780px) и темный дизайн в едином стиле приложения.
-   - Кнопка очистки векторного индекса по выбранным папкам.
-   - В контекстном меню трея: раздел «О программе (About)» со ссылкой на GitHub.
-   - В трее рядом с галкой «Индексация» отображается динамический прогресс: сколько проиндексировано и сколько осталось.
-6. **Открытие в Проводнике**:
-   - Команда «В проводнике» открывает целевую папку с автоматическим выделением файла (\`explorer.exe /select\`).
+### Изменения
+- Установщик и обновления используют идентификатор пакета `WinSearch.WAI`.
+- Полный пакет со встроенным FFmpeg теперь является вариантом по умолчанию.
+- Данные WAI в `%LocalAppData%\WAI` сохраняются при обновлении приложения. Переход с установок, использующих другой идентификатор пакета, автоматически не гарантируется.
+
+Установщик: `WinSearch.WAI-win-Setup.exe`
+
+Портативная версия: `WinSearch.WAI-win-Portable.zip`
 "@
 
 # Проверяем наличие GitHub CLI (gh)
 $gh = Get-Command "gh" -ErrorAction SilentlyContinue
 if ($gh) {
     Write-Host "`nСоздание GitHub Release через gh CLI..." -ForegroundColor Green
-    $ghArgs = @("release", "create", $Tag, "--repo", $Repo, "--title", "WAI Windows $Tag", "--notes", $ReleaseNotes)
-    if ($Draft) { $ghArgs += "--draft" }
-    if ($Prerelease) { $ghArgs += "--prerelease" }
-    foreach ($a in $AssetsToUpload) {
-        $ghArgs += $a
+    $notesPath = Join-Path ([System.IO.Path]::GetTempPath()) "wai-release-notes-$PID-$([guid]::NewGuid().ToString('N')).md"
+    try {
+        [System.IO.File]::WriteAllText($notesPath, $ReleaseNotes, (New-Object System.Text.UTF8Encoding($false)))
+        $ghArgs = @("release", "create", $Tag, "--repo", $Repo, "--title", "WAI Windows $Tag", "--notes-file", $notesPath)
+        if ($Draft) { $ghArgs += "--draft" }
+        if ($Prerelease) { $ghArgs += "--prerelease" }
+        foreach ($a in $AssetsToUpload) {
+            $ghArgs += $a
+        }
+        & gh @ghArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub CLI failed to publish release $Tag (exit code $LASTEXITCODE)."
+        }
+        Write-Host "Релиз $Tag успешно опубликован в $Repo!" -ForegroundColor Green
+    } finally {
+        if (Test-Path -LiteralPath $notesPath) { Remove-Item -LiteralPath $notesPath -Force }
     }
-    & gh @ghArgs
-    Write-Host "Релиз $Tag успешно опубликован в $Repo!" -ForegroundColor Green
 } else {
     Write-Host "`nGitHub CLI ('gh') не установлен в системе." -ForegroundColor Yellow
     Write-Host "Вы можете загрузить релиз вручную на странице: https://github.com/$Repo/releases/new?tag=$Tag"
