@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "llama": {
+    "version": "b11461",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11461/llama-b11461-bin-win-vulkan-x64.zip",
+    "sha256": "6b9ca8ad3e43ac3e166d1997875709e4547214bb5bf1c2ebfdd17a2350a8380c",
+    "size": 33377638,
+    "source": "https://github.com/ggml-org/llama.cpp/tree/b11461"
+  },
+  "pdfium": {
+    "version": "157.0.8100.0",
+    "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8100/pdfium-win-x64.tgz",
+    "sha256": "51621bcc1d9be9ea448f4b84b0516862b928e3968d3fca899af1a6d6e2848d6d",
+    "size": 3875218,
+    "source": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/8100"
+  },
+  "ffmpegSource": {
+    "version": "9.0.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+    "commit": "946fcce07b6dcd0331c8cc609192aeff5e1924f8"
+  },
+  "ffmpeg": null
+}

@@ -1,0 +1,28 @@
+name: Build pinned FFmpeg tools
+on:
+  push:
+    branches: [codex/release-1.2.1]
+    paths:
+      - scripts/build-ffmpeg.sh
+      - native-dependencies.json
+      - .github/workflows/native-media.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross compiler
+        run: sudo apt-get update && sudo apt-get install --yes gcc-mingw-w64-x86-64 nasm make
+      - name: Compile official source without external codec libraries
+        run: bash scripts/build-ffmpeg.sh "$RUNNER_TEMP/ffmpeg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-win-x64
+          compression-level: 0
+          path: |
+            ${{ runner.temp }}/ffmpeg/ffmpeg-tools-win-x64.zip
+            ${{ runner.temp }}/ffmpeg/ffmpeg-corresponding-source.zip
