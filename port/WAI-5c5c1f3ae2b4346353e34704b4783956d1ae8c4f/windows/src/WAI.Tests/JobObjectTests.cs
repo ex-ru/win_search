@@ -5,6 +5,11 @@ using Xunit;
 
 namespace WAI.Tests;
 
+// TerminateAll owns the process-wide job: running it beside WorkerClient tests kills their workers.
+[CollectionDefinition("Job objects", DisableParallelization = true)]
+public sealed class JobObjectCollection { }
+
+[Collection("Job objects")]
 public class JobObjectTests
 {
     [Fact]
@@ -106,7 +111,7 @@ public class JobObjectTests
             Assert.Equal(ProcessPriorityClass.BelowNormal, process.PriorityClass);
 
             bool ecoOk = JobObjectManager.EnableEfficiencyMode(process);
-            Assert.True(ecoOk);
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) Assert.True(ecoOk);
         }
         finally
         {

@@ -37,6 +37,19 @@ public sealed class WatcherTests
     }
 
     [Fact]
+    public async Task RenameFromTemporaryNamedDirectoryStillReconcilesOldPath()
+    {
+        var completion = new TaskCompletionSource<IReadOnlyCollection<string>?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watcher = new FileSystemWatcherRunner(new Settings(), paths => completion.TrySetResult(paths), 50);
+        Queue(watcher, @"C:\folder\old.tmp");
+        Queue(watcher, @"C:\folder\renamed");
+        var paths = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(paths);
+        Assert.Contains(@"C:\folder\old.tmp", paths);
+        Assert.Contains(@"C:\folder\renamed", paths);
+    }
+
+    [Fact]
     public async Task DisposeCancelsPendingNotification()
     {
         int callbacks = 0;

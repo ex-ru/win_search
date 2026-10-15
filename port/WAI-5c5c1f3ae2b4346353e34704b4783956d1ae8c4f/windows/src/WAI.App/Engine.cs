@@ -543,7 +543,8 @@ public sealed class FileSystemWatcherRunner : IDisposable
         lock (_gate)
         {
             if (_disposed) return;
-            if (path is not null && Rules.IsTemporaryOrLockFile(Path.GetFileName(path))) return;
+            // Missing paths can be deleted/renamed directories, even if their names end in .tmp.
+            if (path is not null && File.Exists(path) && Rules.IsTemporaryOrLockFile(Path.GetFileName(path))) return;
             if (path is null || _paths.Count >= 10000) { _fullScan = true; _paths.Clear(); }
             else if (!_fullScan) _paths.Add(path);
             _debounce.Stop(); _debounce.Start();
