@@ -33,7 +33,8 @@ function Invoke-Json([string]$Uri, [string]$Method, $Body) {
 function Get-Optional([string]$Uri) {
     try { Invoke-RestMethod -Uri $Uri -Headers $Headers }
     catch {
-        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) { return $null }
+        # The commits endpoint returns 422, rather than 404, for an unknown tag.
+        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(404,422)) { return $null }
         throw
     }
 }
