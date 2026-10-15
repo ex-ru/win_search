@@ -20,5 +20,11 @@
     "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
     "commit": "946fcce07b6dcd0331c8cc609192aeff5e1924f8"
   },
+  "dav1dSource": {
+    "version": "1.5.4",
+    "url": "https://codeload.github.com/videolan/dav1d/tar.gz/54706fc6bc0cdecab7e9593974a4039cc038fca7",
+    "sha256": "9edb11a2108b375cc58370354e705feebc93430bb780130363815c1e1ac0c250",
+    "commit": "54706fc6bc0cdecab7e9593974a4039cc038fca7"
+  },
   "ffmpeg": null
 }
