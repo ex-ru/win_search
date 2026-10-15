@@ -3,7 +3,7 @@ import argparse, base64, hashlib, json, math, os, pathlib, queue, struct, subpro
 parser=argparse.ArgumentParser(description='Verify actual packaged CPU workers with pinned local model files.')
 parser.add_argument('--package',required=True)
 parser.add_argument('--models',required=True)
-parser.add_argument('--model',default='all',choices=['all','bge-m3','nomic','gemma2'])
+parser.add_argument('--model',default='all',choices=['all','bge-m3','gemma2'])
 parser.add_argument('--report-dir',default='state/packaged-workers')
 args=parser.parse_args()
 repo=pathlib.Path(__file__).resolve().parent.parent
@@ -18,7 +18,7 @@ with wave.open(str(root/'audio.wav'),'wb') as stream:
     stream.setnchannels(1);stream.setsampwidth(2);stream.setframerate(16000)
     stream.writeframes(b''.join(struct.pack('<h',int(8000*math.sin(2*math.pi*440*i/16000))) for i in range(16000)))
 results=[]
-for model,dim in [('bge-m3',1024),('nomic',768),('gemma2',768)]:
+for model,dim in [('bge-m3',1024),('gemma2',768)]:
     if args.model!='all' and args.model!=model:continue
     env=dict(os.environ,WAI_MODELS=str(models),WAI_BACKEND='cpu',WAI_HOME=str(root/model/'home'),WAI_INDEX=str(root/model/'index'),WAI_FFMPEG=str(package))
     stderr=(root/(model+'-stderr.log')).open('w',encoding='utf-8')

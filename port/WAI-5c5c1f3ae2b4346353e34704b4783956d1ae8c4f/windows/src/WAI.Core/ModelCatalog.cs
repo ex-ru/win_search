@@ -63,8 +63,8 @@ public static class ModelCatalog
     public static readonly EmbeddingModelDef Gemma2 = new(
         Id: "gemma2",
         Name: "EmbeddingGemma 2",
-        DisplayNameRu: "EmbeddingGemma 2 (2.6B, Текст + изображения + аудио, 768 dim)",
-        DisplayNameEn: "EmbeddingGemma 2 (2.6B, Text + images + audio, 768 dim)",
+        DisplayNameRu: "EmbeddingGemma 2 (Текст + изображения + аудио, 768 dim)",
+        DisplayNameEn: "EmbeddingGemma 2 (Text + images + audio, 768 dim)",
         DescriptionRu: "Модель Google для поиска по тексту, изображениям и аудио через проектор mmproj. 768 измерений.",
         DescriptionEn: "Google model for searching text, images, and audio through the mmproj projector. 768 dimensions.",
         Dimension: 768,
@@ -78,8 +78,8 @@ public static class ModelCatalog
     public static readonly EmbeddingModelDef BgeM3 = new(
         Id: "bge-m3",
         Name: "BGE-M3",
-        DisplayNameRu: "BGE-M3 (568M, многоязычный текстовый поиск, 1024 dim)",
-        DisplayNameEn: "BGE-M3 (568M, multilingual text search, 1024 dim)",
+        DisplayNameRu: "BGE-M3 (многоязычный текстовый поиск, 1024 dim)",
+        DisplayNameEn: "BGE-M3 (multilingual text search, 1024 dim)",
         DescriptionRu: "Многоязычная модель текстовых эмбеддингов. Текст на изображениях можно искать через OCR. 1024 измерения.",
         DescriptionEn: "A multilingual text embedding model. Text in images can be searched through OCR. 1024 dimensions.",
         Dimension: 1024,
@@ -90,28 +90,12 @@ public static class ModelCatalog
         DownloadUrl: "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/2d48f1737679ad900d5c26c5aad5410e9c70fdca/bge-m3-Q4_K_M.gguf",
         EstimatedBytes: 437_778_496);
 
-    public static readonly EmbeddingModelDef Nomic = new(
-        Id: "nomic",
-        Name: "Nomic Embed v1.5",
-        DisplayNameRu: "Nomic Embed v1.5 (137M, компактная текстовая модель, 768 dim)",
-        DisplayNameEn: "Nomic Embed v1.5 (137M, compact text model, 768 dim)",
-        DescriptionRu: "Компактная модель текстовых эмбеддингов. Текст на изображениях можно искать через OCR. 768 измерений.",
-        DescriptionEn: "A compact text embedding model. Text in images can be searched through OCR. 768 dimensions.",
-        Dimension: 768,
-        TextFile: "nomic-embed-text-v1.5.Q8_0.gguf",
-        MediaFile: null,
-        HasMediaProjection: false,
-        Repo: "nomic-ai/nomic-embed-text-v1.5-GGUF",
-        DownloadUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/0188c9bf409793f810680a5a431e7b899c46104c/nomic-embed-text-v1.5.Q8_0.gguf",
-        EstimatedBytes: 146_146_432);
-
-    public static readonly IReadOnlyList<EmbeddingModelDef> All = [Gemma2, BgeM3, Nomic];
+    public static readonly IReadOnlyList<EmbeddingModelDef> All = [Gemma2, BgeM3];
 
     public static IReadOnlyList<ModelFile> FilesFor(string id) => id switch
     {
         "gemma2" => ModelFiles.All,
         "bge-m3" => [new(BgeM3.TextFile, BgeM3.EstimatedBytes, "6d39681b26c61279ac1f82db35a04a05009e94c415b51c858ff571489a82fc06", BgeM3.DownloadUrl)],
-        "nomic" => [new(Nomic.TextFile, Nomic.EstimatedBytes, "3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7", Nomic.DownloadUrl)],
         _ => throw new ArgumentException("Unknown embedding model.", nameof(id))
     };
 

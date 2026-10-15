@@ -10,7 +10,7 @@ The installer is unsigned: Windows may display an unknown-publisher warning. Che
 
 ## Changes
 
-- The unsupported Perplexity option is removed: it crashed before readiness and its late-interaction model did not match the advertised vector dimension. Existing settings selecting it fall back to the default Gemma model; its model may need downloading and the semantic index may need rebuilding. Gemma, BGE-M3 and Nomic remain available.
+- The unsupported Perplexity option is removed: it crashed before readiness and its late-interaction model did not match the advertised vector dimension. Existing settings selecting it fall back to the default Gemma model; its model may need downloading and the semantic index may need rebuilding. Gemma and BGE-M3 remain available. Nomic is also excluded: its integration did not pass the Russian semantic-search release check and needs model-specific prompt handling before reconsideration. Existing Nomic settings also fall back to Gemma.
 
 - Background indexing uses bounded CPU threads, lower priority and Windows efficiency hints. Query inference keeps its own foreground configuration.
 - Index cancellation and incremental reconciliation remain active. Renamed/deleted folders with temporary-looking names are still reconciled.

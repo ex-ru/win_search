@@ -271,11 +271,11 @@ internal static class Program
         using (var output = File.Create(av1)) fixture.CopyTo(output);
         RunProcess(paths.FFmpegExe, ["-y", "-hwaccel", "none", "-i", av1, "-frames:v", "1", Path.Combine(root, "av1.png")]);
         Require(new FileInfo(Path.Combine(root, "av1.png")).Length > 100, "FFmpeg did not decode AV1 on the CPU.");
-        return $"{dependencyAudit} Removed Perplexity aliases rejected before inference. PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
+        return $"{dependencyAudit} Removed model aliases rejected before inference. PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
     }
     private static void VerifyRemovedModelRejected(string package, string root)
     {
-        foreach (string model in new[] { "pplx-v2", "perplexity", "pplx" })
+        foreach (string model in new[] { "pplx-v2", "perplexity", "pplx", "nomic", "nomic-embed" })
         {
             var start = new ProcessStartInfo(Path.Combine(package, "wai-embed.exe"))
             {

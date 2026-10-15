@@ -393,7 +393,7 @@
           <StackPanel>
             <TextBlock x:Name="TxtModelTitle" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" Text="Модель векторных эмбеддингов (Нейросеть поиска)" />
             <TextBlock x:Name="TxtModelDesc" Foreground="#888888" FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"
-                       Text="Gemma обрабатывает текст, изображения и аудио. BGE-M3 и Nomic предназначены для текста; изображения обрабатываются через OCR." />
+                       Text="Gemma обрабатывает текст, изображения и аудио. BGE-M3 предназначена для многоязычного текста; текст на изображениях обрабатывается через OCR." />
 
             <TextBlock x:Name="TxtModelActiveLabel" Text="Активная модель эмбеддингов:" Foreground="#CCCCCC" FontSize="12" Margin="0,0,0,4" />
             <ComboBox x:Name="ComboEmbeddingModel" DisplayMemberPath="Title" Margin="0,0,0,8" SelectionChanged="OnModelSelectionChanged" />

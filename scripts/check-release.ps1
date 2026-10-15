@@ -143,7 +143,7 @@ try {
     Invoke-Gate 'isolate-local-models' {
         # Hardlinks avoid duplicating model data on the same volume. Cross-volume runs copy immutable fixtures.
         $Files = @()
-        $Selected = switch ($Model) { 'bge-m3' { 'bge-m3-Q4_K_M.gguf' }; 'nomic' { 'nomic-embed-text-v1.5.Q8_0.gguf' }; 'gemma2' { 'embeddinggemma-2-Q8_0.gguf' }; default { throw "Unknown model: $Model" } }
+        $Selected = switch ($Model) { 'bge-m3' { 'bge-m3-Q4_K_M.gguf' }; 'gemma2' { 'embeddinggemma-2-Q8_0.gguf' }; default { throw "Unknown model: $Model" } }
         $Files = @($Selected)
         if ($Model -eq 'gemma2') { $Files += 'mmproj-embeddinggemma-2-Q8_0.gguf' }
         foreach ($File in $Files) {

@@ -41,7 +41,7 @@ public sealed class Settings
     public string HardwareMode { get; set; } = "auto";
     /// <summary>Encode short search queries on CPU (AVX2/AVX-512) for instant response without GPU startup latency.</summary>
     public bool QueryFastPathCpu { get; set; } = true;
-    /// <summary>Active embedding model: "gemma2", "bge-m3", or "nomic".</summary>
+    /// <summary>Active embedding model: "gemma2" or "bge-m3".</summary>
     public string EmbeddingModel { get; set; } = "gemma2";
 
     /// <summary>True when there was no settings file: first run, show setup.</summary>

@@ -8,18 +8,19 @@ namespace WAI.Tests;
 public sealed class PplxReleaseGuardTests
 {
     [Fact]
-    public void RemovedPerplexityModel_IsNotOffered_AndHasNoDownloadFiles()
+    public void UnsupportedModels_AreNotOffered_AndHaveNoDownloadFiles()
     {
-        Assert.DoesNotContain(ModelCatalog.All, model => model.Id.Contains("pplx", StringComparison.OrdinalIgnoreCase));
-        Assert.Throws<ArgumentException>(() => ModelCatalog.FilesFor("pplx-v2"));
-        Assert.Throws<ArgumentException>(() => ModelCatalog.FilesFor("perplexity"));
-        Assert.Throws<ArgumentException>(() => ModelCatalog.FilesFor("pplx"));
+        Assert.Equal(new[] { "gemma2", "bge-m3" }, ModelCatalog.All.Select(model => model.Id));
+        foreach (var oldModelId in UnsupportedLegacyModels)
+            Assert.Throws<ArgumentException>(() => ModelCatalog.FilesFor(oldModelId));
     }
 
     [Theory]
     [InlineData("pplx-v2")]
     [InlineData("perplexity")]
     [InlineData("pplx")]
+    [InlineData("nomic")]
+    [InlineData("nomic-embed")]
     public void SettingsLoad_MigratesRemovedModel_AndPreservesOtherPreferences(string oldModelId)
     {
         var previousHome = Environment.GetEnvironmentVariable("WAI_HOME");
@@ -71,4 +72,6 @@ public sealed class PplxReleaseGuardTests
             if (Directory.Exists(temporaryHome)) Directory.Delete(temporaryHome, recursive: true);
         }
     }
+
+    private static readonly string[] UnsupportedLegacyModels = ["pplx-v2", "perplexity", "pplx", "nomic", "nomic-embed"];
 }
