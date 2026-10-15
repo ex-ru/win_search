@@ -257,11 +257,19 @@ internal static class Program
         var audio = AudioVideoExtractor.DecodeAudioWindowsAsync(wav, 3, 3, 1, Path.Combine(root, "decoded"), paths, timeout.Token).GetAwaiter().GetResult();
         Require(audio.Pieces.Count > 0 && audio.Duration > 2.5, "Actual FFmpeg audio decoding produced no windows.");
         string video = Path.Combine(root, "video.mp4");
-        RunProcess(paths.FFmpegExe, ["-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=5", "-t", "1", "-c:v", "mpeg4", video]);
+        string rgb = Path.Combine(root, "frames.rgb");
+        File.WriteAllBytes(rgb, Enumerable.Range(0, 320 * 240 * 3 * 5).Select(i => (byte)(i % 251)).ToArray());
+        RunProcess(paths.FFmpegExe, ["-y", "-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", "320x240", "-framerate", "5", "-i", rgb, "-c:v", "mpeg4", video]);
         Require(AudioVideoExtractor.HasStreamAsync(video, 'v', paths, timeout.Token).GetAwaiter().GetResult(), "FFprobe did not find generated video.");
         RunProcess(paths.FFmpegExe, ["-y", "-i", video, "-frames:v", "1", Path.Combine(root, "frame.png")]);
         Require(new FileInfo(Path.Combine(root, "frame.png")).Length > 100, "FFmpeg did not decode the video frame.");
-        return "PDFium text extraction and PNG rendering; real FFprobe probing, FFmpeg PCM decoding and video generation/frame decoding passed.";
+        string av1 = Path.Combine(root, "av1.webm");
+        using (var fixture = typeof(Program).Assembly.GetManifestResourceStream("WAI.ReleaseSmoke.Fixtures.av1.webm")
+            ?? throw new InvalidOperationException("Missing embedded AV1 fixture."))
+        using (var output = File.Create(av1)) fixture.CopyTo(output);
+        RunProcess(paths.FFmpegExe, ["-y", "-hwaccel", "none", "-i", av1, "-frames:v", "1", Path.Combine(root, "av1.png")]);
+        Require(new FileInfo(Path.Combine(root, "av1.png")).Length > 100, "FFmpeg did not decode AV1 on the CPU.");
+        return "PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
     }
     private static void RunProcess(string exe, string[] args)
     {

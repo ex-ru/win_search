@@ -1,6 +1,6 @@
 # Publish a tested package as a draft; make it public only after asset verification.
 param(
-    [string]$Version = '1.2.0',
+    [string]$Version = '1.2.1',
     [string]$Repo = 'ex-ru/win_search',
     [string]$ReleasesDir = '',
     [string]$TargetCommitish = '',
@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-if (!$ReleasesDir) { $ReleasesDir = Join-Path $RepoRoot 'dist\releases' }
+if (!$ReleasesDir) { $ReleasesDir = Join-Path $RepoRoot "dist\$Version\releases" }
 $ReleasesDir = [IO.Path]::GetFullPath($ReleasesDir)
 if (!$TargetCommitish) { $TargetCommitish = (& git -C $RepoRoot rev-parse HEAD | Out-String).Trim() }
 if ($TargetCommitish -notmatch '^[a-fA-F0-9]{40}$') { throw 'TargetCommitish must be the tested full commit SHA.' }
@@ -18,7 +18,7 @@ if (!$NotesFile -or !(Test-Path -LiteralPath $NotesFile -PathType Leaf)) { throw
 $Notes = Get-Content -LiteralPath $NotesFile -Raw -Encoding UTF8
 $Tag = "v$Version"
 $ExpectedNames = @('WinSearch.WAI-win-Setup.exe', 'WinSearch.WAI-win-Portable.zip', "WinSearch.WAI-$Version-full.nupkg",
-    'ffmpeg-tools-win-x64.zip', 'releases.win.json', 'assets.win.json', 'RELEASES', 'SHA256SUMS.txt')
+    'ffmpeg-tools-win-x64.zip', 'ffmpeg-corresponding-source.zip', 'native-provenance.json', 'releases.win.json', 'assets.win.json', 'RELEASES', 'SHA256SUMS.txt')
 $Files = @($ExpectedNames | ForEach-Object {
     $Path = Join-Path $ReleasesDir $_
     if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing release artifact: $_" }

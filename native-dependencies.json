@@ -32,5 +32,16 @@
     "sha256": "b9258cf6254e7f7c37f1cd61dba943a1c5ea3cff5718c789834dac359094f5f7",
     "commit": "da607da739fa6047df13e66a2af6b8bec7c2a498"
   },
-  "ffmpeg": null
+  "ffmpeg": {
+    "version": "9.0.2",
+    "url": "https://github.com/ex-ru/win_search/releases/download/v1.2.1/ffmpeg-tools-win-x64.zip",
+    "sha256": "64b9bf8d66b59b97e03f4c8588152ce7e92db4b9e744b229c5a7a868178c5f9c",
+    "size": 16720455,
+    "buildRun": "https://github.com/ex-ru/win_search/actions/runs/38761826161",
+    "sourceArchive": {
+      "url": "https://github.com/ex-ru/win_search/releases/download/v1.2.1/ffmpeg-corresponding-source.zip",
+      "sha256": "332d1652170ea3b9d4540064f5b471966d0e7c54b6ffeb8ef84a6687e141b2dd",
+      "size": 15359793
+    }
+  }
 }

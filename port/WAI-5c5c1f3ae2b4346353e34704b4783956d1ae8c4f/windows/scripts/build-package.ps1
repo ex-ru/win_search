@@ -1,7 +1,7 @@
 # Build and package WAI (Windows AI Search) for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.2.0",
+    [string]$Version = "1.2.1",
     [string]$OutputDir = "",
     [switch]$Slim = $false,
     [switch]$Full = $false
@@ -28,7 +28,7 @@ if (!(Test-Path (Join-Path $RepoRoot ".git"))) {
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $RepoRoot "dist"
+    $OutputDir = Join-Path $RepoRoot "dist\$Version"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 
@@ -52,38 +52,28 @@ New-Item -ItemType Directory -Force -Path $LocalNugetPackages | Out-Null
 $env:DOTNET_CLI_HOME = $LocalDotnetHome
 $env:NUGET_PACKAGES = $LocalNugetPackages
 
-$RunVulkan = Join-Path $RepoRoot "run-vulkan"
-$FfmpegTools = Join-Path $RepoRoot "tools\ffmpeg"
-$LlamaVulkan = Join-Path $RepoRoot "tools\llama-vulkan"
-$PdfiumSource = Join-Path $WindowsDir "native\x64\pdfium.dll"
-$OpenMpLicenseSource = Join-Path $LlamaVulkan "LICENSE-LLVM-OpenMP"
-$RepoLicenseSource = Join-Path $RepoRoot "LICENSE"
-$RequiredNativeDlls = @("llama.dll", "mtmd.dll", "ggml.dll", "ggml-base.dll", "ggml-vulkan.dll", "ggml-cpu-x64.dll", "libomp.dll")
+$NativeRoot = Join-Path $RepoRoot "tools\runtime-win-x64"
+& (Join-Path $RepoRoot 'scripts\prepare-runtime.ps1') -OutputDir $NativeRoot
+$NativeBin = Join-Path $NativeRoot 'bin'
+$NativeLicenses = Join-Path $NativeRoot 'licenses'
+$NativeManifestPath = Join-Path $NativeRoot 'native-provenance.json'
+$NativeManifest = Get-Content -LiteralPath $NativeManifestPath -Raw | ConvertFrom-Json
+foreach ($File in $NativeManifest.files) {
+    $Path = Join-Path $NativeBin $File.name
+    if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $File.sha256) { throw "Prepared native file changed: $($File.name)" }
+}
+$RequiredNativeDlls = @("llama.dll", "mtmd.dll", "ggml.dll", "ggml-base.dll", "ggml-vulkan.dll", "ggml-cpu-x64.dll", "libomp.dll", "pdfium.dll")
 $RequiredFfmpegTools = @("ffmpeg.exe", "ffprobe.exe")
-foreach ($name in $RequiredNativeDlls) {
-    if (!(Test-Path -LiteralPath (Join-Path $RunVulkan $name) -PathType Leaf)) {
-        throw "Missing required native runtime file: $(Join-Path $RunVulkan $name)"
-    }
-}
-foreach ($name in $RequiredFfmpegTools) {
-    if (!(Test-Path -LiteralPath (Join-Path $FfmpegTools $name) -PathType Leaf)) {
-        throw "Missing required media tool: $(Join-Path $FfmpegTools $name)"
-    }
-}
-if (!(Test-Path -LiteralPath $PdfiumSource -PathType Leaf)) {
-    throw "Missing required PDFium runtime: $PdfiumSource"
-}
-foreach ($license in @($OpenMpLicenseSource, $RepoLicenseSource)) {
-    if (!(Test-Path -LiteralPath $license -PathType Leaf)) {
-        throw "Missing required license file: $license"
-    }
-}
+$RepoLicenseSource = Join-Path $RepoRoot 'LICENSE'
+if ($Slim) { throw 'Slim packages are no longer supported. The standard package includes verified media tools and their notices.' }
 
 $NuGetConfig = Join-Path $RepoRoot "NuGet.Config"
 if (!(Test-Path -LiteralPath $NuGetConfig -PathType Leaf)) {
     $NuGetConfig = $null
 }
 
+$VersionSource = Get-Content -LiteralPath (Join-Path $WindowsDir 'src\WAI.App\AppConstants.cs') -Raw
+if ($VersionSource -notmatch ('Version\s*=\s*"' + [regex]::Escape($Version) + '"')) { throw 'Package version must match AppConstants.Version.' }
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host " Building WAI (Windows AI Search) Windows Distribution v$Version" -ForegroundColor Cyan
 Write-Host " Output: $OutputDir" -ForegroundColor Cyan
@@ -115,7 +105,7 @@ function Publish-Project($ProjectRelPath, $Name) {
     $Proj = Join-Path $WindowsDir $ProjectRelPath
     Write-Host "Publishing $Name ($Proj)..." -ForegroundColor Yellow
     $PublishArgs = @("publish", $Proj, "-c", "Release", "-r", "win-x64", "--self-contained",
-        "-o", $StagingDir, "--nologo", "-v", "quiet")
+        "-o", $StagingDir, "--nologo", "-v", "quiet", "-p:RestoreLockedMode=true", "-warnaserror:NU1903,NU1904")
     if ($NuGetConfig) {
         $PublishArgs += "-p:RestoreConfigFile=$NuGetConfig"
     }
@@ -129,165 +119,48 @@ Publish-Project "src\WAI.App\WAI.App.csproj" "WAIApp (WPF GUI)"
 Publish-Project "src\wai\wai.csproj" "wai (CLI)"
 Publish-Project "src\WAI.Embed\WAI.Embed.csproj" "wai-embed (Worker)"
 
-# 4. Copy native runtime libraries
-Write-Host "Copying native runtime binaries..." -ForegroundColor Yellow
-Get-ChildItem -LiteralPath $RunVulkan -Filter "*.dll" -File |
-    Where-Object { $_.Name -like "ggml*.dll" -or $_.Name -in @("llama.dll", "mtmd.dll", "libomp.dll") } |
-    ForEach-Object {
-        $dest = Join-Path $StagingDir $_.Name
-        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
-    }
-
-if (!$Slim) {
-    Write-Host "Bundling FFmpeg media tools (Full package mode)..." -ForegroundColor Yellow
-    foreach ($name in $RequiredFfmpegTools) {
-        Copy-Item -LiteralPath (Join-Path $FfmpegTools $name) -Destination (Join-Path $StagingDir $name) -Force
-    }
-} else {
-    Write-Host "Slim package mode: omitting bundled FFmpeg (will be fetched on-demand)." -ForegroundColor Green
+# 4. Copy only the verified native runtime and its complete upstream notices.
+foreach ($File in $NativeManifest.files) {
+    Copy-Item -LiteralPath (Join-Path $NativeBin $File.name) -Destination (Join-Path $StagingDir $File.name) -Force
 }
-
-$PdfiumTarget = Join-Path $StagingDir "pdfium.dll"
-Copy-Item -LiteralPath $PdfiumSource -Destination $PdfiumTarget -Force
-New-Item -ItemType Directory -Force -Path (Join-Path $StagingDir "native\x64") | Out-Null
-Copy-Item -LiteralPath $PdfiumSource -Destination (Join-Path $StagingDir "native\x64\pdfium.dll") -Force
-
-$LicenseTargetDir = Join-Path $StagingDir "licenses"
+$LicenseTargetDir = Join-Path $StagingDir 'licenses'
 New-Item -ItemType Directory -Force -Path $LicenseTargetDir | Out-Null
-Copy-Item -LiteralPath $OpenMpLicenseSource -Destination (Join-Path $LicenseTargetDir "LICENSE-LLVM-OpenMP") -Force
-Copy-Item -LiteralPath $RepoLicenseSource -Destination (Join-Path $LicenseTargetDir "LICENSE") -Force
+Copy-Item -Path (Join-Path $NativeLicenses '*') -Destination $LicenseTargetDir -Recurse -Force
+Copy-Item -LiteralPath $RepoLicenseSource -Destination (Join-Path $LicenseTargetDir 'LICENSE-WAI.txt') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'THIRD_PARTY_NOTICES.md') -Destination $LicenseTargetDir -Force
+Copy-Item -LiteralPath $NativeManifestPath -Destination (Join-Path $StagingDir 'native-provenance.json') -Force
+$ManagedNoticeSource = Join-Path $OutputDir 'managed-notices'
+& (Join-Path $RepoRoot 'scripts\collect-managed-notices.ps1') -PublishDir $StagingDir -NuGetPackages $LocalNugetPackages -OutputDir $ManagedNoticeSource
+$ManagedNoticeTarget = Join-Path $LicenseTargetDir 'managed'
+New-Item -ItemType Directory -Force -Path $ManagedNoticeTarget | Out-Null
+Copy-Item -Path (Join-Path $ManagedNoticeSource '*') -Destination $ManagedNoticeTarget -Recurse -Force
+$UpdaterNoticeSource = Join-Path $RepoRoot 'licenses\velopack-runtime'
+$UpdaterNoticeIndex = Get-Content -LiteralPath (Join-Path $UpdaterNoticeSource 'index.json') -Raw | ConvertFrom-Json
+if ($UpdaterNoticeIndex.unresolved_count -ne 0 -or $UpdaterNoticeIndex.git_dependency_count -ne 0) { throw 'Release blocked: unresolved updater notices.' }
+$UpdaterNoticeTarget = Join-Path $LicenseTargetDir 'velopack-runtime'
+New-Item -ItemType Directory -Force -Path $UpdaterNoticeTarget | Out-Null
+Copy-Item -Path (Join-Path $UpdaterNoticeSource '*') -Destination $UpdaterNoticeTarget -Recurse -Force
+$ManagedNotices = Get-Content -LiteralPath (Join-Path $LicenseTargetDir 'managed\index.json') -Raw | ConvertFrom-Json
+if ($ManagedNotices.unresolved_count -ne 0) { throw 'Release blocked: unresolved managed dependency notices.' }
+if (@($ManagedNotices.runtime_notice_check.missing_from_runtime_pack_cache).Count -gt 0) { throw 'Release blocked: missing .NET runtime notices.' }
 
-# 5. Verification of packaged payload
-$RequiredFiles = @("WAIApp.exe", "wai.exe", "wai-embed.exe", "WAI.Core.dll", "e_sqlite3.dll") +
-    $RequiredNativeDlls + @("licenses\LICENSE-LLVM-OpenMP", "licenses\LICENSE")
-if (!$Slim) {
-    $RequiredFiles += $RequiredFfmpegTools
+# 5. Require the exact payload before packaging.
+$RequiredFiles = @('WAIApp.exe', 'wai.exe', 'wai-embed.exe', 'WAI.Core.dll', 'e_sqlite3.dll',
+    'licenses\LICENSE-WAI.txt', 'licenses\llama\LICENSE', 'licenses\llama\LICENSE-LLVM-OpenMP',
+    'licenses\pdfium\pdfium.txt', 'licenses\ffmpeg\COPYING.LGPLv2.1', 'licenses\managed\index.json', 'native-provenance.json') + $RequiredNativeDlls + $RequiredFfmpegTools
+foreach ($File in $RequiredFiles) {
+    if (!(Test-Path -LiteralPath (Join-Path $StagingDir $File) -PathType Leaf)) { throw "Missing required package file: $File" }
 }
-foreach ($req in $RequiredFiles) {
-    if (!(Test-Path -LiteralPath (Join-Path $StagingDir $req) -PathType Leaf)) {
-        throw "Missing required packaged file: $req in $StagingDir"
-    }
-}
-if (!(Test-Path -LiteralPath $PdfiumTarget -PathType Leaf)) {
-    throw "Missing required packaged file: pdfium.dll in $StagingDir"
-}
-Write-Host "Payload validation passed." -ForegroundColor Green
-
-# 6. Archive artifacts whose package ID differs from the current package ID.
-$PackageId = "WinSearch.WAI"
-$LegacyNupkgPattern = '^(?<PackageId>.+)-(?<Version>\d+(?:\.\d+){1,3}(?:-[0-9A-Za-z.-]+)?)-(?<Type>full|delta)\.nupkg$'
-$LegacySetupPattern = '^(?<PackageId>.+)-win-(?:Setup|Portable)\.(?:exe|zip)$'
-function Test-LegacyPackageArtifact([string]$Name) {
-    if ($Name -cmatch $LegacyNupkgPattern) { return $Matches.PackageId -cne $PackageId }
-    if ($Name -cmatch $LegacySetupPattern) { return $Matches.PackageId -cne $PackageId }
-    return $false
-}
-function Test-LegacyNupkg([string]$Name) {
-    if ($Name -cmatch $LegacyNupkgPattern) { return $Matches.PackageId -cne $PackageId }
-    return $false
-}
-function Get-LegacyArchivePath([string]$Name) {
-    $destination = Join-Path $LegacyDir $Name
-    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
-    $extension = [System.IO.Path]::GetExtension($Name)
-    $suffix = 1
-    while (Test-Path -LiteralPath $destination) {
-        $destination = Join-Path $LegacyDir ("$baseName.legacy-$suffix$extension")
-        $suffix++
-    }
-    return $destination
-}
-$LegacyDir = Join-Path $ReleasesDir "legacy"
-$LegacyArtifacts = @()
-if (Test-Path -LiteralPath $ReleasesDir -PathType Container) {
-    $LegacyArtifacts = @(Get-ChildItem -LiteralPath $ReleasesDir -File | Where-Object {
-        Test-LegacyPackageArtifact $_.Name
-    })
-}
-if (Test-Path -LiteralPath $LegacyDir) {
-    $legacyDirItem = Get-Item -LiteralPath $LegacyDir -Force
-    if (($legacyDirItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
-        !$legacyDirItem.PSIsContainer) {
-        throw "Refusing to use legacy path that is not a regular directory: $LegacyDir"
-    }
-}
-
-$HasLegacyPackage = $LegacyArtifacts.Count -gt 0
-$MetadataNames = @("RELEASES", "releases.win.json", "assets.win.json")
-$MetadataBackups = @()
-if ($HasLegacyPackage) {
-    foreach ($name in $MetadataNames) {
-        $source = Join-Path $ReleasesDir $name
-        if (Test-Path -LiteralPath $source -PathType Leaf) {
-            $MetadataBackups += Get-Item -LiteralPath $source
-        }
-    }
-}
-
-$MetadataReplacements = @{}
-$releasesPath = Join-Path $ReleasesDir "RELEASES"
-if (Test-Path -LiteralPath $releasesPath -PathType Leaf) {
-    $keptLines = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($line in [System.IO.File]::ReadAllLines($releasesPath)) {
-        $columns = $line -split '\s+'
-        if ($columns.Length -ge 3 -and (Test-LegacyNupkg $columns[1])) {
-            continue
-        }
-        $keptLines.Add($line)
-    }
-    $MetadataReplacements["RELEASES"] = $keptLines.ToArray()
-}
-
-$releaseJsonPath = Join-Path $ReleasesDir "releases.win.json"
-if (Test-Path -LiteralPath $releaseJsonPath -PathType Leaf) {
-    $releaseManifest = [System.IO.File]::ReadAllText($releaseJsonPath) | ConvertFrom-Json
-    if ($null -eq $releaseManifest -or $null -eq $releaseManifest.PSObject.Properties["Assets"]) {
-        throw "Invalid Velopack release metadata: $releaseJsonPath"
-    }
-    $releaseManifest.Assets = @($releaseManifest.Assets | Where-Object {
-        $_.PackageId -eq $PackageId
-    })
-    $MetadataReplacements["releases.win.json"] = ConvertTo-Json -InputObject $releaseManifest -Depth 100 -Compress
-}
-
-$assetsJsonPath = Join-Path $ReleasesDir "assets.win.json"
-if (Test-Path -LiteralPath $assetsJsonPath -PathType Leaf) {
-    $assetManifest = @([System.IO.File]::ReadAllText($assetsJsonPath) | ConvertFrom-Json)
-    $assetManifest = @($assetManifest | Where-Object {
-        !(Test-LegacyPackageArtifact ([System.IO.Path]::GetFileName($_.RelativeFileName)))
-    })
-    $MetadataReplacements["assets.win.json"] = ConvertTo-Json -InputObject $assetManifest -Depth 100 -Compress
-}
-
-$legacyTargets = @($LegacyArtifacts) + @($MetadataBackups)
-if ($legacyTargets.Count -gt 0) {
-    New-Item -ItemType Directory -Force -Path $LegacyDir | Out-Null
-    foreach ($artifact in $LegacyArtifacts) {
-        Move-Item -LiteralPath $artifact.FullName -Destination (Get-LegacyArchivePath $artifact.Name)
-    }
-    foreach ($metadata in $MetadataBackups) {
-        Copy-Item -LiteralPath $metadata.FullName -Destination (Get-LegacyArchivePath $metadata.Name)
-    }
-}
-
-foreach ($name in $MetadataReplacements.Keys) {
-    $path = Join-Path $ReleasesDir $name
-    if ($name -eq "RELEASES") {
-        [System.IO.File]::WriteAllLines($path, [string[]]$MetadataReplacements[$name], [System.Text.Encoding]::ASCII)
-    } else {
-        [System.IO.File]::WriteAllText($path, [string]$MetadataReplacements[$name], (New-Object System.Text.UTF8Encoding($false)))
-    }
-}
+Write-Host 'Verified native and managed payload/notices.' -ForegroundColor Green
 
 # 7. Create Velopack Setup Package & Portable Distribution
-$VpkExe = "vpk"
-$LocalVpk = Join-Path $LocalDotnetHome ".dotnet\tools\vpk.exe"
-$UserVpk = "$env:USERPROFILE\.dotnet\tools\vpk.exe"
-if (Test-Path -LiteralPath $LocalVpk -PathType Leaf) {
-    $VpkExe = $LocalVpk
-} elseif (Test-Path -LiteralPath $UserVpk -PathType Leaf) {
-    $VpkExe = $UserVpk
+$VpkDir = Join-Path $RepoRoot 'tools\vpk'
+$VpkExe = Join-Path $VpkDir 'vpk.exe'
+if (!(Test-Path -LiteralPath $VpkExe)) {
+    & $DotnetExe tool install vpk --version 1.2.161 --tool-path $VpkDir --configfile (Join-Path $RepoRoot 'NuGet.Config')
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to install the pinned Velopack tool.' }
 }
+$PackageId = 'WinSearch.WAI'
 
 $VpkArgs = @(
     "pack",
@@ -309,21 +182,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "Velopack package generated successfully in $ReleasesDir" -ForegroundColor Green
 
-# 8. Package on-demand FFmpeg tools
-$FfmpegZip = Join-Path $ReleasesDir "ffmpeg-tools-win-x64.zip"
-if (!(Test-Path -LiteralPath $FfmpegZip -PathType Leaf)) {
-    Write-Host "Creating standalone FFmpeg on-demand package ($FfmpegZip)..." -ForegroundColor Yellow
-    $ffmpegTemp = Join-Path $OutputDir "ffmpeg_pkg_temp"
-    if (Test-Path $ffmpegTemp) { Remove-Item -LiteralPath $ffmpegTemp -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $ffmpegTemp | Out-Null
-    foreach ($name in $RequiredFfmpegTools) {
-        Copy-Item -LiteralPath (Join-Path $FfmpegTools $name) -Destination (Join-Path $ffmpegTemp $name) -Force
-    }
-    Add-Type -AssemblyName "System.IO.Compression.FileSystem"
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($ffmpegTemp, $FfmpegZip)
-    Remove-Item -LiteralPath $ffmpegTemp -Recurse -Force
-    Write-Host "Created $FfmpegZip" -ForegroundColor Green
-}
+# 8. Ship the exact media bundle and matching source beside application artifacts.
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'tools\native-cache\ffmpeg-tools-win-x64.zip') -Destination $ReleasesDir -Force
+Copy-Item -LiteralPath (Join-Path $NativeRoot 'sources\ffmpeg-corresponding-source.zip') -Destination $ReleasesDir -Force
+Copy-Item -LiteralPath $NativeManifestPath -Destination $ReleasesDir -Force
 
 # 9. Compute SHA256 Checksums
 Write-Host "Computing SHA256 hashes..." -ForegroundColor Yellow

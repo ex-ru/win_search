@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory=$true)][string]$TargetReleaseDir,
     [Parameter(Mandatory=$true)][string]$ModelsDir,
     [string]$BaselineVersion='1.1.99',
-    [string]$TargetVersion='1.2.0',
+    [string]$TargetVersion='1.2.1',
+    [string]$BaselineReleaseDir='',
     [string]$Model='bge-m3',
     [string]$ReportDir=''
 )
@@ -74,6 +75,21 @@ try {
     }
     $BaselineSource=Join-Path $Workspace 'baseline-source'; New-Item -ItemType Directory -Path $BaselineSource | Out-Null
     $BaselineFeed=Join-Path $Workspace 'baseline-feed'
+    if ($BaselineReleaseDir) {
+        $BaselineReleaseDir=[IO.Path]::GetFullPath($BaselineReleaseDir)
+        New-Item -ItemType Directory -Path $BaselineFeed | Out-Null
+        Record 'verify-historical-baseline' {
+            $Portable=Join-Path $BaselineReleaseDir 'WinSearch.WAI-win-Portable.zip'
+            $Expected=$null
+            foreach($Line in Get-Content -LiteralPath (Join-Path $BaselineReleaseDir 'SHA256SUMS.txt')) {
+                if($Line -match '^([a-fA-F0-9]{64})\s+\*?WinSearch\.WAI-win-Portable\.zip$'){$Expected=$Matches[1]}
+            }
+            Assert-Apply ($null -ne $Expected) 'Historical baseline has no portable checksum.'
+            Assert-Apply ((Get-FileHash -LiteralPath $Portable -Algorithm SHA256).Hash -eq $Expected) 'Historical baseline checksum mismatch.'
+            Copy-Item -LiteralPath $Portable -Destination $BaselineFeed
+            "Actual historical portable baseline SHA256 $Expected"
+        }
+    } else {
     Record 'build-disposable-baseline' {
         Assert-Apply (Test-Path -LiteralPath (Join-Path $PackageDir 'WAIApp.exe')) 'Missing staging WAIApp.exe.'
         foreach($File in Get-ChildItem -LiteralPath $PackageDir -Recurse -File){
@@ -86,12 +102,14 @@ try {
         Run-Process 'baseline-pack' $Vpk @('pack','--packId','WinSearch.WAI','--packVersion',$BaselineVersion,'--packDir',$BaselineSource,'--mainExe','WAIApp.exe','--packTitle','WAI','--runtime','win-x64','--outputDir',$BaselineFeed,'--shortcuts','None','--delta','None','--yes') 600 | Out-Null
         'Baseline fixture uses current binaries with lower package version and a baseline-only marker; no historic-binary migration claim.'
     }
+    }
     $Install=Join-Path $Workspace 'portable'
     Record 'extract-and-index-baseline' {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $BaselineFeed 'WinSearch.WAI-win-Portable.zip'),$Install)
         Assert-Apply (Test-Path -LiteralPath (Join-Path $Install '.portable') -PathType Leaf) 'Not a disposable portable install; refusing apply.'
         Assert-Apply ((Installed-Version $Install) -eq $BaselineVersion) 'Incorrect baseline version.'
+        if ($BaselineReleaseDir) { [IO.File]::WriteAllText((Join-Path $Install 'current\baseline-only-release-gate.txt'),'Added test marker must disappear when target replaces baseline.') }
         Assert-Apply (Test-Path -LiteralPath (Join-Path $Install 'current\baseline-only-release-gate.txt')) 'Missing baseline marker.'
         $Documents=Join-Path $Workspace 'documents';New-Item -ItemType Directory -Path $Documents | Out-Null
         [IO.File]::WriteAllText((Join-Path $Documents 'persistent.txt'),'UPDATEPERSIST483716. Резервная копия рабочих документов хранится на внешнем носителе.')
@@ -143,6 +161,6 @@ try {
 finally {
     foreach($Name in $Saved.Keys){[Environment]::SetEnvironmentVariable($Name,$Saved[$Name],'Process')}
     [ordered]@{status=$(if($ExitCode -eq 0 -and $Applied){'passed'}else{'failed'});applied=$Applied;baselineVersion=$BaselineVersion;targetVersion=$TargetVersion;targetPackageSha256=$TargetPackageSha256;verifiedPayloadSha256=$VerifiedPayloadSha256;startedAtUtc=$Started;finishedAtUtc=[DateTimeOffset]::UtcNow;isolatedWorkspace=$Workspace;checks=$Checks;
-        limitations=@('Disposable portable installation only.','Baseline uses current binaries with lower package metadata, not historic binaries.','Actual updater hooks and CLI relaunch exercised; interactive GUI restart not tested.','Interrupted network transfer is separate from local apply.');updaterReference='https://docs.velopack.io/reference/cli/content/update-windows'} | ConvertTo-Json -Depth 10 | Out-File -LiteralPath (Join-Path $ReportDir 'update-apply.json') -Encoding utf8
+        historicalBinaryBaseline=[bool]$BaselineReleaseDir;limitations=@('Disposable portable installation only.',$(if($BaselineReleaseDir){'Verified historical portable binaries used.'}else{'Baseline uses current binaries with lower package metadata, not historic binaries.'}),'Actual updater hooks and CLI relaunch exercised; interactive GUI restart not tested.','Interrupted network transfer is separate from local apply.');updaterReference='https://docs.velopack.io/reference/cli/content/update-windows'} | ConvertTo-Json -Depth 10 | Out-File -LiteralPath (Join-Path $ReportDir 'update-apply.json') -Encoding utf8
 }
 exit $ExitCode

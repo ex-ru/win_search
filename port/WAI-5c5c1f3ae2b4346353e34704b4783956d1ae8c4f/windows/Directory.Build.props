@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.2.1</Version>
+    <FileVersion>1.2.1.0</FileVersion>
+    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/windows/</PathMap>
+  </PropertyGroup>
+</Project>

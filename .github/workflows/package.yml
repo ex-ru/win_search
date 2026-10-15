@@ -1,0 +1,65 @@
+name: Build WAI distribution
+on:
+  push:
+    branches: [codex/release-1.2.1]
+    paths:
+      - .github/workflows/package.yml
+      - release-version.json
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/tools/nuget
+      DOTNET_CLI_HOME: ${{ github.workspace }}/tools/dotnet-home
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.402
+      - name: Restore locked dependencies and run regressions
+        shell: pwsh
+        run: |
+          dotnet test port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/WAI.Windows.sln -c Release -p:RestoreLockedMode=true --logger trx --results-directory TestResults -warnaserror:NU1903,NU1904
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read release inputs
+        id: release
+        shell: pwsh
+        run: |
+          $release = Get-Content release-version.json -Raw | ConvertFrom-Json
+          "ffmpeg-run=$($release.ffmpegBuildRun)" >> $env:GITHUB_OUTPUT
+      - name: Seed the first release with verified media build artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ffmpeg-win-x64
+          run-id: ${{ steps.release.outputs.ffmpeg-run }}
+          github-token: ${{ github.token }}
+          path: tools/native-cache
+      - name: Prepare exact native inputs and full distribution
+        shell: pwsh
+        run: |
+          $release = Get-Content release-version.json -Raw | ConvertFrom-Json
+          ./port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/scripts/build-package.ps1 -Version $release.version
+          ./scripts/check-native-package.ps1 -PackageDir "dist/$($release.version)/staging" -ReportDir TestResults/native
+      - name: Upload verified assets to a draft
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $release = Get-Content release-version.json -Raw | ConvertFrom-Json
+          python scripts/upload-release-draft.py --version $release.version --directory "dist/$($release.version)/releases" --notes "docs/RELEASE_$($release.version).md" --commit $env:GITHUB_SHA --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-verification
+          path: |
+            TestResults/*.trx
+            TestResults/native/native-smoke.json
+            dist/*/release-draft.json
