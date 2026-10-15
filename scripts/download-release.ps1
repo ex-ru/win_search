@@ -20,7 +20,14 @@ $apiUrl = if ($Tag -eq "latest") {
     "https://api.github.com/repos/$Repo/releases/tags/$Tag"
 }
 $headers = @{ "User-Agent" = "WAI-Downloader/1.2.0"; "Accept" = "application/vnd.github.v3+json" }
-$release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
+try {
+    $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
+} catch {
+    if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(401,404)) {
+        throw "Release is not accessible anonymously. For a private repository, open https://github.com/$Repo/releases in a signed-in browser with repository access. This script is for public release channels."
+    }
+    throw
+}
 $targetAsset = @($release.assets | Where-Object { $_.name -eq $targetName } | Select-Object -First 1)
 if ($targetAsset.Count -eq 0) {
     throw "Release $($release.tag_name) does not contain the expected WAI asset $targetName. Review the release assets before downloading."

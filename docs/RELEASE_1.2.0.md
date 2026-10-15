@@ -24,4 +24,6 @@ Checksums are in **SHA256SUMS.txt**. Release verification and its limits are rec
 
 ## Limits
 
+This repository is private: download the assets in a signed-in browser with repository access. The application's anonymous GitHub update source cannot read a private repository. For internal automatic updates, use the supported local/network release folder in Advanced settings.
+
 The installers are not code-signed. Windows may show a publisher warning. CPU inference is tested locally; this release does not claim a full GPU and driver compatibility matrix. Synthetic search and performance fixtures do not establish accuracy or latency on every user's collection. Russian matching covers regular word forms and selected alternations, rather than a complete dictionary. A single indexed semantic fragment has no relative confidence scale, so exact words remain necessary in that case.

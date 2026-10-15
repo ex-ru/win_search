@@ -18,6 +18,8 @@ WAI searches files in folders you choose using semantic and full-text search. Th
 
 The package identity for this release is WinSearch.WAI. Existing WAI data under %LOCALAPPDATA%\WAI remains in place. Installations with a different package identity are not promised to upgrade automatically; install the new package and verify it before removing an older installation.
 
+This repository is private: download [the release](https://github.com/ex-ru/win_search/releases/tag/v1.2.0) in a signed-in browser with repository access. The anonymous GitHub updater cannot read private releases. Internal deployments can use the existing local/network release folder setting under Advanced; see [distribution instructions](DISTRIBUTION.md).
+
 ## Get started
 
 1. Install WAI for your Windows account.
