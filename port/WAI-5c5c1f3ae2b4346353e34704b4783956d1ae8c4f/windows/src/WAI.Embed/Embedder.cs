@@ -27,7 +27,7 @@ internal sealed class Embedder : IDisposable
     public string ActiveBackend { get; private set; } = "cpu";
     public string ActiveDevice { get; private set; } = "CPU";
 
-    public Embedder(string textPath, string? mediaPath, bool textOnly, bool forceCpu = false)
+    public Embedder(string textPath, string? mediaPath, bool textOnly, bool forceCpu = false, int threads = 0, bool background = false)
     {
         TextOnly = textOnly;
         var started = DateTime.UtcNow;
@@ -73,7 +73,12 @@ internal sealed class Embedder : IDisposable
             var cp = Native.llama_context_default_params();
             cp.NCtx = cp.NBatch = cp.NUbatch = (uint)_maxTokens;
             cp.NSeqMax = MaxSeqs;
-            int threads = Math.Clamp(Environment.ProcessorCount, 1, 8);
+            if (threads <= 0)
+            {
+                threads = background
+                    ? Math.Clamp(Environment.ProcessorCount / 4, 1, 4)
+                    : Math.Clamp(Environment.ProcessorCount, 1, 8);
+            }
             cp.NThreads = cp.NThreadsBatch = threads;
             cp.KvUnified = true;
             cp.Embeddings = true;
@@ -90,7 +95,7 @@ internal sealed class Embedder : IDisposable
                     mprm.UseGpu = useGpu;
                     mprm.PrintTimings = false;
                     mprm.Warmup = true;
-                    mprm.NThreads = Environment.ProcessorCount;
+                    mprm.NThreads = threads;
                     mprm.ImageMinTokens = 1; // never rescale: images arrive at final size
                     mprm.ImageMaxTokens = 1120;
                     try

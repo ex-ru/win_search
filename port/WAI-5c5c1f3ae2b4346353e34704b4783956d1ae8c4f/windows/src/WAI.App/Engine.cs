@@ -230,8 +230,10 @@ public sealed class Engine : IDisposable
         _run = new CancellationTokenSource();
         IsIndexing = true;
         Changed?.Invoke();
+        var prevPriority = Thread.CurrentThread.Priority;
         try
         {
+            try { Thread.CurrentThread.Priority = ThreadPriority.BelowNormal; } catch { }
             if (OnBatterySaver()) { Say("waiting for power…"); return; }
             if (!_settings.SetupDone) { Say("finish the one-time setup first (tray menu → Open search)."); return; }
             if (_settings.Folders.Count == 0) { Say("pick folders to search (tray menu → Settings)."); return; }
@@ -265,6 +267,7 @@ public sealed class Engine : IDisposable
         catch (Exception ex) { ErrorLog.Write("index: " + ex); Say($"indexer stopped: {FirstLine(ex.Message)}"); }
         finally
         {
+            try { Thread.CurrentThread.Priority = prevPriority; } catch { }
             IsIndexing = false;
             _run = null;
             Changed?.Invoke();
@@ -275,6 +278,8 @@ public sealed class Engine : IDisposable
     private void IndexOne(IndexStore store, IndexOptions options, string _)
     {
         using var indexer = MakeIndexer(store, options);
+        indexer.PrepareDegree = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 4));
+        indexer.BatchYieldMs = 25; // 25 ms cooperative yield between batches
         store.Scope = _settings.Folders;
         var sync = indexer.Sync(_settings.Folders);
         int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
@@ -541,7 +546,7 @@ public sealed class Engine : IDisposable
         DropQueryWorker();
     }
 
-    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly, bool forceCpu = false)
+    private WorkerConfig CreateWorkerConfig(string exe, bool textOnly, bool forceCpu = false, bool background = false)
     {
         var hwInfo = HardwareDetector.Detect();
         var (backend, deviceIdx, _) = forceCpu
@@ -550,6 +555,11 @@ public sealed class Engine : IDisposable
 
         var args = new List<string>();
         var env = new Dictionary<string, string>();
+
+        if (background)
+        {
+            args.Add("--background");
+        }
 
         if (backend == "cpu")
         {
@@ -590,14 +600,15 @@ public sealed class Engine : IDisposable
             args,
             Environment: env.Count > 0 ? env : null,
             LogPath: Path.Combine(Settings.LogsDir, "worker.log"),
-            TextOnly: textOnly);
+            TextOnly: textOnly,
+            IsBackground: background);
     }
 
     private IEmbedder MakeEmbedder(string indexDir)
     {
         string exe = ExeNextTo("wai-embed.exe");
         if (!File.Exists(exe)) return new WordsOnly();
-        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false, forceCpu: false));
+        return new WorkerClient(CreateWorkerConfig(exe, textOnly: false, forceCpu: false, background: true));
     }
 
     private IReadOnlyList<float>? TryEmbedQuery(string query)
@@ -742,18 +753,30 @@ public sealed class Engine : IDisposable
     }
 }
 
-// Watches chosen folders. A change re-indexes after 5 quiet seconds; an
+// Watches chosen folders. A change re-indexes after 15 quiet seconds; an
 // overflow (buffer overrun) triggers a full rescan, never silent loss.
 public sealed class FileSystemWatcherRunner : IDisposable
 {
     private readonly List<FileSystemWatcher> _watchers = [];
-    private readonly System.Timers.Timer _debounce = new(5000) { AutoReset = false };
+    private readonly System.Timers.Timer _debounce = new(15000) { AutoReset = false };
     private readonly Action _onCalm;
 
     public FileSystemWatcherRunner(Settings settings, Action onCalm)
     {
         _onCalm = onCalm;
         _debounce.Elapsed += (_, _) => _onCalm();
+
+        void OnFsEvent(string? fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath)) return;
+            string name = Path.GetFileName(fullPath);
+            if (Rules.IsTemporaryOrLockFile(name)) return;
+            if (name.StartsWith(".") && !name.Equals(".env", StringComparison.OrdinalIgnoreCase)) return;
+
+            _debounce.Stop();
+            _debounce.Start();
+        }
+
         foreach (string folder in settings.Folders)
         {
             if (!Directory.Exists(folder)) continue;
@@ -763,10 +786,10 @@ public sealed class FileSystemWatcherRunner : IDisposable
                 InternalBufferSize = 64 * 1024,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName,
             };
-            w.Changed += (_, _) => _debounce.Start();
-            w.Created += (_, _) => _debounce.Start();
-            w.Deleted += (_, _) => _debounce.Start();
-            w.Renamed += (_, _) => _debounce.Start();
+            w.Changed += (_, e) => OnFsEvent(e.FullPath);
+            w.Created += (_, e) => OnFsEvent(e.FullPath);
+            w.Deleted += (_, e) => OnFsEvent(e.FullPath);
+            w.Renamed += (_, e) => { OnFsEvent(e.OldFullPath); OnFsEvent(e.FullPath); };
             w.Error += (_, _) => _onCalm(); // overflow: rescan everything
             w.EnableRaisingEvents = true;
             _watchers.Add(w);

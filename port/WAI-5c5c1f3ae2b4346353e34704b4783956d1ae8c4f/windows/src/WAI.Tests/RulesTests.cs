@@ -22,4 +22,36 @@ public class RulesTests
         bool actual = Rules.IsScreenshot(filename);
         Assert.Equal(expected, actual);
     }
+
+    [Theory]
+    [InlineData("~$Document.docx", true)]
+    [InlineData("~$Presentation.pptx", true)]
+    [InlineData("report.tmp", true)]
+    [InlineData("file.lock", true)]
+    [InlineData(".archive.swp", true)]
+    [InlineData("download.crdownload", true)]
+    [InlineData("huge_file.part", true)]
+    [InlineData("data.laccdb", true)]
+    [InlineData("normal_document.docx", false)]
+    [InlineData("invoice.pdf", false)]
+    [InlineData("notes.txt", false)]
+    public void IsTemporaryOrLockFile_DetectsOfficeAndTemporaryArtifacts(string filename, bool expected)
+    {
+        bool actual = Rules.IsTemporaryOrLockFile(filename);
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(".sync", true)]
+    [InlineData(".dropbox.cache", true)]
+    [InlineData("$RECYCLE.BIN", true)]
+    [InlineData("System Volume Information", true)]
+    [InlineData("node_modules", true)]
+    [InlineData("MyDocuments", false)]
+    [InlineData("Work", false)]
+    public void SkippedFolderNames_ContainsCloudSyncAndSystemFolders(string folderName, bool expected)
+    {
+        bool actual = Rules.SkippedFolderNames.Contains(folderName);
+        Assert.Equal(expected, actual);
+    }
 }

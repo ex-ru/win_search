@@ -80,16 +80,22 @@ public static class JobObjectManager
 
     /// <summary>
     /// Assigns a running process to the Job Object. If the Job Object is not yet initialized,
-    /// it will be initialized automatically.
+    /// it will be initialized automatically. Optionally applies Windows 11 EcoQoS (Efficiency Mode)
+    /// and BelowNormal priority for background worker processes.
     /// </summary>
-    public static bool AssignProcess(Process? process)
+    public static bool AssignProcess(Process? process, bool isBackground = false)
     {
         if (process is null || !IsSupported) return false;
 
         try
         {
             if (process.HasExited) return false;
-            return AssignProcess(process.Handle);
+            bool assigned = AssignProcess(process.Handle, isBackground);
+            if (assigned && isBackground)
+            {
+                EnableEfficiencyMode(process);
+            }
+            return assigned;
         }
         catch
         {
@@ -100,7 +106,7 @@ public static class JobObjectManager
     /// <summary>
     /// Assigns a native process handle to the Job Object.
     /// </summary>
-    public static bool AssignProcess(IntPtr processHandle)
+    public static bool AssignProcess(IntPtr processHandle, bool isBackground = false)
     {
         if (!IsSupported || processHandle == IntPtr.Zero) return false;
 
@@ -113,12 +119,67 @@ public static class JobObjectManager
 
             try
             {
-                return AssignProcessToJobObject(_jobHandle, processHandle);
+                bool ok = AssignProcessToJobObject(_jobHandle, processHandle);
+                if (ok && isBackground)
+                {
+                    EnableEfficiencyMode(processHandle);
+                }
+                return ok;
             }
             catch
             {
                 return false;
             }
+        }
+    }
+
+    /// <summary>
+    /// Enables Windows 11 EcoQoS (Efficiency Mode) and sets BelowNormal process priority.
+    /// Windows will schedule the process on efficient CPU cores and throttle execution speed to reduce power and noise.
+    /// </summary>
+    public static bool EnableEfficiencyMode(Process? process)
+    {
+        if (process is null || !IsSupported) return false;
+        try
+        {
+            if (process.HasExited) return false;
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch { }
+            return EnableEfficiencyMode(process.Handle);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Enables Windows 11 EcoQoS (Efficiency Mode) on a native process handle.
+    /// </summary>
+    public static bool EnableEfficiencyMode(IntPtr processHandle)
+    {
+        if (!IsSupported || processHandle == IntPtr.Zero) return false;
+
+        try
+        {
+            var state = new PROCESS_POWER_THROTTLING_STATE
+            {
+                Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+                ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+                StateMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+            };
+            return SetProcessInformation(
+                processHandle,
+                ProcessPowerThrottlingClass,
+                ref state,
+                (uint)Marshal.SizeOf(state));
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -228,6 +289,25 @@ public static class JobObjectManager
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr hObject);
+
+    private const int ProcessPowerThrottlingClass = 4;
+    private const uint PROCESS_POWER_THROTTLING_CURRENT_VERSION = 1;
+    private const uint PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 0x1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_POWER_THROTTLING_STATE
+    {
+        public uint Version;
+        public uint ControlMask;
+        public uint StateMask;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessInformation(
+        IntPtr hProcess,
+        int ProcessInformationClass,
+        ref PROCESS_POWER_THROTTLING_STATE ProcessInformation,
+        uint ProcessInformationSize);
 
     #endregion
 }

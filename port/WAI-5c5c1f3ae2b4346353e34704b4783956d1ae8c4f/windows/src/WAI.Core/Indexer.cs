@@ -387,6 +387,12 @@ public sealed class Indexer : System.IDisposable
     public int PrepareDegree { get; set; } = System.Math.Max(2, System.Math.Min(8, System.Environment.ProcessorCount / 2));
 
     /// <summary>
+    /// Cooperative sleep in milliseconds between committed batches during background indexing.
+    /// Lets the CPU cool down, prevents fan ramp-up, and keeps the PC responsive.
+    /// </summary>
+    public int BatchYieldMs { get; set; } = 0;
+
+    /// <summary>
     /// Runs jobs in order until shouldStop, passing each one's results to
     /// committed with its place in jobs. Ports process (Indexer.swift:217).
     /// </summary>
@@ -427,6 +433,10 @@ public sealed class Indexer : System.IDisposable
                 System.Threading.Interlocked.Add(ref CommitMs,
                     (long)(System.DateTime.UtcNow - commitStart).TotalMilliseconds);
                 committed(place, job, results, seconds);
+                if (BatchYieldMs > 0 && !shouldStop())
+                {
+                    System.Threading.Thread.Sleep(BatchYieldMs);
+                }
             }
             finally
             {

@@ -317,7 +317,7 @@ internal static class Program
             Console.WriteLine($"(words only: {exe} is not built yet; see windows\\scripts\\build-llama-windows.ps1)");
             return new WordsOnlyEmbedder();
         }
-        return new WorkerClient(new WorkerConfig(exe, [], LogPath: Path.Combine(indexDir, "worker.log")));
+        return new WorkerClient(new WorkerConfig(exe, ["--background"], LogPath: Path.Combine(indexDir, "worker.log"), IsBackground: true));
     }
 
     // Null when the helper or model files are missing (caller falls back to words).

@@ -45,7 +45,8 @@ public sealed record WorkerConfig(
     System.Collections.Generic.IReadOnlyList<string> Arguments,
     System.Collections.Generic.Dictionary<string, string>? Environment = null,
     string? LogPath = null,
-    bool TextOnly = false);
+    bool TextOnly = false,
+    bool IsBackground = false);
 
 public sealed class WorkerError : System.Exception
 {
@@ -229,7 +230,7 @@ public sealed class WorkerClient : IEmbedder
             {
                 throw WorkerError.NotFound($"could not start: {config.Executable}");
             }
-            JobObjectManager.AssignProcess(_process);
+            JobObjectManager.AssignProcess(_process, config.IsBackground);
         }
         catch (System.Exception error) when (error is not WorkerError)
         {
