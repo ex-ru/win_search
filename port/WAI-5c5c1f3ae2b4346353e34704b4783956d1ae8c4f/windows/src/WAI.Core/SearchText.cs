@@ -61,7 +61,7 @@ public static class SearchText
     {
         "иями", "ями", "ами", "иях", "иям", "ией", "ого", "его", "ому", "ему", "ыми", "ими",
         "ов", "ев", "ей", "ам", "ям", "ах", "ях", "ом", "ем", "ою", "ею", "ую", "юю",
-        "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий", "ой", "ым", "им", "ия", "ию", "ии",
+        "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий", "ой", "ым", "им", "ия", "ию", "ии", "ью",
         "а", "я", "у", "ю", "ы", "и", "е", "о", "ь"
     };
 
@@ -79,8 +79,26 @@ public static class SearchText
                 break;
             }
         }
-        var forms = new HashSet<string>(StringComparer.Ordinal) { normalized, stem };
-        foreach (string ending in RussianEndings) forms.Add(stem + ending);
+        var stems = new HashSet<string>(StringComparer.Ordinal) { stem };
+        // Fleeting vowels in noun endings: попытк/попыток, поршн/поршен(ь),
+        // замк/замок, камн/камен(ь). Expand exact words rather than broad prefixes.
+        const string vowels = "аеёиоуыэюяьъ";
+        if (stem.Length >= 4 && "кцнлр".Contains(stem[^1]))
+        {
+            if (!vowels.Contains(stem[^2]))
+            {
+                stems.Add(stem[..^1] + "е" + stem[^1]);
+                if ("клр".Contains(stem[^1])) stems.Add(stem[..^1] + "о" + stem[^1]);
+            }
+            else if (stem.Length >= 5 && "ео".Contains(stem[^2]) && !vowels.Contains(stem[^3]))
+                stems.Add(stem[..^2] + stem[^1]);
+        }
+        var forms = new HashSet<string>(StringComparer.Ordinal) { normalized };
+        foreach (string variant in stems)
+        {
+            forms.Add(variant);
+            foreach (string ending in RussianEndings) forms.Add(variant + ending);
+        }
         // Existing indexes can contain either spelling of ё. Expand each e independently.
         foreach (string form in forms.ToArray())
         {

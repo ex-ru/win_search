@@ -160,6 +160,45 @@ public sealed class SearchReliabilityTests
         Assert.Empty(searcher.Search("", new float[] { 1, 0, 0 }, zGate: -100));
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void SmallCorpus_CanReturnAStandoutSemanticMatch(int count)
+    {
+        using var fixture = new Fixture();
+        for (int i = 0; i < count; i++)
+            fixture.Add($"C:/small/{i}.txt", "", vector: new float[] { i == 0 ? 0.84f : 0.66f, 0 });
+        using var searcher = new Searcher(fixture.Store);
+        Assert.EndsWith("0.txt", Assert.Single(searcher.Search("unseen paraphrase", new float[] { 1, 0 })).Path);
+    }
+
+    [Theory]
+    [InlineData(-0.1f, -0.8f, -0.9f)]
+    [InlineData(0.7f, 0.7f, 0.7f)]
+    [InlineData(0.700f, 0.701f, 0.699f)]
+    [InlineData(0.6794f, 0.7049f, 0.6331f)]
+    [InlineData(0.6696f, 0.6995f, 0.6331f)]
+    public void SmallCorpus_DoesNotPromoteNegativeEqualOrWeakMatches(float a, float b, float c)
+    {
+        using var fixture = new Fixture();
+        var cosines = new[] { a, b, c };
+        for (int i = 0; i < cosines.Length; i++) fixture.Add($"C:/small/{i}.txt", "", vector: new float[] { cosines[i], 0 });
+        using var searcher = new Searcher(fixture.Store);
+        Assert.Empty(searcher.Search("unseen paraphrase", new float[] { 1, 0 }));
+    }
+
+    [Fact]
+    public void SingleVector_RequiresLexicalEvidenceAtTheDefaultThreshold()
+    {
+        using var fixture = new Fixture();
+        fixture.Add("C:/small/one.txt", "known", vector: new float[] { 1, 0 });
+        using var searcher = new Searcher(fixture.Store);
+        Assert.Empty(searcher.Search("unseen paraphrase", new float[] { 1, 0 }));
+        Assert.Single(searcher.Search("known", new float[] { 1, 0 }));
+    }
+
     [Fact]
     public void RequeuedFile_DoesNotReuseItsStaleSemanticVectorBeforeReload()
     {
@@ -198,6 +237,14 @@ public sealed class SearchReliabilityTests
     [InlineData("счета", "счёт")]
     [InlineData("счёт", "счета")]
     [InlineData("отчет", "отчёты")]
+    [InlineData("попытками", "попыток")]
+    [InlineData("попыток", "попытками")]
+    [InlineData("поршнем", "поршень")]
+    [InlineData("поршень", "поршнем")]
+    [InlineData("акварелью", "акварели")]
+    [InlineData("акварели", "акварелью")]
+    [InlineData("глазурью", "глазури")]
+    [InlineData("глазури", "глазурью")]
     [InlineData("TRX50", "TRX50")]
     [InlineData("123456", "123456")]
     public void KeywordSearch_FindsWordFormsAndExactIdentifiers(string query, string content)

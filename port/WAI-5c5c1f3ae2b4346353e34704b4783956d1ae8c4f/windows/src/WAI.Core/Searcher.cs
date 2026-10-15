@@ -248,6 +248,8 @@ public sealed class Searcher : IDisposable
 
         // Meaning: score every vector on this query's scale, keep each file's best segment.
         var best = new Dictionary<long, (double Z, double Cosine, int Row)>();
+        double semanticGate = zGate;
+        bool smallSampleCalibration = false;
         int searchDim = _vectors?.Dimension ?? _dimension;
         if (queryVector is not null && queryVector.Count == searchDim && _rowFile.Count > 0)
         {
@@ -255,6 +257,17 @@ public sealed class Searcher : IDisposable
             IReadOnlyList<bool> scale = _rowSetsScale;
             if (scope.Roots is not null || kinds is not null || fileKind.Count < _fileVersions.Count)
                 scale = _rowSetsScale.Select((setsScale, row) => setsScale && Allowed(_rowFile[row])).ToArray();
+            // With n centered samples, z cannot exceed sqrt(n - 1). A fixed gate of 2
+            // therefore suppresses every semantic result in collections with 2-5 vectors.
+            // Keep a conservative 90% of that attainable bound; large collections are unchanged.
+            int samples = 0;
+            for (int row = 0; row < scale.Count && samples < 6; row++)
+                if (scale[row]) samples++;
+            if (samples is >= 2 and < 6)
+            {
+                semanticGate = Math.Min(zGate, 0.9 * Math.Sqrt(samples - 1));
+                smallSampleCalibration = semanticGate < zGate;
+            }
             double[] meaning = VectorMath.Meaning(scores, _rowModality, scale);
             for (int row = 0; row < scores.Length; row++)
             {
@@ -334,9 +347,11 @@ public sealed class Searcher : IDisposable
         double wordsWeight = lookup ? ww * 2 : ww;
         var hinted = KindHints(text);
         var candidates = new HashSet<long>();
+        bool QualifiesMeaning((double Z, double Cosine, int Row) value) =>
+            value.Z >= semanticGate && (!smallSampleCalibration || value.Cosine > 0);
         foreach (var kv in best)
         {
-            if (kv.Value.Z >= zGate)
+            if (QualifiesMeaning(kv.Value))
                 candidates.Add(kv.Key);
         }
         foreach (var kv in coverage)
@@ -369,7 +384,7 @@ public sealed class Searcher : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             bool hasSemantic = best.TryGetValue(kv.Key, out var semantic);
             bool hasKeyword = wordRank.TryGetValue(kv.Key, out var keyword);
-            bool useMeaning = hasSemantic && (semantic.Z >= zGate || !hasKeyword);
+            bool useMeaning = hasSemantic && (QualifiesMeaning(semantic) || !hasKeyword);
             if (!useMeaning && !hasKeyword) continue;
             long segmentId = useMeaning ? _rowSegment[semantic.Row] : keyword.Match.Segment;
             (long Segment, double? Focus) place = (segmentId, null);
