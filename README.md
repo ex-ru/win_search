@@ -18,7 +18,7 @@ WAI searches files in folders you choose using semantic and full-text search. Th
 
 The package identity for this release is WinSearch.WAI. Existing WAI data under %LOCALAPPDATA%\WAI remains in place. Installations with a different package identity are not promised to upgrade automatically; install the new package and verify it before removing an older installation.
 
-This repository is private: download [the release](https://github.com/ex-ru/win_search/releases/tag/v1.2.0) in a signed-in browser with repository access. The anonymous GitHub updater cannot read private releases. Internal deployments can use the existing local/network release folder setting under Advanced; see [distribution instructions](DISTRIBUTION.md).
+Download the [Windows installer](https://github.com/ex-ru/win_search/releases/download/v1.2.0/WinSearch.WAI-win-Setup.exe) or [portable archive](https://github.com/ex-ru/win_search/releases/download/v1.2.0/WinSearch.WAI-win-Portable.zip) from the public [1.2.0 release](https://github.com/ex-ru/win_search/releases/tag/v1.2.0). No GitHub account is required. See [distribution instructions](DISTRIBUTION.md), [third-party distribution status](THIRD_PARTY_NOTICES.md), and the [current publication review](docs/PUBLICATION_REVIEW.md) before broader redistribution.
 
 ## Get started
 
@@ -33,10 +33,10 @@ Code indexing, model selection, hardware preferences, and the hotkey can be chan
 The repository pins the .NET SDK to 10.0.402 in global.json.
 
 ~~~powershell
-.\Start-WAI.ps1 -Backend vulkan
+dotnet test .\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\WAI.Windows.sln -c Release
 ~~~
 
-Search opens with Ctrl+Space or from the tray icon. Select folders in Settings.
+This command works from a source checkout with the pinned SDK. Building a complete application requires additional native runtime and media tools: follow the [builder guide](port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/docs/Builder-Guide.md). `Start-WAI.ps1` is a local development launcher and requires an existing `run/` or `run-vulkan/` build; it does not build the app.
 
 For the CLI, point WAI_MODELS to the folder containing downloaded model files:
 
@@ -80,6 +80,19 @@ The setup executable and portable archive are written under dist\releases. The m
 
 This repository contains a Windows port of [ARahim3/WAI](https://github.com/ARahim3/WAI), originally developed for macOS under the MIT license. The Windows implementation is maintained in this repository.
 
+## Repository map and contributions
+
+| Path | Purpose |
+|---|---|
+| `port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/` | Active Windows application, core, worker, CLI and unit tests |
+| `upstream/` and the rest of `port/` | Historical macOS snapshots and porting references |
+| `checks/`, `scripts/`, `.github/` | Validation tools, release scripts and Windows CI |
+| `docs/`, `BACKLOG.md` | Guides, measured results and prioritized remaining work |
+| `results/`, `testbed*` | Selected historical evidence and synthetic test fixtures |
+| `dist/`, `tools/`, `models/`, `state/` | Mostly ignored local packages, dependencies, models and state |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and bug reports, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities. CI checks source tests, crash recovery and self-contained publishing; the full native installer/update gate remains a separate release check.
+
 ## License
 
-The project is distributed under the [MIT License](LICENSE).
+WAI project code is distributed under the [MIT License](LICENSE). Bundled components have separate terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

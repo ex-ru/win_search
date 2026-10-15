@@ -1,0 +1,112 @@
+{
+  "reviewedAtUtc": "2026-10-15T14:35:53.052495+00:00",
+  "testedCodeCommit": "61b6a61827dda1e51029c77bcd94161b904bb17c",
+  "unitTests": {
+    "passed": 185,
+    "skipped": 1,
+    "failed": 0,
+    "skipReason": "Opt-in all-model benchmark"
+  },
+  "selfContainedPublish": [
+    "WPF",
+    "CLI",
+    "worker"
+  ],
+  "loadedCoreSha256": "EBA2142DD4C277F07A2ABF6787D5CD7C3E356D95CE2810A5F85EF01C16C56D32",
+  "bgeChecks": [
+    {
+      "name": "arguments",
+      "status": "passed",
+      "seconds": 0.0129062
+    },
+    {
+      "name": "file-lifecycle-lexical",
+      "status": "passed",
+      "seconds": 0.8383346
+    },
+    {
+      "name": "crash-during-transaction",
+      "status": "passed",
+      "seconds": 0.6173283
+    },
+    {
+      "name": "sqlite-disk-full",
+      "status": "passed",
+      "seconds": 0.04176
+    },
+    {
+      "name": "packaged-worker-cpu",
+      "status": "passed",
+      "seconds": 12.7108532
+    },
+    {
+      "name": "production-evaluation",
+      "status": "passed",
+      "seconds": 23.3612443
+    },
+    {
+      "name": "native-pdfium-ffmpeg",
+      "status": "passed",
+      "seconds": 4.4440251
+    }
+  ],
+  "gemmaChecks": [
+    {
+      "name": "arguments",
+      "status": "passed",
+      "seconds": 0.0118544
+    },
+    {
+      "name": "file-lifecycle-lexical",
+      "status": "passed",
+      "seconds": 0.4773282
+    },
+    {
+      "name": "crash-during-transaction",
+      "status": "passed",
+      "seconds": 0.8084357
+    },
+    {
+      "name": "sqlite-disk-full",
+      "status": "passed",
+      "seconds": 0.0431545
+    },
+    {
+      "name": "packaged-worker-cpu",
+      "status": "passed",
+      "seconds": 10.22194
+    },
+    {
+      "name": "native-pdfium-ffmpeg",
+      "status": "passed",
+      "seconds": 0.9974353
+    }
+  ],
+  "evaluation": {
+    "documentCount": 41,
+    "queryCount": 240,
+    "failures": 0,
+    "model": "BAAI/bge-m3",
+    "dimension": 1024
+  },
+  "knownVulnerableManagedPackages": 0,
+  "publicGithub": {
+    "repositoryPublic": true,
+    "anonymousHttpStatus": {
+      "SHA256SUMS.txt": 200,
+      "releases.win.json": 200,
+      "RELEASES": 200
+    }
+  },
+  "remaining": [
+    "PUB-02 third-party notices, exact native provenance and corresponding source",
+    "PUB-03 clean Windows installed GUI and upgrade",
+    "PUB-04 reproducible native dependency preparation"
+  ],
+  "limitations": [
+    "Synthetic corpus; absence checked lexically",
+    "Native binaries reused from prepared release payload",
+    "No installer rebuild or fresh installed GUI apply in this audit",
+    "Published v1.2.0 assets unchanged"
+  ]
+}

@@ -10,19 +10,22 @@ The shipped package uses CPU and Vulkan backends and includes FFmpeg by default.
 
 ## Build
 
-Run commands from the repository root. The native runtime step is needed when native binaries are not already available.
+Run commands from the repository root. Managed source checks do not require a local `run-vulkan/` application build:
 
 ~~~powershell
 $win = '.\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows'
-powershell -File "$win\scripts\build-llama-windows.ps1"
 dotnet build "$win\WAI.Windows.sln" -c Release
 dotnet test "$win\WAI.Windows.sln" -c Release
-~~
+~~~
+
+A fresh clone is **not yet sufficient to build the standard distribution**. `build-package.ps1` requires a prepared `run-vulkan/` native payload (`llama.dll`, `mtmd.dll`, `ggml*.dll`, `libomp.dll`), `tools/llama-vulkan/LICENSE-LLVM-OpenMP`, and `tools/ffmpeg/{ffmpeg,ffprobe}.exe`. PDFium is currently tracked under `windows/native/x64/`. These external binaries are not downloaded by the packaging command. See `PUB-02` and `PUB-04` in the root backlog for matching notices and reproducible native dependency preparation.
+
+The existing `build-llama-windows.ps1` is an experimental source build, **not** a bootstrap for the standard CPU/Vulkan package. It currently enables CUDA, needs the CUDA toolchain and Visual Studio 2022 C++ tools, writes to `windows/native/`, and uses PowerShell 7 syntax. Do not invoke it through Windows PowerShell 5.1 or assume it fills `run-vulkan/`.
 
 Build the standard full package with the default profile:
 
 ~~~powershell
-powershell -File "$win\scripts\build-package.ps1" -Version 1.2.0
+& "$win\scripts\build-package.ps1" -Version 1.2.0
 ~~~
 
 The package identity is WinSearch.WAI. The build writes its staged payload to dist\staging and release artifacts to dist\releases. The full package includes FFmpeg. Model files are not embedded in the installer.
