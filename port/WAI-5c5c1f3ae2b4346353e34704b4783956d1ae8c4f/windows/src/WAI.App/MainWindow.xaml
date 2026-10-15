@@ -39,10 +39,15 @@
       </Style.Triggers>
     </Style>
 
+    <!-- Window Header Button Dynamic Brushes -->
+    <SolidColorBrush x:Key="HeaderButtonBackgroundBrush" Color="#383838" />
+    <SolidColorBrush x:Key="HeaderButtonForegroundBrush" Color="White" />
+    <SolidColorBrush x:Key="HeaderButtonHoverBrush" Color="#484848" />
+
     <!-- Window Header Button Style (Matches PreviewWindow) -->
     <Style x:Key="WindowHeaderButtonStyle" TargetType="Button">
-      <Setter Property="Background" Value="#383838" />
-      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Background" Value="{DynamicResource HeaderButtonBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource HeaderButtonForegroundBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Template">
@@ -57,7 +62,7 @@
       </Setter>
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#484848" />
+          <Setter Property="Background" Value="{DynamicResource HeaderButtonHoverBrush}" />
         </Trigger>
         <Trigger Property="IsPressed" Value="True">
           <Setter Property="Background" Value="#0078D4" />
@@ -78,12 +83,27 @@
       </Style.Triggers>
     </Style>
 
+    <!-- Clear Button Dynamic Brushes -->
+    <SolidColorBrush x:Key="ClearButtonBackgroundBrush" Color="#444444" />
+    <SolidColorBrush x:Key="ClearButtonForegroundBrush" Color="#AAAAAA" />
+    <SolidColorBrush x:Key="ClearButtonHoverBrush" Color="#5A5A5A" />
+
+    <!-- ScrollBar Dynamic Brushes -->
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#444444" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#666666" />
+
+    <!-- Filter Chip Dynamic Brushes -->
+    <SolidColorBrush x:Key="FilterChipBackgroundBrush" Color="#2A2A2A" />
+    <SolidColorBrush x:Key="FilterChipBorderBrush" Color="#3E3E3E" />
+    <SolidColorBrush x:Key="FilterChipForegroundBrush" Color="#BBBBBB" />
+    <SolidColorBrush x:Key="FilterChipHoverBackgroundBrush" Color="#383838" />
+
     <!-- Filter Chip Style -->
     <Style x:Key="FilterChipStyle" TargetType="Button">
-      <Setter Property="Background" Value="#2A2A2A" />
-      <Setter Property="Foreground" Value="#BBBBBB" />
+      <Setter Property="Background" Value="{DynamicResource FilterChipBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource FilterChipForegroundBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="#3E3E3E" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FilterChipBorderBrush}" />
       <Setter Property="Padding" Value="11,5" />
       <Setter Property="Margin" Value="0,0,6,0" />
       <Setter Property="FontSize" Value="12" />
@@ -99,8 +119,8 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="ChipBorder" Property="Background" Value="#383838" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter TargetName="ChipBorder" Property="Background" Value="{DynamicResource FilterChipHoverBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource ResultTitleBrush}" />
               </Trigger>
               <Trigger Property="Tag" Value="Active">
                 <Setter TargetName="ChipBorder" Property="Background" Value="#0078D4" />
@@ -121,10 +141,10 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="{x:Type Thumb}">
-            <Border Background="#444444" CornerRadius="3" Margin="2,0" />
+            <Border Background="{DynamicResource ScrollThumbBrush}" CornerRadius="3" Margin="2,0" />
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#666666" />
+                <Setter Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" />
               </Trigger>
               <Trigger Property="IsDragging" Value="True">
                 <Setter Property="Background" Value="#0078D4" />
@@ -219,7 +239,7 @@
             </StackPanel>
           </Border>
           <Button x:Name="ClearButton" Content="✕" Width="24" Height="24"
-                  Foreground="#AAAAAA" Background="#444444" BorderThickness="0"
+                  Foreground="{DynamicResource ClearButtonForegroundBrush}" Background="{DynamicResource ClearButtonBackgroundBrush}" BorderThickness="0"
                   FontSize="11" FontWeight="Normal" Cursor="Hand" Focusable="False"
                   Visibility="Collapsed" Click="OnClearQuery"
                   ToolTip="Очистить строку поиска">
@@ -230,11 +250,10 @@
                 </Border>
                 <ControlTemplate.Triggers>
                   <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="BtnBorder" Property="Background" Value="#5A5A5A" />
-                    <Setter Property="Foreground" Value="White" />
+                    <Setter TargetName="BtnBorder" Property="Background" Value="{DynamicResource ClearButtonHoverBrush}" />
                   </Trigger>
                   <Trigger Property="IsPressed" Value="True">
-                    <Setter TargetName="BtnBorder" Property="Background" Value="#707070" />
+                    <Setter TargetName="BtnBorder" Property="Background" Value="#0078D4" />
                     <Setter Property="Foreground" Value="White" />
                   </Trigger>
                 </ControlTemplate.Triggers>

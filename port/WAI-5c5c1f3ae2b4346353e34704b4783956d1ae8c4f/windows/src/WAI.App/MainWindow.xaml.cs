@@ -234,11 +234,11 @@ public partial class MainWindow : Window
                     ClearButton.Foreground = (Brush)bc.ConvertFrom("#AAAAAA")!;
                 }
 
-                // Window Header buttons
-                var headerBtnBg = (Brush)bc.ConvertFrom("#383838")!;
-                if (BtnPin is not null) { BtnPin.Background = headerBtnBg; BtnPin.Foreground = Brushes.White; }
-                if (BtnMin is not null) { BtnMin.Background = headerBtnBg; BtnMin.Foreground = Brushes.White; }
-                if (BtnClose is not null) { BtnClose.Background = headerBtnBg; BtnClose.Foreground = Brushes.White; }
+                // Window Header buttons & Clear button use dynamic resource brushes
+                if (BtnPin is not null) { BtnPin.ClearValue(BackgroundProperty); BtnPin.ClearValue(ForegroundProperty); }
+                if (BtnMin is not null) { BtnMin.ClearValue(BackgroundProperty); BtnMin.ClearValue(ForegroundProperty); }
+                if (BtnClose is not null) { BtnClose.ClearValue(BackgroundProperty); BtnClose.ClearValue(ForegroundProperty); }
+                if (ClearButton is not null) { ClearButton.ClearValue(BackgroundProperty); ClearButton.ClearValue(ForegroundProperty); }
 
                 // Preview container & action buttons
                 if (PreviewImageBorder is not null) PreviewImageBorder.Background = (Brush)bc.ConvertFrom("#202020")!;
@@ -251,6 +251,14 @@ public partial class MainWindow : Window
                 SetActionButtonStyle(BtnOpenWith, actionBtnBg, actionBtnFg, actionBtnBorder);
                 SetActionButtonStyle(BtnCopyPath, actionBtnBg, actionBtnFg, actionBtnBorder);
 
+                if (SemanticPill is not null)
+                {
+                    SemanticPill.Background = (Brush)bc.ConvertFrom("#15303E")!;
+                    SemanticPill.BorderBrush = (Brush)bc.ConvertFrom("#00BCD4")!;
+                }
+                if (SemanticPillText is not null) SemanticPillText.Foreground = (Brush)bc.ConvertFrom("#80DEEA")!;
+                if (SearchPrompt is not null) SearchPrompt.Foreground = (Brush)bc.ConvertFrom("#888888")!;
+
                 Resources["ResultTitleBrush"] = Brushes.White;
                 Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#AAAAAA")!;
                 Resources["ResultBodyBrush"] = (Brush)bc.ConvertFrom("#DDDDDD")!;
@@ -259,6 +267,22 @@ public partial class MainWindow : Window
                 Resources["KeycapBackgroundBrush"] = (Brush)bc.ConvertFrom("#333333")!;
                 Resources["KeycapBorderBrush"] = (Brush)bc.ConvertFrom("#555555")!;
                 Resources["KeycapForegroundBrush"] = (Brush)bc.ConvertFrom("#DDDDDD")!;
+
+                Resources["FilterChipBackgroundBrush"] = (Brush)bc.ConvertFrom("#2A2A2A")!;
+                Resources["FilterChipBorderBrush"] = (Brush)bc.ConvertFrom("#3E3E3E")!;
+                Resources["FilterChipForegroundBrush"] = (Brush)bc.ConvertFrom("#BBBBBB")!;
+                Resources["FilterChipHoverBackgroundBrush"] = (Brush)bc.ConvertFrom("#383838")!;
+
+                Resources["HeaderButtonBackgroundBrush"] = (Brush)bc.ConvertFrom("#383838")!;
+                Resources["HeaderButtonForegroundBrush"] = Brushes.White;
+                Resources["HeaderButtonHoverBrush"] = (Brush)bc.ConvertFrom("#484848")!;
+
+                Resources["ClearButtonBackgroundBrush"] = (Brush)bc.ConvertFrom("#444444")!;
+                Resources["ClearButtonForegroundBrush"] = (Brush)bc.ConvertFrom("#AAAAAA")!;
+                Resources["ClearButtonHoverBrush"] = (Brush)bc.ConvertFrom("#5A5A5A")!;
+
+                Resources["ScrollThumbBrush"] = (Brush)bc.ConvertFrom("#444444")!;
+                Resources["ScrollThumbHoverBrush"] = (Brush)bc.ConvertFrom("#666666")!;
             }
             else
             {
@@ -278,19 +302,11 @@ public partial class MainWindow : Window
                 if (MascotText is not null) MascotText.Foreground = (Brush)bc.ConvertFrom("#0284C7")!;
                 if (MascotSubtitle is not null) MascotSubtitle.Foreground = (Brush)bc.ConvertFrom("#64748B")!;
 
-                // Clear button
-                if (ClearButton is not null)
-                {
-                    ClearButton.Background = (Brush)bc.ConvertFrom("#E2E8F0")!;
-                    ClearButton.Foreground = (Brush)bc.ConvertFrom("#475569")!;
-                }
-
-                // Window Header buttons
-                var headerBtnBg = (Brush)bc.ConvertFrom("#E2E8F0")!;
-                var headerBtnFg = (Brush)bc.ConvertFrom("#1E293B")!;
-                if (BtnPin is not null) { BtnPin.Background = headerBtnBg; BtnPin.Foreground = headerBtnFg; }
-                if (BtnMin is not null) { BtnMin.Background = headerBtnBg; BtnMin.Foreground = headerBtnFg; }
-                if (BtnClose is not null) { BtnClose.Background = headerBtnBg; BtnClose.Foreground = headerBtnFg; }
+                // Window Header buttons & Clear button use dynamic resource brushes
+                if (BtnPin is not null) { BtnPin.ClearValue(BackgroundProperty); BtnPin.ClearValue(ForegroundProperty); }
+                if (BtnMin is not null) { BtnMin.ClearValue(BackgroundProperty); BtnMin.ClearValue(ForegroundProperty); }
+                if (BtnClose is not null) { BtnClose.ClearValue(BackgroundProperty); BtnClose.ClearValue(ForegroundProperty); }
+                if (ClearButton is not null) { ClearButton.ClearValue(BackgroundProperty); ClearButton.ClearValue(ForegroundProperty); }
 
                 // Preview container & action buttons
                 if (PreviewImageBorder is not null) PreviewImageBorder.Background = (Brush)bc.ConvertFrom("#F1F5F9")!;
@@ -303,6 +319,14 @@ public partial class MainWindow : Window
                 SetActionButtonStyle(BtnOpenWith, actionBtnBg, actionBtnFg, actionBtnBorder);
                 SetActionButtonStyle(BtnCopyPath, actionBtnBg, actionBtnFg, actionBtnBorder);
 
+                if (SemanticPill is not null)
+                {
+                    SemanticPill.Background = (Brush)bc.ConvertFrom("#E0F2FE")!;
+                    SemanticPill.BorderBrush = (Brush)bc.ConvertFrom("#38BDF8")!;
+                }
+                if (SemanticPillText is not null) SemanticPillText.Foreground = (Brush)bc.ConvertFrom("#0284C7")!;
+                if (SearchPrompt is not null) SearchPrompt.Foreground = (Brush)bc.ConvertFrom("#94A3B8")!;
+
                 Resources["ResultTitleBrush"] = (Brush)bc.ConvertFrom("#0F172A")!;
                 Resources["ResultDetailBrush"] = (Brush)bc.ConvertFrom("#475569")!;
                 Resources["ResultBodyBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
@@ -311,6 +335,22 @@ public partial class MainWindow : Window
                 Resources["KeycapBackgroundBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
                 Resources["KeycapBorderBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
                 Resources["KeycapForegroundBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
+
+                Resources["FilterChipBackgroundBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["FilterChipBorderBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["FilterChipForegroundBrush"] = (Brush)bc.ConvertFrom("#334155")!;
+                Resources["FilterChipHoverBackgroundBrush"] = (Brush)bc.ConvertFrom("#F1F5F9")!;
+
+                Resources["HeaderButtonBackgroundBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["HeaderButtonForegroundBrush"] = (Brush)bc.ConvertFrom("#1E293B")!;
+                Resources["HeaderButtonHoverBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
+
+                Resources["ClearButtonBackgroundBrush"] = (Brush)bc.ConvertFrom("#E2E8F0")!;
+                Resources["ClearButtonForegroundBrush"] = (Brush)bc.ConvertFrom("#475569")!;
+                Resources["ClearButtonHoverBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
+
+                Resources["ScrollThumbBrush"] = (Brush)bc.ConvertFrom("#CBD5E1")!;
+                Resources["ScrollThumbHoverBrush"] = (Brush)bc.ConvertFrom("#94A3B8")!;
             }
 
             if (_allHits.Count > 0)
