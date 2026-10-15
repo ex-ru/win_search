@@ -79,7 +79,7 @@ foreach ($license in @($OpenMpLicenseSource, $RepoLicenseSource)) {
     }
 }
 
-$NuGetConfig = Join-Path $RepoRoot "tools\NuGet.Config"
+$NuGetConfig = Join-Path $RepoRoot "NuGet.Config"
 if (!(Test-Path -LiteralPath $NuGetConfig -PathType Leaf)) {
     $NuGetConfig = $null
 }
@@ -89,7 +89,7 @@ Write-Host " Building WAI (Windows AI Search) Windows Distribution v$Version" -F
 Write-Host " Output: $OutputDir" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Locate .NET 9 SDK
+# 1. Locate the SDK pinned in global.json.
 $DotnetExe = "dotnet"
 if (Test-Path (Join-Path $RepoRoot "tools\dotnet\dotnet.exe")) {
     $DotnetRoot = Join-Path $RepoRoot "tools\dotnet"

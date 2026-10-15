@@ -71,8 +71,11 @@ public class ModelBenchmarkTests
         string evalJsonPath = Path.Combine(repoRoot, "testbed-russian-eval.json");
         string testbedDir = Path.Combine(repoRoot, "testbed");
         string modelsDir = Path.Combine(repoRoot, "models");
-        string workerExe = Path.Combine(repoRoot, "run-vulkan", "wai-embed.exe");
-        string resultsDir = Path.Combine(repoRoot, "results");
+        string runDir = Environment.GetEnvironmentVariable("WAI_BENCHMARK_RUN_DIR")
+            ?? Path.Combine(repoRoot, "dist", "staging");
+        string workerExe = Path.Combine(runDir, "wai-embed.exe");
+        string resultsDir = Environment.GetEnvironmentVariable("WAI_BENCHMARK_OUTPUT_DIR")
+            ?? Path.Combine(repoRoot, "results");
         Directory.CreateDirectory(resultsDir);
 
         Assert.True(File.Exists(evalJsonPath), $"Missing required evaluation manifest: {evalJsonPath}");
@@ -141,6 +144,15 @@ public class ModelBenchmarkTests
 
         foreach (var m in models)
         {
+            string[] requiredFiles = m.Id switch
+            {
+                "gemma2" => ["embeddinggemma-2-Q8_0.gguf", "mmproj-embeddinggemma-2-Q8_0.gguf"],
+                "bge-m3" => ["bge-m3-Q4_K_M.gguf"],
+                "nomic" => ["nomic-embed-text-v1.5.Q8_0.gguf"],
+                _ => throw new InvalidOperationException($"Unknown benchmark model: {m.Id}"),
+            };
+            foreach (string requiredFile in requiredFiles)
+                Assert.True(File.Exists(Path.Combine(modelsDir, requiredFile)), $"Required local benchmark model missing: {requiredFile}");
             _output.WriteLine($"\n=== Benchmarking {m.Name} ===");
             var logPath = Path.Combine(resultsDir, $"worker-{m.Id}.log");
 

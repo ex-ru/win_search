@@ -1,0 +1,151 @@
+{
+  "TimestampUtc": "2026-10-15T07:42:00.5146619+00:00",
+  "Runtime": ".NET 10.0.13",
+  "OperatingSystem": "Microsoft Windows 10.0.26300",
+  "ProcessorCount": 24,
+  "Dimension": 768,
+  "Method": "Exact SIMD fp16 scan with bounded parallel partitions for large matrices; no ANN. Cold = unloaded Searcher, OS disk cache is not flushed.",
+  "Datasets": [
+    {
+      "Fragments": 10000,
+      "Files": 1000,
+      "GenerationSeconds": 1.0694939,
+      "ColdLoadMilliseconds": 151.5865,
+      "Sequential": {
+        "Repetitions": 12,
+        "P50Milliseconds": 39.997,
+        "P95Milliseconds": 43.3525,
+        "MinMilliseconds": 39.5171,
+        "MaxMilliseconds": 43.3525,
+        "RecallInvariant": true
+      },
+      "WithBackgroundWriter": {
+        "Repetitions": 12,
+        "P50Milliseconds": 39.9719,
+        "P95Milliseconds": 41.0903,
+        "MinMilliseconds": 38.5792,
+        "MaxMilliseconds": 41.0903,
+        "RecallInvariant": true
+      },
+      "BackgroundWrites": 19,
+      "PeakWorkingBytes": 91848704,
+      "PeakPrivateBytes": 38432768,
+      "IndexBytes": 20955624,
+      "Recall": [
+        {
+          "QuerySegmentId": 2501,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 5001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 7501,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        }
+      ],
+      "Passed": true
+    },
+    {
+      "Fragments": 100000,
+      "Files": 10000,
+      "GenerationSeconds": 4.4687801,
+      "ColdLoadMilliseconds": 1277.9415,
+      "Sequential": {
+        "Repetitions": 12,
+        "P50Milliseconds": 67.1308,
+        "P95Milliseconds": 84.0279,
+        "MinMilliseconds": 62.0273,
+        "MaxMilliseconds": 84.0279,
+        "RecallInvariant": true
+      },
+      "WithBackgroundWriter": {
+        "Repetitions": 12,
+        "P50Milliseconds": 64.9034,
+        "P95Milliseconds": 69.3383,
+        "MinMilliseconds": 61.1981,
+        "MaxMilliseconds": 69.3383,
+        "RecallInvariant": true
+      },
+      "BackgroundWrites": 29,
+      "PeakWorkingBytes": 393027584,
+      "PeakPrivateBytes": 236138496,
+      "IndexBytes": 208425760,
+      "Recall": [
+        {
+          "QuerySegmentId": 25001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 50001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 75001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        }
+      ],
+      "Passed": true
+    },
+    {
+      "Fragments": 1000000,
+      "Files": 10000,
+      "GenerationSeconds": 58.3342288,
+      "ColdLoadMilliseconds": 13200.7736,
+      "Sequential": {
+        "Repetitions": 12,
+        "P50Milliseconds": 518.7395,
+        "P95Milliseconds": 543.0098,
+        "MinMilliseconds": 452.2226,
+        "MaxMilliseconds": 543.0098,
+        "RecallInvariant": true
+      },
+      "WithBackgroundWriter": {
+        "Repetitions": 12,
+        "P50Milliseconds": 547.7335,
+        "P95Milliseconds": 709.3452,
+        "MinMilliseconds": 514.8875,
+        "MaxMilliseconds": 709.3452,
+        "RecallInvariant": true
+      },
+      "BackgroundWrites": 220,
+      "PeakWorkingBytes": 1861500928,
+      "PeakPrivateBytes": 307945472,
+      "IndexBytes": 2068043640,
+      "Recall": [
+        {
+          "QuerySegmentId": 250001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 500001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        },
+        {
+          "QuerySegmentId": 750001,
+          "Top1Recall": 1,
+          "Top10Recall": 1,
+          "CosineMatches": true
+        }
+      ],
+      "Passed": true
+    }
+  ]
+}

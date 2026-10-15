@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Core/WAI.Core.csproj" />
+  </ItemGroup>
+</Project>

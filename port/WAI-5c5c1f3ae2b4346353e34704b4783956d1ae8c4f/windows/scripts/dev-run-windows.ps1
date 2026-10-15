@@ -1,5 +1,5 @@
 # Dev run: publish everything self-contained into windows/dev-run/ and start.
-# No system changes. Needs: .NET 9 SDK, windows/native DLLs (run
+# No system changes. Needs: the SDK pinned in global.json, windows/native DLLs (run
 # build-llama-windows.ps1 once), model files in %LocalAppData%\WAI\Models.
 # For sound/video tests only: set WAI_FFMPEG to a folder with ffmpeg.exe +
 # ffprobe.exe (your own install; the ship bundles its own).

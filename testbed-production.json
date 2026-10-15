@@ -1,0 +1,1784 @@
+{
+  "schema_version": 1,
+  "description": "Frozen synthetic corpus: forty independent topics with English/Russian semantic paraphrases, morphology, exact identifiers, equal-content duplicate and lexical absence. Not a real-world quality benchmark.",
+  "thresholds": {
+    "positive_top_k": 5,
+    "exact_and_morphology": "lexical",
+    "semantic": "hybrid",
+    "absent": "lexical only; hybrid candidates diagnostic",
+    "claims": "No production accuracy claim. Inspect per-query results."
+  },
+  "documents": [
+    {
+      "filename": "lease.txt",
+      "text": "Арендатор может держать кошку в съемной квартире после согласования с владельцем. Залог возвращается после осмотра жилья, если мебель не повреждена. Номер записи: REF000001."
+    },
+    {
+      "filename": "bank.txt",
+      "text": "Банк отклонил оплату покупки из-за лимита карты. Для разблокировки нужно позвонить оператору и назвать код отказа. Лимит меняют в мобильном кабинете. Номер записи: REF000002."
+    },
+    {
+      "filename": "backup.txt",
+      "text": "После поломки диска рабочие документы восстанавливают из последней проверенной резервной копии. Архив хранится на отдельном носителе. Проверяют контрольные суммы. Номер записи: REF000003."
+    },
+    {
+      "filename": "train.txt",
+      "text": "Ночной поезд в Киев отправляется в 22:40. Пассажиры пересаживаются во Львове. Билеты и паспорт проверяют до посадки. Багаж размещают под нижней полкой. Номер записи: REF000004."
+    },
+    {
+      "filename": "tomato.txt",
+      "text": "Низкорослые томаты выращивают в горшках на солнечном балконе. Рассаде нужен дренаж, регулярный полив без застоя воды и опора. Подкормку проводят после первых завязей. Номер записи: REF000005."
+    },
+    {
+      "filename": "retry.txt",
+      "text": "Асинхронная задача повторяет сетевой запрос после временной ошибки. Пауза увеличивается экспоненциально, добавляется случайный разброс. Число попыток ограничено, отмена прекращает ожидание. Номер записи: REF000006."
+    },
+    {
+      "filename": "bike.txt",
+      "text": "Слетевшую велосипедную цепь надевают на переднюю звезду, вращая педаль рукой. Перед поездкой проверяют натяжение и тормоза. Поврежденные звенья заменяют в мастерской. Номер записи: REF000007."
+    },
+    {
+      "filename": "coffee.txt",
+      "text": "Во френч-прессе крупно молотый кофе заливают горячей водой в пропорции один к пятнадцати. Настаивают четыре минуты, медленно опускают поршень и разливают напиток. Номер записи: REF000008."
+    },
+    {
+      "filename": "passport.txt",
+      "text": "Для замены заграничного паспорта подают заявление, фотографию и прежний документ. Срок изготовления зависит от места обращения. До покупки билетов проверяют срок действия удостоверения. Номер записи: REF000009."
+    },
+    {
+      "filename": "insurance.txt",
+      "text": "Страховой случай при протечке квартиры фиксируют фотографиями и актом управляющей компании. Вещи сохраняют до осмотра оценщиком. Заявление подают страховщику за пять дней. Номер записи: REF000010."
+    },
+    {
+      "filename": "filter.txt",
+      "text": "Воздушный фильтр автомобильного двигателя меняют каждые пятнадцать тысяч километров. В пыльных условиях интервал сокращают. Проверяют плотность крышки корпуса. Номер записи: REF000011."
+    },
+    {
+      "filename": "bread.txt",
+      "text": "Хлебную закваску кормят равными массами муки и воды. Перед выпечкой она увеличивается вдвое и покрывается пузырьками. Остаток хранят в холодильнике в неплотно закрытой банке. Номер записи: REF000012."
+    },
+    {
+      "filename": "vacation.txt",
+      "text": "Оплачиваемый отпуск рассчитывают по среднему заработку за двенадцать месяцев. Заявление согласуют с руководителем. Праздничные дни не включают в число дней отпуска. Номер записи: REF000013."
+    },
+    {
+      "filename": "heatpump.txt",
+      "text": "Тепловой насос перед зимой очищают от листьев и проверяют отвод конденсата. Наружному блоку нужен свободный приток воздуха. При обмерзании используют цикл разморозки. Номер записи: REF000014."
+    },
+    {
+      "filename": "school.txt",
+      "text": "Школьное питание для ребенка с аллергией оформляют через медицинскую справку. Родители сообщают список запрещенных продуктов учителю. Столовая согласует отдельное меню и маркировку порций. Номер записи: REF000015."
+    },
+    {
+      "filename": "photos.txt",
+      "text": "Семейные фотографии сортируют по дате съемки из метаданных EXIF. Дубликаты определяют по контрольной сумме файла. Снимки с неправильными часами камеры проверяют вручную. Номер записи: REF000016."
+    },
+    {
+      "filename": "campwater.txt",
+      "text": "В походе воду из ручья фильтруют от осадка, затем обеззараживают кипячением. Мутную жидкость не пьют без обработки. Чистую воду хранят отдельно от емкостей для сырой воды. Номер записи: REF000017."
+    },
+    {
+      "filename": "ramp.txt",
+      "text": "Пандус для инвалидной коляски оборудуют нескользким покрытием, поручнями и горизонтальными площадками. Дверь не перекрывает место разворота. Уклон согласуют с проектировщиком. Номер записи: REF000018."
+    },
+    {
+      "filename": "oven.txt",
+      "text": "Вентилятор духового шкафа очищают после отключения питания и полного остывания. Съемную решетку промывают отдельно. При скрежете прибор передают в сервис. Номер записи: REF000019."
+    },
+    {
+      "filename": "spreadsheet.txt",
+      "text": "В электронной таблице итог продаж считают формулой СУММЕСЛИМН по региону и месяцу. Даты хранят числами, а не текстом. Абсолютные ссылки сохраняют диапазон при копировании формулы. Номер записи: REF000020."
+    },
+    {
+      "filename": "vat.txt",
+      "text": "В счете-фактуре выделяют налог на добавленную стоимость отдельно от цены. Ошибку оформляют корректировочным документом. Номер исходного счета и дата поставки совпадают с учетом. Номер записи: REF000021."
+    },
+    {
+      "filename": "museum.txt",
+      "text": "В музейной коллекции акварели хранят без прямого солнечного света. Для экспозиции используют защитное стекло и ограничивают освещенность. Температуру и влажность регистрируют ежедневно. Номер записи: REF000022."
+    },
+    {
+      "filename": "orchid.txt",
+      "text": "Орхидею пересаживают после цветения в прозрачный горшок с корой. Гнилые корни удаляют стерильными ножницами. После пересадки растение несколько дней не поливают. Номер записи: REF000023."
+    },
+    {
+      "filename": "meeting.txt",
+      "text": "Протокол собрания жильцов содержит дату, список участников, повестку и результаты голосования. Решение о ремонте крыши принимают большинством. Подписанный экземпляр передают управляющей организации. Номер записи: REF000024."
+    },
+    {
+      "filename": "battery.txt",
+      "text": "Литиевый аккумулятор велосипеда хранят при частичном заряде в сухом прохладном помещении. Вздутую батарею не заряжают. Для утилизации передают в специализированный пункт. Номер записи: REF000025."
+    },
+    {
+      "filename": "router.txt",
+      "text": "Домашний маршрутизатор настраивают через локальную панель администратора. После смены пароля отключают удаленное управление. Резервную копию конфигурации сохраняют перед обновлением прошивки. Номер записи: REF000026."
+    },
+    {
+      "filename": "clinic.txt",
+      "text": "Перед анализом крови натощак пациенту разрешают пить чистую воду. Время лекарств уточняют у врача. После забора образца сестра маркирует пробирку фамилией и номером направления. Номер записи: REF000027."
+    },
+    {
+      "filename": "ceramic.txt",
+      "text": "Глиняную посуду после лепки сушат медленно вдали от сквозняка. Первый обжиг проводят до глазури. Толстое дно должно высохнуть полностью, иначе изделие треснет в печи. Номер записи: REF000028."
+    },
+    {
+      "filename": "chess.txt",
+      "text": "В шахматном турнире игрок нажимает часы той же рукой, которой сделал ход. При падении флажка вызывают арбитра. Результат партии подтверждают подписями участников. Номер записи: REF000029."
+    },
+    {
+      "filename": "parcel.txt",
+      "text": "Поврежденную почтовую посылку вскрывают при сотруднике отделения. Составляют акт с перечнем недостающих вещей. Фотографии упаковки и квитанцию сохраняют для претензии. Номер записи: REF000030."
+    },
+    {
+      "filename": "library.txt",
+      "text": "Читатель продлевает срок выдачи библиотечной книги через личный кабинет. Если издание забронировано другим посетителем, продление недоступно. Утерянный экземпляр заменяют равноценным. Номер записи: REF000031."
+    },
+    {
+      "filename": "sewing.txt",
+      "text": "Швейную машинку заправляют при поднятой лапке. Для трикотажа используют иглу с округлым кончиком и эластичный шов. Пропуски стежков устраняют заменой затупившейся иглы. Номер записи: REF000032."
+    },
+    {
+      "filename": "taxi.txt",
+      "text": "Водитель такси проверяет крепление детского кресла перед поездкой. Ремни прилегают плотно, без перекручивания. Возраст и рост ребенка учитывают при выборе удерживающего устройства. Номер записи: REF000033."
+    },
+    {
+      "filename": "piano.txt",
+      "text": "Фортепиано ставят вдали от батареи и прямого солнца. После перевозки инструменту дают привыкнуть к влажности комнаты. Настройщика приглашают после адаптации, а не в день доставки. Номер записи: REF000034."
+    },
+    {
+      "filename": "compost.txt",
+      "text": "В компост добавляют растительные остатки, сухие листья и картон без покрытия. Мясо и жир не используют. Смесь перемешивают для воздуха и устранения неприятного запаха. Номер записи: REF000035."
+    },
+    {
+      "filename": "webcache.txt",
+      "text": "Браузер сохраняет ресурсы по заголовку Cache-Control. При изменении скрипта меняют имя файла с хешем содержимого. Персональные ответы не помещают в общий публичный кеш. Номер записи: REF000036."
+    },
+    {
+      "filename": "fireplan.txt",
+      "text": "План эвакуации офиса отмечает основные и запасные выходы. При тревоге сотрудники пользуются лестницей и собираются в назначенной точке. Лифтом при пожаре не пользуются. Номер записи: REF000037."
+    },
+    {
+      "filename": "greenhouse.txt",
+      "text": "Теплицу проветривают утром для снижения конденсата и грибковых заболеваний. Форточки открывают постепенно. При холодном ветре рассада не должна оказаться на сквозняке. Номер записи: REF000038."
+    },
+    {
+      "filename": "translation.txt",
+      "text": "Переводчик сохраняет единообразие терминов с помощью глоссария. Имена сверяют с официальными источниками. Перед сдачей перевода проверяют числа, даты и единицы измерения. Номер записи: REF000039."
+    },
+    {
+      "filename": "kayak.txt",
+      "text": "Перед сплавом на каяке проверяют спасательный жилет и герметичность отсеков. Маршрут учитывает течение и прогноз погоды. При перевороте держатся за лодку и не встают на дно быстрого потока. Номер записи: REF000040."
+    },
+    {
+      "filename": "lease-copy.txt",
+      "text": "Арендатор может держать кошку в съемной квартире после согласования с владельцем. Залог возвращается после осмотра жилья, если мебель не повреждена. Номер записи: REF000001."
+    }
+  ],
+  "queries": [
+    {
+      "query": "Can I keep a cat in my rented flat and get the deposit back?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "lease.txt",
+        "lease-copy.txt"
+      ]
+    },
+    {
+      "query": "При каких условиях хозяин вернет обеспечительный платеж за жилье с питомцем?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "lease.txt",
+        "lease-copy.txt"
+      ]
+    },
+    {
+      "query": "арендатору",
+      "kind": "morphology",
+      "expected_filenames": [
+        "lease.txt",
+        "lease-copy.txt"
+      ]
+    },
+    {
+      "query": "осмотра жилья",
+      "kind": "exact",
+      "expected_filenames": [
+        "lease.txt",
+        "lease-copy.txt"
+      ]
+    },
+    {
+      "query": "REF000001",
+      "kind": "exact",
+      "expected_filenames": [
+        "lease.txt",
+        "lease-copy.txt"
+      ]
+    },
+    {
+      "query": "Why was my card purchase rejected and what should I tell support?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bank.txt"
+      ]
+    },
+    {
+      "query": "Как разрешить платеж, остановленный из-за ограничения расходов?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bank.txt"
+      ]
+    },
+    {
+      "query": "банком",
+      "kind": "morphology",
+      "expected_filenames": [
+        "bank.txt"
+      ]
+    },
+    {
+      "query": "лимита карты",
+      "kind": "exact",
+      "expected_filenames": [
+        "bank.txt"
+      ]
+    },
+    {
+      "query": "REF000002",
+      "kind": "exact",
+      "expected_filenames": [
+        "bank.txt"
+      ]
+    },
+    {
+      "query": "How do I recover my work after a drive failure?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "backup.txt"
+      ]
+    },
+    {
+      "query": "Откуда вернуть утраченные файлы, если накопитель больше не читается?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "backup.txt"
+      ]
+    },
+    {
+      "query": "копиями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "backup.txt"
+      ]
+    },
+    {
+      "query": "контрольные суммы",
+      "kind": "exact",
+      "expected_filenames": [
+        "backup.txt"
+      ]
+    },
+    {
+      "query": "REF000003",
+      "kind": "exact",
+      "expected_filenames": [
+        "backup.txt"
+      ]
+    },
+    {
+      "query": "Where do passengers change on the night train to Kyiv?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "train.txt"
+      ]
+    },
+    {
+      "query": "Во сколько отправляется железнодорожный рейс до украинской столицы?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "train.txt"
+      ]
+    },
+    {
+      "query": "поездом",
+      "kind": "morphology",
+      "expected_filenames": [
+        "train.txt"
+      ]
+    },
+    {
+      "query": "пересаживаются во Львове",
+      "kind": "exact",
+      "expected_filenames": [
+        "train.txt"
+      ]
+    },
+    {
+      "query": "REF000004",
+      "kind": "exact",
+      "expected_filenames": [
+        "train.txt"
+      ]
+    },
+    {
+      "query": "How can I grow small tomatoes in pots on a sunny balcony?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "tomato.txt"
+      ]
+    },
+    {
+      "query": "Чем обеспечить рассаду помидоров в контейнерах, чтобы корни не загнили?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "tomato.txt"
+      ]
+    },
+    {
+      "query": "томатами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "tomato.txt"
+      ]
+    },
+    {
+      "query": "солнечном балконе",
+      "kind": "exact",
+      "expected_filenames": [
+        "tomato.txt"
+      ]
+    },
+    {
+      "query": "REF000005",
+      "kind": "exact",
+      "expected_filenames": [
+        "tomato.txt"
+      ]
+    },
+    {
+      "query": "How should a background job space out retries after temporary network failures?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "retry.txt"
+      ]
+    },
+    {
+      "query": "Как избежать одновременного повторного обращения клиентов к упавшему серверу?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "retry.txt"
+      ]
+    },
+    {
+      "query": "попытками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "retry.txt"
+      ]
+    },
+    {
+      "query": "случайный разброс",
+      "kind": "exact",
+      "expected_filenames": [
+        "retry.txt"
+      ]
+    },
+    {
+      "query": "REF000006",
+      "kind": "exact",
+      "expected_filenames": [
+        "retry.txt"
+      ]
+    },
+    {
+      "query": "How do I put a bicycle chain back and check it is safe to ride?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bike.txt"
+      ]
+    },
+    {
+      "query": "Что проверить после возвращения велосипедной передачи на звездочку?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bike.txt"
+      ]
+    },
+    {
+      "query": "цепью",
+      "kind": "morphology",
+      "expected_filenames": [
+        "bike.txt"
+      ]
+    },
+    {
+      "query": "переднюю звезду",
+      "kind": "exact",
+      "expected_filenames": [
+        "bike.txt"
+      ]
+    },
+    {
+      "query": "REF000007",
+      "kind": "exact",
+      "expected_filenames": [
+        "bike.txt"
+      ]
+    },
+    {
+      "query": "How long should ground coffee steep in a French press?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "coffee.txt"
+      ]
+    },
+    {
+      "query": "Какая пропорция зерен и воды нужна для поршневого кофейника?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "coffee.txt"
+      ]
+    },
+    {
+      "query": "поршнем",
+      "kind": "morphology",
+      "expected_filenames": [
+        "coffee.txt"
+      ]
+    },
+    {
+      "query": "четыре минуты",
+      "kind": "exact",
+      "expected_filenames": [
+        "coffee.txt"
+      ]
+    },
+    {
+      "query": "REF000008",
+      "kind": "exact",
+      "expected_filenames": [
+        "coffee.txt"
+      ]
+    },
+    {
+      "query": "Which papers do I need to renew my travel passport?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "passport.txt"
+      ]
+    },
+    {
+      "query": "Что подготовить для получения нового документа для выезда за границу?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "passport.txt"
+      ]
+    },
+    {
+      "query": "паспортами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "passport.txt"
+      ]
+    },
+    {
+      "query": "срок изготовления",
+      "kind": "exact",
+      "expected_filenames": [
+        "passport.txt"
+      ]
+    },
+    {
+      "query": "REF000009",
+      "kind": "exact",
+      "expected_filenames": [
+        "passport.txt"
+      ]
+    },
+    {
+      "query": "What evidence should I keep after a water leak for an insurance claim?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "insurance.txt"
+      ]
+    },
+    {
+      "query": "Как подтвердить ущерб от затопления для компенсации по полису?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "insurance.txt"
+      ]
+    },
+    {
+      "query": "страховщиком",
+      "kind": "morphology",
+      "expected_filenames": [
+        "insurance.txt"
+      ]
+    },
+    {
+      "query": "осмотра оценщиком",
+      "kind": "exact",
+      "expected_filenames": [
+        "insurance.txt"
+      ]
+    },
+    {
+      "query": "REF000010",
+      "kind": "exact",
+      "expected_filenames": [
+        "insurance.txt"
+      ]
+    },
+    {
+      "query": "When should I replace my car engine air filter on dusty roads?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "filter.txt"
+      ]
+    },
+    {
+      "query": "Как часто менять очиститель воздуха под капотом при езде по пыли?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "filter.txt"
+      ]
+    },
+    {
+      "query": "фильтрами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "filter.txt"
+      ]
+    },
+    {
+      "query": "плотность крышки",
+      "kind": "exact",
+      "expected_filenames": [
+        "filter.txt"
+      ]
+    },
+    {
+      "query": "REF000011",
+      "kind": "exact",
+      "expected_filenames": [
+        "filter.txt"
+      ]
+    },
+    {
+      "query": "How do I feed a sourdough starter and tell it is ready?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bread.txt"
+      ]
+    },
+    {
+      "query": "По каким признакам живая основа для хлеба готова к замесу?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "bread.txt"
+      ]
+    },
+    {
+      "query": "закваской",
+      "kind": "morphology",
+      "expected_filenames": [
+        "bread.txt"
+      ]
+    },
+    {
+      "query": "равными массами",
+      "kind": "exact",
+      "expected_filenames": [
+        "bread.txt"
+      ]
+    },
+    {
+      "query": "REF000012",
+      "kind": "exact",
+      "expected_filenames": [
+        "bread.txt"
+      ]
+    },
+    {
+      "query": "How is paid annual leave calculated from salary history?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "vacation.txt"
+      ]
+    },
+    {
+      "query": "Входят ли официальные праздники в продолжительность ежегодного отдыха?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "vacation.txt"
+      ]
+    },
+    {
+      "query": "отпуском",
+      "kind": "morphology",
+      "expected_filenames": [
+        "vacation.txt"
+      ]
+    },
+    {
+      "query": "среднему заработку",
+      "kind": "exact",
+      "expected_filenames": [
+        "vacation.txt"
+      ]
+    },
+    {
+      "query": "REF000013",
+      "kind": "exact",
+      "expected_filenames": [
+        "vacation.txt"
+      ]
+    },
+    {
+      "query": "How should I prepare an outdoor heat pump for freezing weather?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "heatpump.txt"
+      ]
+    },
+    {
+      "query": "Что делать с наледью на наружном блоке отопительной установки?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "heatpump.txt"
+      ]
+    },
+    {
+      "query": "насосами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "heatpump.txt"
+      ]
+    },
+    {
+      "query": "отвод конденсата",
+      "kind": "exact",
+      "expected_filenames": [
+        "heatpump.txt"
+      ]
+    },
+    {
+      "query": "REF000014",
+      "kind": "exact",
+      "expected_filenames": [
+        "heatpump.txt"
+      ]
+    },
+    {
+      "query": "How can I arrange safe school meals for a child with food allergies?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "school.txt"
+      ]
+    },
+    {
+      "query": "Кому передать ограничения по продуктам для ученика с пищевой реакцией?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "school.txt"
+      ]
+    },
+    {
+      "query": "порциями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "school.txt"
+      ]
+    },
+    {
+      "query": "отдельное меню",
+      "kind": "exact",
+      "expected_filenames": [
+        "school.txt"
+      ]
+    },
+    {
+      "query": "REF000015",
+      "kind": "exact",
+      "expected_filenames": [
+        "school.txt"
+      ]
+    },
+    {
+      "query": "How can I sort family pictures by capture date and find duplicates?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "photos.txt"
+      ]
+    },
+    {
+      "query": "Какие снимки требуют ручной проверки, если часы фотоаппарата неверны?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "photos.txt"
+      ]
+    },
+    {
+      "query": "фотографиями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "photos.txt"
+      ]
+    },
+    {
+      "query": "метаданных EXIF",
+      "kind": "exact",
+      "expected_filenames": [
+        "photos.txt"
+      ]
+    },
+    {
+      "query": "REF000016",
+      "kind": "exact",
+      "expected_filenames": [
+        "photos.txt"
+      ]
+    },
+    {
+      "query": "How should I make stream water safe to drink while hiking?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "campwater.txt"
+      ]
+    },
+    {
+      "query": "Можно ли сразу пить из горного ручья после удаления песка?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "campwater.txt"
+      ]
+    },
+    {
+      "query": "кипячением",
+      "kind": "morphology",
+      "expected_filenames": [
+        "campwater.txt"
+      ]
+    },
+    {
+      "query": "воду из ручья",
+      "kind": "exact",
+      "expected_filenames": [
+        "campwater.txt"
+      ]
+    },
+    {
+      "query": "REF000017",
+      "kind": "exact",
+      "expected_filenames": [
+        "campwater.txt"
+      ]
+    },
+    {
+      "query": "What features make a wheelchair entrance ramp usable?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "ramp.txt"
+      ]
+    },
+    {
+      "query": "Как оборудовать наклонный въезд для удобного разворота человека в кресле?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "ramp.txt"
+      ]
+    },
+    {
+      "query": "поручнями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "ramp.txt"
+      ]
+    },
+    {
+      "query": "горизонтальными площадками",
+      "kind": "exact",
+      "expected_filenames": [
+        "ramp.txt"
+      ]
+    },
+    {
+      "query": "REF000018",
+      "kind": "exact",
+      "expected_filenames": [
+        "ramp.txt"
+      ]
+    },
+    {
+      "query": "What should I do if my oven fan makes a grinding noise?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "oven.txt"
+      ]
+    },
+    {
+      "query": "Когда безопасно снимать защиту крыльчатки внутри печи?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "oven.txt"
+      ]
+    },
+    {
+      "query": "вентилятором",
+      "kind": "morphology",
+      "expected_filenames": [
+        "oven.txt"
+      ]
+    },
+    {
+      "query": "полного остывания",
+      "kind": "exact",
+      "expected_filenames": [
+        "oven.txt"
+      ]
+    },
+    {
+      "query": "REF000019",
+      "kind": "exact",
+      "expected_filenames": [
+        "oven.txt"
+      ]
+    },
+    {
+      "query": "How do I total spreadsheet sales for one region and month?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "spreadsheet.txt"
+      ]
+    },
+    {
+      "query": "Почему условная сумма не видит даты, записанные строками?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "spreadsheet.txt"
+      ]
+    },
+    {
+      "query": "формулами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "spreadsheet.txt"
+      ]
+    },
+    {
+      "query": "абсолютные ссылки",
+      "kind": "exact",
+      "expected_filenames": [
+        "spreadsheet.txt"
+      ]
+    },
+    {
+      "query": "REF000020",
+      "kind": "exact",
+      "expected_filenames": [
+        "spreadsheet.txt"
+      ]
+    },
+    {
+      "query": "How should VAT be displayed on an invoice and corrected after an error?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "vat.txt"
+      ]
+    },
+    {
+      "query": "Какие реквизиты связывают исправленный налоговый документ с первоначальной поставкой?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "vat.txt"
+      ]
+    },
+    {
+      "query": "поставками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "vat.txt"
+      ]
+    },
+    {
+      "query": "корректировочным документом",
+      "kind": "exact",
+      "expected_filenames": [
+        "vat.txt"
+      ]
+    },
+    {
+      "query": "REF000021",
+      "kind": "exact",
+      "expected_filenames": [
+        "vat.txt"
+      ]
+    },
+    {
+      "query": "How should a museum protect watercolor paintings on display?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "museum.txt"
+      ]
+    },
+    {
+      "query": "Какие параметры среды записывают при хранении живописи водяными красками?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "museum.txt"
+      ]
+    },
+    {
+      "query": "акварелью",
+      "kind": "morphology",
+      "expected_filenames": [
+        "museum.txt"
+      ]
+    },
+    {
+      "query": "защитное стекло",
+      "kind": "exact",
+      "expected_filenames": [
+        "museum.txt"
+      ]
+    },
+    {
+      "query": "REF000022",
+      "kind": "exact",
+      "expected_filenames": [
+        "museum.txt"
+      ]
+    },
+    {
+      "query": "When and how should I repot an orchid with damaged roots?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "orchid.txt"
+      ]
+    },
+    {
+      "query": "Почему цветок в прозрачной емкости нельзя поливать сразу после смены субстрата?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "orchid.txt"
+      ]
+    },
+    {
+      "query": "орхидеями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "orchid.txt"
+      ]
+    },
+    {
+      "query": "стерильными ножницами",
+      "kind": "exact",
+      "expected_filenames": [
+        "orchid.txt"
+      ]
+    },
+    {
+      "query": "REF000023",
+      "kind": "exact",
+      "expected_filenames": [
+        "orchid.txt"
+      ]
+    },
+    {
+      "query": "What belongs in the minutes of a residents meeting about roof repairs?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "meeting.txt"
+      ]
+    },
+    {
+      "query": "Куда передать подписанное решение собственников о починке кровли?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "meeting.txt"
+      ]
+    },
+    {
+      "query": "собранием",
+      "kind": "morphology",
+      "expected_filenames": [
+        "meeting.txt"
+      ]
+    },
+    {
+      "query": "результаты голосования",
+      "kind": "exact",
+      "expected_filenames": [
+        "meeting.txt"
+      ]
+    },
+    {
+      "query": "REF000024",
+      "kind": "exact",
+      "expected_filenames": [
+        "meeting.txt"
+      ]
+    },
+    {
+      "query": "How should I store an e-bike lithium battery over winter?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "battery.txt"
+      ]
+    },
+    {
+      "query": "Куда деть вздувшийся источник питания электрического велосипеда?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "battery.txt"
+      ]
+    },
+    {
+      "query": "аккумулятором",
+      "kind": "morphology",
+      "expected_filenames": [
+        "battery.txt"
+      ]
+    },
+    {
+      "query": "частичном заряде",
+      "kind": "exact",
+      "expected_filenames": [
+        "battery.txt"
+      ]
+    },
+    {
+      "query": "REF000025",
+      "kind": "exact",
+      "expected_filenames": [
+        "battery.txt"
+      ]
+    },
+    {
+      "query": "How can I secure my home router before updating its firmware?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "router.txt"
+      ]
+    },
+    {
+      "query": "Что сохранить перед установкой новой версии встроенного ПО сетевого устройства?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "router.txt"
+      ]
+    },
+    {
+      "query": "маршрутизаторами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "router.txt"
+      ]
+    },
+    {
+      "query": "удаленное управление",
+      "kind": "exact",
+      "expected_filenames": [
+        "router.txt"
+      ]
+    },
+    {
+      "query": "REF000026",
+      "kind": "exact",
+      "expected_filenames": [
+        "router.txt"
+      ]
+    },
+    {
+      "query": "Can I drink water before a fasting blood test?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "clinic.txt"
+      ]
+    },
+    {
+      "query": "Как связывают лабораторный образец с направлением пациента?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "clinic.txt"
+      ]
+    },
+    {
+      "query": "пробирками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "clinic.txt"
+      ]
+    },
+    {
+      "query": "номер направления",
+      "kind": "exact",
+      "expected_filenames": [
+        "clinic.txt"
+      ]
+    },
+    {
+      "query": "REF000027",
+      "kind": "exact",
+      "expected_filenames": [
+        "clinic.txt"
+      ]
+    },
+    {
+      "query": "Why must pottery dry fully before the first firing?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "ceramic.txt"
+      ]
+    },
+    {
+      "query": "В какой последовательности высушивают и покрывают глазурью слепленную чашку?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "ceramic.txt"
+      ]
+    },
+    {
+      "query": "глазурью",
+      "kind": "morphology",
+      "expected_filenames": [
+        "ceramic.txt"
+      ]
+    },
+    {
+      "query": "первый обжиг",
+      "kind": "exact",
+      "expected_filenames": [
+        "ceramic.txt"
+      ]
+    },
+    {
+      "query": "REF000028",
+      "kind": "exact",
+      "expected_filenames": [
+        "ceramic.txt"
+      ]
+    },
+    {
+      "query": "What should I do when my opponent runs out of time in a chess tournament?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "chess.txt"
+      ]
+    },
+    {
+      "query": "Как пользоваться часами после перестановки фигуры на соревновании?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "chess.txt"
+      ]
+    },
+    {
+      "query": "арбитром",
+      "kind": "morphology",
+      "expected_filenames": [
+        "chess.txt"
+      ]
+    },
+    {
+      "query": "падении флажка",
+      "kind": "exact",
+      "expected_filenames": [
+        "chess.txt"
+      ]
+    },
+    {
+      "query": "REF000029",
+      "kind": "exact",
+      "expected_filenames": [
+        "chess.txt"
+      ]
+    },
+    {
+      "query": "How should I document a damaged parcel at the post office?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "parcel.txt"
+      ]
+    },
+    {
+      "query": "Какие подтверждения нужны для претензии о пропавших вложениях отправления?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "parcel.txt"
+      ]
+    },
+    {
+      "query": "посылками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "parcel.txt"
+      ]
+    },
+    {
+      "query": "фотографии упаковки",
+      "kind": "exact",
+      "expected_filenames": [
+        "parcel.txt"
+      ]
+    },
+    {
+      "query": "REF000030",
+      "kind": "exact",
+      "expected_filenames": [
+        "parcel.txt"
+      ]
+    },
+    {
+      "query": "When can I renew a borrowed library book online?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "library.txt"
+      ]
+    },
+    {
+      "query": "Что делать, если выданное издание потеряно и его нельзя вернуть?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "library.txt"
+      ]
+    },
+    {
+      "query": "книгами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "library.txt"
+      ]
+    },
+    {
+      "query": "равноценным",
+      "kind": "exact",
+      "expected_filenames": [
+        "library.txt"
+      ]
+    },
+    {
+      "query": "REF000031",
+      "kind": "exact",
+      "expected_filenames": [
+        "library.txt"
+      ]
+    },
+    {
+      "query": "Why does my sewing machine skip stitches on stretchy fabric?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "sewing.txt"
+      ]
+    },
+    {
+      "query": "Какая игла нужна для шитья трикотажного полотна?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "sewing.txt"
+      ]
+    },
+    {
+      "query": "иглами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "sewing.txt"
+      ]
+    },
+    {
+      "query": "эластичный шов",
+      "kind": "exact",
+      "expected_filenames": [
+        "sewing.txt"
+      ]
+    },
+    {
+      "query": "REF000032",
+      "kind": "exact",
+      "expected_filenames": [
+        "sewing.txt"
+      ]
+    },
+    {
+      "query": "How should a taxi driver check a child car seat before a trip?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "taxi.txt"
+      ]
+    },
+    {
+      "query": "Что учитывать при подборе автомобильного удерживающего устройства для малыша?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "taxi.txt"
+      ]
+    },
+    {
+      "query": "ремнями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "taxi.txt"
+      ]
+    },
+    {
+      "query": "крепление детского кресла",
+      "kind": "exact",
+      "expected_filenames": [
+        "taxi.txt"
+      ]
+    },
+    {
+      "query": "REF000033",
+      "kind": "exact",
+      "expected_filenames": [
+        "taxi.txt"
+      ]
+    },
+    {
+      "query": "When should I tune a piano after moving it to a new home?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "piano.txt"
+      ]
+    },
+    {
+      "query": "Почему клавишный инструмент нельзя размещать рядом с радиатором?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "piano.txt"
+      ]
+    },
+    {
+      "query": "настройщиками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "piano.txt"
+      ]
+    },
+    {
+      "query": "влажности комнаты",
+      "kind": "exact",
+      "expected_filenames": [
+        "piano.txt"
+      ]
+    },
+    {
+      "query": "REF000034",
+      "kind": "exact",
+      "expected_filenames": [
+        "piano.txt"
+      ]
+    },
+    {
+      "query": "What can I add to a garden compost heap without attracting pests?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "compost.txt"
+      ]
+    },
+    {
+      "query": "Как предотвратить дурной запах при переработке растительных отходов?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "compost.txt"
+      ]
+    },
+    {
+      "query": "листьями",
+      "kind": "morphology",
+      "expected_filenames": [
+        "compost.txt"
+      ]
+    },
+    {
+      "query": "мясо и жир",
+      "kind": "exact",
+      "expected_filenames": [
+        "compost.txt"
+      ]
+    },
+    {
+      "query": "REF000035",
+      "kind": "exact",
+      "expected_filenames": [
+        "compost.txt"
+      ]
+    },
+    {
+      "query": "How should I version web scripts so browsers receive updated code?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "webcache.txt"
+      ]
+    },
+    {
+      "query": "Какие ответы веб-сервера опасно хранить в общем кеше для посетителей?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "webcache.txt"
+      ]
+    },
+    {
+      "query": "браузерами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "webcache.txt"
+      ]
+    },
+    {
+      "query": "хешем содержимого",
+      "kind": "exact",
+      "expected_filenames": [
+        "webcache.txt"
+      ]
+    },
+    {
+      "query": "REF000036",
+      "kind": "exact",
+      "expected_filenames": [
+        "webcache.txt"
+      ]
+    },
+    {
+      "query": "Where should staff gather after an office fire alarm?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "fireplan.txt"
+      ]
+    },
+    {
+      "query": "Каким путем покидать рабочее здание во время задымления?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "fireplan.txt"
+      ]
+    },
+    {
+      "query": "лестницами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "fireplan.txt"
+      ]
+    },
+    {
+      "query": "запасные выходы",
+      "kind": "exact",
+      "expected_filenames": [
+        "fireplan.txt"
+      ]
+    },
+    {
+      "query": "REF000037",
+      "kind": "exact",
+      "expected_filenames": [
+        "fireplan.txt"
+      ]
+    },
+    {
+      "query": "Why should I ventilate my greenhouse early in the day?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "greenhouse.txt"
+      ]
+    },
+    {
+      "query": "Как уменьшить влажность в укрытии для рассады без резкого охлаждения?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "greenhouse.txt"
+      ]
+    },
+    {
+      "query": "форточками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "greenhouse.txt"
+      ]
+    },
+    {
+      "query": "грибковых заболеваний",
+      "kind": "exact",
+      "expected_filenames": [
+        "greenhouse.txt"
+      ]
+    },
+    {
+      "query": "REF000038",
+      "kind": "exact",
+      "expected_filenames": [
+        "greenhouse.txt"
+      ]
+    },
+    {
+      "query": "What should a translator check separately before delivering a document?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "translation.txt"
+      ]
+    },
+    {
+      "query": "Как обеспечить одинаковое употребление специальных слов в переводе?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "translation.txt"
+      ]
+    },
+    {
+      "query": "переводчиками",
+      "kind": "morphology",
+      "expected_filenames": [
+        "translation.txt"
+      ]
+    },
+    {
+      "query": "единицы измерения",
+      "kind": "exact",
+      "expected_filenames": [
+        "translation.txt"
+      ]
+    },
+    {
+      "query": "REF000039",
+      "kind": "exact",
+      "expected_filenames": [
+        "translation.txt"
+      ]
+    },
+    {
+      "query": "What checks should I make before paddling a kayak down a river?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "kayak.txt"
+      ]
+    },
+    {
+      "query": "Как действовать после опрокидывания маленькой лодки на быстром течении?",
+      "kind": "semantic",
+      "expected_filenames": [
+        "kayak.txt"
+      ]
+    },
+    {
+      "query": "жилетами",
+      "kind": "morphology",
+      "expected_filenames": [
+        "kayak.txt"
+      ]
+    },
+    {
+      "query": "герметичность отсеков",
+      "kind": "exact",
+      "expected_filenames": [
+        "kayak.txt"
+      ]
+    },
+    {
+      "query": "REF000040",
+      "kind": "exact",
+      "expected_filenames": [
+        "kayak.txt"
+      ]
+    },
+    {
+      "query": "геохронология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "нейтрино",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "сверхпроводимость",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "астролябия",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "палеография",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "квазары",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "мицелий",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "изотопы",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "спелеология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "филателия",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "геральдика",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "минералогия",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "этимология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "топология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "ихтиология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "фонотека",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "гравитация",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "эпиграфика",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "океанология",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "петроглифы",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000001",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000002",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000003",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000004",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000005",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000006",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000007",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000008",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000009",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000010",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000011",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000012",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000013",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000014",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000015",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000016",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000017",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000018",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000019",
+      "kind": "absent",
+      "expected_filenames": []
+    },
+    {
+      "query": "MISSING000020",
+      "kind": "absent",
+      "expected_filenames": []
+    }
+  ]
+}
