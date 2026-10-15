@@ -26,5 +26,11 @@
     "sha256": "9edb11a2108b375cc58370354e705feebc93430bb780130363815c1e1ac0c250",
     "commit": "54706fc6bc0cdecab7e9593974a4039cc038fca7"
   },
+  "zlibSource": {
+    "version": "1.3.2",
+    "url": "https://codeload.github.com/madler/zlib/tar.gz/da607da739fa6047df13e66a2af6b8bec7c2a498",
+    "sha256": "b9258cf6254e7f7c37f1cd61dba943a1c5ea3cff5718c789834dac359094f5f7",
+    "commit": "da607da739fa6047df13e66a2af6b8bec7c2a498"
+  },
   "ffmpeg": null
 }
