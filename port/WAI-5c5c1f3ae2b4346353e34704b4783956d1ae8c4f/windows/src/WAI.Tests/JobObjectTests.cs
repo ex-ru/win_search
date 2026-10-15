@@ -85,4 +85,42 @@ public class JobObjectTests
             }
         }
     }
+
+    [Fact]
+    public void AssignProcess_WithIsBackground_SetsBelowNormalPriority()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        var psi = new ProcessStartInfo("cmd.exe", "/c ping 127.0.0.1 -n 10 > nul")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false
+        };
+
+        using var process = Process.Start(psi);
+        Assert.NotNull(process);
+        try
+        {
+            bool assigned = JobObjectManager.AssignProcess(process, isBackground: true);
+            Assert.True(assigned);
+            Assert.Equal(ProcessPriorityClass.BelowNormal, process.PriorityClass);
+
+            bool ecoOk = JobObjectManager.EnableEfficiencyMode(process);
+            Assert.True(ecoOk);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                try { process.Kill(); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void EnableEfficiencyMode_GracefullyHandlesNullOrExited()
+    {
+        Assert.False(JobObjectManager.EnableEfficiencyMode((Process?)null));
+        Assert.False(JobObjectManager.EnableEfficiencyMode(IntPtr.Zero));
+    }
 }

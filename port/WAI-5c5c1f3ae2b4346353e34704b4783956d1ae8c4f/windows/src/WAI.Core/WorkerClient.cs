@@ -48,7 +48,8 @@ public sealed record WorkerConfig(
     bool TextOnly = false,
     System.TimeSpan? RequestTimeout = null,
     System.TimeSpan? StartupTimeout = null,
-    System.Threading.CancellationToken LifetimeCancellation = default);
+    System.Threading.CancellationToken LifetimeCancellation = default,
+    bool IsBackground = false);
 
 public sealed class WorkerError : System.Exception
 {
@@ -247,7 +248,7 @@ public sealed class WorkerClient : IEmbedder
             {
                 throw WorkerError.NotFound($"could not start: {config.Executable}");
             }
-            JobObjectManager.AssignProcess(_process);
+            JobObjectManager.AssignProcess(_process, config.IsBackground);
         }
         catch (System.Exception error)
         {

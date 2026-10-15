@@ -47,7 +47,7 @@ public sealed class TesseractOcrEngine : IOcrEngine
 
             using var process = Process.Start(psi);
             if (process is null) return string.Empty;
-            JobObjectManager.AssignProcess(process);
+            JobObjectManager.AssignProcess(process, isBackground: true);
 
             process.WaitForExit(10000); // 10s timeout
             string txtPath = tempOutBase + ".txt";

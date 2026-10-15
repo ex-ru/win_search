@@ -111,11 +111,17 @@ public sealed class Engine : IDisposable
             }
             IsIndexing = true;
             Changed?.Invoke();
-            try { IndexPass(configuration, changes, run.Token); }
+            var previousPriority = Thread.CurrentThread.Priority;
+            try
+            {
+                try { Thread.CurrentThread.Priority = ThreadPriority.BelowNormal; } catch { }
+                IndexPass(configuration, changes, run.Token);
+            }
             catch (OperationCanceledException) { }
             catch (Exception ex) { ErrorLog.Write("index: " + ex); Say(ex is IOException ? "Обработка остановлена: проверьте свободное место и доступ к файлам." : "Обработка остановлена. Подробности сохранены в журнале."); }
             finally
             {
+                try { Thread.CurrentThread.Priority = previousPriority; } catch { }
                 lock (_loopGate) { if (ReferenceEquals(_run, run)) _run = null; }
                 run.Dispose();
                 IsIndexing = false;
@@ -172,6 +178,8 @@ public sealed class Engine : IDisposable
         using var indexer = new Indexer(store, options, new Crawler(), () => MakeEmbedder(configuration, ct), extractor);
         indexer.ResetOnModelChange = (_, _) => DropQueryWorker();
         indexer.WorkerCount = 1;
+        indexer.PrepareDegree = Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
+        indexer.BatchYieldMs = 25;
         var sync = changes is null ? indexer.Sync(configuration.Folders, ct) : indexer.SyncChanges(configuration.Folders, changes, ct);
         int recovered = File.Exists(ExeNextTo("pdfium.dll")) ? store.RetryMissingPdfiumFailures() : 0;
         Say($"Ожидают обработки: {sync.Queued.Count + recovered}");
@@ -367,8 +375,9 @@ public sealed class Engine : IDisposable
         var (backend, device, _) = HardwareDetector.ResolveBackend(configuration.Hardware, HardwareDetector.Detect());
         if (textOnly && configuration.QueryFastPathCpu) { backend = "cpu"; device = -1; }
         var args = new List<string> { "--backend", backend, "--model", configuration.Model };
+        if (!textOnly) args.Add("--background");
         var environment = new Dictionary<string, string> {
-            ["OMP_NUM_THREADS"] = Math.Clamp(Environment.ProcessorCount / 2, 1, 8).ToString()
+            ["OMP_NUM_THREADS"] = (textOnly ? Math.Clamp(Environment.ProcessorCount / 2, 1, 8) : Math.Clamp(Environment.ProcessorCount / 4, 1, 4)).ToString()
         };
         if (device >= 0 && backend is "cuda" or "vulkan")
         {
@@ -377,7 +386,7 @@ public sealed class Engine : IDisposable
         }
         return new WorkerConfig(ExeNextTo("wai-embed.exe"), args, environment,
             Path.Combine(Settings.LogsDir, textOnly ? "query-worker.log" : "worker.log"), textOnly,
-            RequestTimeout: textOnly ? TimeSpan.FromSeconds(20) : TimeSpan.FromMinutes(3), LifetimeCancellation: ct);
+            RequestTimeout: textOnly ? TimeSpan.FromSeconds(20) : TimeSpan.FromMinutes(3), LifetimeCancellation: ct, IsBackground: !textOnly);
     }
 
     private IEmbedder MakeEmbedder(Configuration configuration, CancellationToken ct) =>
@@ -502,7 +511,7 @@ public sealed class FileSystemWatcherRunner : IDisposable
     private bool _fullScan, _disposed;
 
     public FileSystemWatcherRunner(Settings settings, Action onCalm) : this(settings, _ => onCalm()) { }
-    public FileSystemWatcherRunner(Settings settings, Action<IReadOnlyCollection<string>?> onCalm, double debounceMilliseconds = 5000)
+    public FileSystemWatcherRunner(Settings settings, Action<IReadOnlyCollection<string>?> onCalm, double debounceMilliseconds = 15000)
     {
         _onCalm = onCalm;
         _debounce = new System.Timers.Timer(debounceMilliseconds) { AutoReset = false };
@@ -534,6 +543,7 @@ public sealed class FileSystemWatcherRunner : IDisposable
         lock (_gate)
         {
             if (_disposed) return;
+            if (path is not null && Rules.IsTemporaryOrLockFile(Path.GetFileName(path))) return;
             if (path is null || _paths.Count >= 10000) { _fullScan = true; _paths.Clear(); }
             else if (!_fullScan) _paths.Add(path);
             _debounce.Stop(); _debounce.Start();

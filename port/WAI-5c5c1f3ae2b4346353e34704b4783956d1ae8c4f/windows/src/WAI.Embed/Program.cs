@@ -41,6 +41,23 @@ internal static class Program
             modelKey = args[mIdx + 1].Trim();
         }
 
+        bool background = args.Contains("--background");
+        int threads = 0;
+        int tIdx = Array.IndexOf(args, "--threads");
+        if (tIdx >= 0 && tIdx + 1 < args.Length && int.TryParse(args[tIdx + 1], out int t))
+        {
+            threads = Math.Max(1, t);
+        }
+
+        if (background && Environment.OSVersion.Platform == PlatformID.Win32NT)
+        {
+            try
+            {
+                System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal;
+            }
+            catch { }
+        }
+
         ConfigureModel(modelKey);
 
         if (!FindModelFiles(_activeTextFile, _activeMediaFile, out string? textPath, out string? mediaPath) || textPath is null)
@@ -56,7 +73,7 @@ internal static class Program
 
         try
         {
-            _embedder = new Embedder(textPath, mediaPath, _textOnly, forceCpu);
+            _embedder = new Embedder(textPath, mediaPath, _textOnly, forceCpu, threads, background);
         }
         catch (DllNotFoundException ex)
         {

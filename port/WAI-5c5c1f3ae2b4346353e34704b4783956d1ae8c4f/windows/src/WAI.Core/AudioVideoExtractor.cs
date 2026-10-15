@@ -266,7 +266,7 @@ public static class AudioVideoExtractor
         {
             ct.ThrowIfCancellationRequested();
             process.Start();
-            JobObjectManager.AssignProcess(process);
+            JobObjectManager.AssignProcess(process, isBackground: true);
             using var interrupted = ct.Register(() => StopProcess(process));
             var stderrTask = process.StandardError.ReadToEndAsync();
             var stdout = process.StandardOutput.BaseStream;
@@ -448,7 +448,7 @@ public static class AudioVideoExtractor
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
         ct.ThrowIfCancellationRequested();
         process.Start();
-        JobObjectManager.AssignProcess(process);
+        JobObjectManager.AssignProcess(process, isBackground: true);
         using var interrupted = ct.Register(() => StopProcess(process));
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
@@ -462,7 +462,7 @@ public static class AudioVideoExtractor
         using var process = new System.Diagnostics.Process { StartInfo = StartInfo(exe, args) };
         ct.ThrowIfCancellationRequested();
         process.Start();
-        JobObjectManager.AssignProcess(process);
+        JobObjectManager.AssignProcess(process, isBackground: true);
         using var interrupted = ct.Register(() => StopProcess(process));
         var stderrTask = process.StandardError.ReadToEndAsync();
         using var memory = new System.IO.MemoryStream();

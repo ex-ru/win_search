@@ -20,8 +20,32 @@ public static class Rules
     /// bundles are skipped by the walk itself, as in Swift.
     /// </summary>
     public static readonly HashSet<string> SkippedFolderNames = new(
-        new[] { "node_modules", "bower_components", "venv", "site-packages", "__pycache__", "DerivedData", "Pods", "Carthage" },
-        StringComparer.Ordinal);
+        new[] { "node_modules", "bower_components", "venv", "site-packages", "__pycache__", "DerivedData", "Pods", "Carthage",
+                ".sync", ".dropbox.cache", ".tmp.driveupload", "$RECYCLE.BIN", "System Volume Information" },
+        StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Checks if a file is an office temporary file, partial download, swap, or lock file
+    /// that should never be crawled or indexed.
+    /// </summary>
+    public static bool IsTemporaryOrLockFile(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        // Office temporary/owner files (Word/Excel ~$Document.docx)
+        if (name.StartsWith("~$", StringComparison.Ordinal)) return true;
+        // Vim swap/backup
+        if (name.EndsWith(".swp", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".swo", StringComparison.OrdinalIgnoreCase)) return true;
+        // Browser & torrent partial downloads
+        if (name.EndsWith(".crdownload", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".part", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".download", StringComparison.OrdinalIgnoreCase)) return true;
+        // Lock & temporary files
+        if (name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".lock", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".laccdb", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".ldb", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     /// <summary>Any of these in a folder makes it a code project (Rules.swift:19). Shared with RulesData.</summary>
     public static IReadOnlyList<string> ProjectMarkers => RulesData.ProjectMarkers;
@@ -75,6 +99,11 @@ public static class Rules
         if (options.ExcludedExtensions.Contains(ext))
         {
             return new Classification.Skip("excluded type");
+        }
+
+        if (IsTemporaryOrLockFile(name))
+        {
+            return new Classification.Skip("temporary or lock file");
         }
 
         if (CodeExtractor.IsSecret(name))
@@ -158,6 +187,11 @@ public static class Rules
         if (options.ExcludedExtensions.Contains(ext))
         {
             return new Classification.Skip("excluded type");
+        }
+
+        if (IsTemporaryOrLockFile(name))
+        {
+            return new Classification.Skip("temporary or lock file");
         }
 
         // .ts/.mts are usually TypeScript, which the Mac types as MPEG-2
