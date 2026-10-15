@@ -61,7 +61,7 @@ if ($Release -and !$Release.draft) { throw "$Tag is already published; public as
 if (!$Release) {
     $Release = Invoke-Json "$Api/releases" 'Post' @{tag_name=$Tag;target_commitish=$TargetCommitish;name="WAI $Version for Windows";body=$Notes;draft=$true;prerelease=$false}
 } else {
-    $Release = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{target_commitish=$TargetCommitish;body=$Notes;name="WAI $Version for Windows"}
+    $Release = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{tag_name=$Tag;target_commitish=$TargetCommitish;body=$Notes;name="WAI $Version for Windows"}
 }
 $UploadBase = $Release.upload_url -replace '\{.*$', ''
 foreach ($File in $Files) {
@@ -80,7 +80,12 @@ foreach ($File in $Files) {
     if (!$Asset) { throw "Missing uploaded artifact: $($File.Name)" }
     Assert-Asset $Asset $File
 }
-$Published = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{draft=$false;make_latest='true'}
-$Resolved = Invoke-RestMethod -Uri "$Api/commits/$Tag" -Headers $Headers
-if ($Resolved.sha -ne $TargetCommitish) { throw 'Published tag does not resolve to the tested commit.' }
+if (!$ExistingCommit) {
+    $CreatedRef = Invoke-Json "$Api/git/refs" 'Post' @{ref="refs/tags/$Tag";sha=$TargetCommitish}
+    if ($CreatedRef.object.sha -ne $TargetCommitish) { throw 'Created tag does not resolve to the tested commit; draft retained.' }
+}
+# Keep tag_name explicit on every update. Draft tags without a real Git ref can
+# otherwise be published under GitHub's generated untagged-* name.
+$Published = Invoke-Json "$Api/releases/$($Release.id)" 'Patch' @{tag_name=$Tag;target_commitish=$TargetCommitish;draft=$false;make_latest='true'}
+if ($Published.draft -or $Published.tag_name -ne $Tag) { throw 'Release was not published under the requested tag.' }
 Write-Host "Published and verified $($Published.html_url) at $TargetCommitish"
