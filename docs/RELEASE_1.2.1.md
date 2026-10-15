@@ -30,4 +30,4 @@ The package identity remains **WinSearch.WAI**. Existing WAI settings and indexe
 
 Release validation covers CPU workers, pinned local models, PDF/media decoding, the synthetic 240-query search corpus, SQLite recovery, corrupt-package rejection and real portable update application. Results and limits are recorded in [release verification](https://github.com/ex-ru/win_search/blob/main/docs/RELEASE_VERIFICATION_1.2.1.md). These checks do not establish accuracy on every collection or compatibility with every GPU/driver.
 
-Clean Windows 11 installation and GUI feedback are being tested by the owner's volunteer group. That manual test has not been marked as passed by the automated release checks. The app keeps CPU mode available; Windows 11 efficiency hints may be unavailable on older Windows builds.
+Clean Windows 11 installation and GUI feedback are assigned to the owner's volunteer group; results remain pending. That manual test has not been marked as passed by the automated release checks. The app keeps CPU mode available; Windows 11 efficiency hints may be unavailable on older Windows builds.

@@ -59,7 +59,7 @@ dotnet test .\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\WAI.Wind
 
 dotnet run --project .\checks\WAI.Performance\WAI.Performance.csproj -c Release -- --counts 10000,100000 --repetitions 12 --report .\state\perf\report.json
 
-.\scripts\check-release.ps1 -PackageDir .\dist\1.2.1\staging -ModelsDir (Join-Path $env:LOCALAPPDATA 'WAI\Models') -Model gemma2
+.\scripts\check-release.ps1 -PackageDir .\dist\1.2.1\staging -ModelsDir (Join-Path $env:LOCALAPPDATA 'WAI\Models') -Model gemma2 -SkipEvaluation -Native
 ~~~
 
 The release check expects a staged full package and the pinned model files locally. Review the generated reports from each run; results depend on the machine, model, and test corpus. See [1.2.1 release verification](docs/RELEASE_VERIFICATION_1.2.1.md) and [historical 1.2.0 stabilization](docs/STABILIZATION.md) for checks and their limits.

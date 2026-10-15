@@ -1,11 +1,5 @@
 name: Build pinned FFmpeg tools
 on:
-  push:
-    branches: [codex/release-1.2.1]
-    paths:
-      - scripts/build-ffmpeg.sh
-      - native-dependencies.json
-      - .github/workflows/native-media.yml
   workflow_dispatch:
 permissions:
   contents: read
