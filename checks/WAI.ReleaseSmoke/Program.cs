@@ -243,6 +243,7 @@ internal static class Program
     {
         Require(package is not null, "--native requires --package."); Directory.CreateDirectory(root);
         string dependencyAudit = NativeDependencyAudit.Run(package!);
+        VerifyRemovedModelRejected(package!, root);
         string pdfPath = Path.Combine(root, "fixture.pdf"); WritePdf(pdfPath);
         using (var pdf = new PdfiumEngine(Find(package, "pdfium.dll")))
         using (var opened = pdf.Open(pdfPath))
@@ -270,7 +271,29 @@ internal static class Program
         using (var output = File.Create(av1)) fixture.CopyTo(output);
         RunProcess(paths.FFmpegExe, ["-y", "-hwaccel", "none", "-i", av1, "-frames:v", "1", Path.Combine(root, "av1.png")]);
         Require(new FileInfo(Path.Combine(root, "av1.png")).Length > 100, "FFmpeg did not decode AV1 on the CPU.");
-        return $"{dependencyAudit} PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
+        return $"{dependencyAudit} Removed Perplexity aliases rejected before inference. PDFium text extraction and PNG rendering; FFprobe, PCM decoding, MPEG-4 and CPU AV1 frame decoding passed.";
+    }
+    private static void VerifyRemovedModelRejected(string package, string root)
+    {
+        foreach (string model in new[] { "pplx-v2", "perplexity", "pplx" })
+        {
+            var start = new ProcessStartInfo(Path.Combine(package, "wai-embed.exe"))
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardError = true, RedirectStandardOutput = true, RedirectStandardInput = true
+            };
+            start.ArgumentList.Add("--model"); start.ArgumentList.Add(model); start.ArgumentList.Add("--cpu");
+            start.Environment["WAI_MODELS"] = Path.Combine(root, "absent-models");
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot launch packaged worker guard.");
+            process.StandardInput.Close();
+            var errors = process.StandardError.ReadToEndAsync(); var output = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(15000)) { process.Kill(true); throw new TimeoutException("Removed model guard hung."); }
+            Require(process.ExitCode == 1, $"Removed model {model} must return a controlled error: {errors.GetAwaiter().GetResult()}");
+            using var reply = JsonDocument.Parse(output.GetAwaiter().GetResult().Trim());
+            Require(!reply.RootElement.GetProperty("ready").GetBoolean() &&
+                reply.RootElement.GetProperty("error").GetString()!.Contains("not supported", StringComparison.OrdinalIgnoreCase),
+                $"Removed model {model} did not produce an actionable unsupported-model reply.");
+        }
     }
     private static void RunProcess(string exe, string[] args)
     {

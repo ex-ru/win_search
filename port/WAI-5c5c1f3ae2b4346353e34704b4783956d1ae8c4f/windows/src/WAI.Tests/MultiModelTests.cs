@@ -12,7 +12,7 @@ public class MultiModelTests
     public void ModelCatalog_ExposesExpectedModels()
     {
         var all = ModelCatalog.All;
-        Assert.True(all.Count >= 3);
+        Assert.Equal(new[] { "gemma2", "bge-m3", "nomic" }, all.Select(model => model.Id));
 
         var gemma = ModelCatalog.Get("gemma2");
         Assert.Equal("gemma2", gemma.Id);
@@ -24,17 +24,22 @@ public class MultiModelTests
         Assert.Equal(1024, bge.Dimension);
         Assert.False(bge.HasMediaProjection);
 
-        var pplx = ModelCatalog.Get("pplx-v2");
-        Assert.Equal("pplx-v2", pplx.Id);
-        Assert.Equal(1024, pplx.Dimension);
+        var nomic = ModelCatalog.Get("nomic");
+        Assert.Equal("nomic", nomic.Id);
+        Assert.Equal(768, nomic.Dimension);
+        Assert.False(nomic.HasMediaProjection);
 
-        Assert.Contains("Мультимодальная", gemma.GetDisplayName(isRu: true));
-        Assert.Contains("Multimodal", gemma.GetDisplayName(isRu: false));
-        Assert.Contains("Оригинальная", gemma.GetDescription(isRu: true));
-        Assert.Contains("Original", gemma.GetDescription(isRu: false));
+        Assert.Contains("Текст + изображения + аудио", gemma.GetDisplayName(isRu: true));
+        Assert.Contains("Text + images + audio", gemma.GetDisplayName(isRu: false));
+        Assert.Contains("поиска по тексту, изображениям и аудио", gemma.GetDescription(isRu: true));
+        Assert.Contains("searching text, images, and audio", gemma.GetDescription(isRu: false));
 
-        Assert.Contains("Топ RU/EN", bge.GetDisplayName(isRu: true));
-        Assert.Contains("Top RU/EN", bge.GetDisplayName(isRu: false));
+        Assert.Contains("многоязычный текстовый поиск", bge.GetDisplayName(isRu: true));
+        Assert.Contains("multilingual text search", bge.GetDisplayName(isRu: false));
+        Assert.Contains("Многоязычная модель текстовых эмбеддингов", bge.GetDescription(isRu: true));
+        Assert.Contains("multilingual text embedding model", bge.GetDescription(isRu: false));
+        Assert.Contains("компактная текстовая модель", nomic.GetDisplayName(isRu: true));
+        Assert.Contains("compact text model", nomic.GetDisplayName(isRu: false));
     }
 
     [Fact]
@@ -43,7 +48,7 @@ public class MultiModelTests
         int initialDim = Vectors.Dimension;
         try
         {
-            // Test 1024 dimension (BGE-M3 / Perplexity v2)
+            // Test 1024 dimension (BGE-M3)
             Vectors.Dimension = 1024;
             Assert.Equal(1024, Vectors.Dimension);
             Assert.Equal(2048, Vectors.BytesPerVector);

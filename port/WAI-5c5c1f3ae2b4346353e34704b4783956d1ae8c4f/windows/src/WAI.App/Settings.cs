@@ -5,6 +5,7 @@
 using System.IO;
 using System.Text.Json;
 using Microsoft.Win32;
+using WAI.Core;
 
 namespace WAI.App;
 
@@ -40,7 +41,7 @@ public sealed class Settings
     public string HardwareMode { get; set; } = "auto";
     /// <summary>Encode short search queries on CPU (AVX2/AVX-512) for instant response without GPU startup latency.</summary>
     public bool QueryFastPathCpu { get; set; } = true;
-    /// <summary>Active embedding model: "gemma2", "bge-m3", "pplx-v2".</summary>
+    /// <summary>Active embedding model: "gemma2", "bge-m3", or "nomic".</summary>
     public string EmbeddingModel { get; set; } = "gemma2";
 
     /// <summary>True when there was no settings file: first run, show setup.</summary>
@@ -83,6 +84,8 @@ public sealed class Settings
                 }
                 if (s.WindowWidth < 580)
                     s.WindowWidth = 720;
+                // Keep settings from older releases usable when a model is no longer supported.
+                s.EmbeddingModel = ModelCatalog.Get(s.EmbeddingModel).Id;
                 return s;
             }
         }

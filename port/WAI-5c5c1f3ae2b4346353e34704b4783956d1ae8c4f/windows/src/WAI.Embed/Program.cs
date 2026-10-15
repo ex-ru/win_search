@@ -1,5 +1,5 @@
 // wai-embed.exe: Multimodel embedding engine on llama.cpp as a process.
-// Supports EmbeddingGemma 2, BGE-M3, Perplexity Embed v2 and custom GGUF models.
+// Supports EmbeddingGemma 2, BGE-M3, Nomic Embed v1.5 and custom GGUF models.
 // JSON-lines protocol of worker/wai_worker.py:
 // one request object per stdin line, one reply object per stdout line. Logs go to stderr.
 
@@ -56,6 +56,16 @@ internal static class Program
                 System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal;
             }
             catch { }
+        }
+
+        if (IsRemovedPerplexityModel(modelKey))
+        {
+            Emit(new Dictionary<string, object?>
+            {
+                ["ready"] = false,
+                ["error"] = "Perplexity Embed v2 is not supported in this release. Choose gemma2, bge-m3, or nomic."
+            });
+            return 1;
         }
 
         ConfigureModel(modelKey);
@@ -169,16 +179,6 @@ internal static class Program
                 _activeMediaFile = null;
                 _textOnly = true;
                 break;
-            case "pplx-v2":
-            case "perplexity":
-            case "pplx":
-                _activeModelName = "perplexity-ai/pplx-embed-v2";
-                _activeRevision = "07ebf344332880f14f72673df5d41549826872f7";
-                _activeDtype = "text-q8_0";
-                _activeTextFile = "pplx-late-Q8_0.gguf";
-                _activeMediaFile = null;
-                _textOnly = true;
-                break;
             case "nomic":
             case "nomic-embed":
                 _activeModelName = "nomic-ai/nomic-embed-text-v1.5";
@@ -208,6 +208,10 @@ internal static class Program
                 break;
         }
     }
+
+    private static bool IsRemovedPerplexityModel(string modelKey) => modelKey.Equals("pplx-v2", StringComparison.OrdinalIgnoreCase)
+        || modelKey.Equals("perplexity", StringComparison.OrdinalIgnoreCase)
+        || modelKey.Equals("pplx", StringComparison.OrdinalIgnoreCase);
 
     private static void ReplyVectors(string id, (float[]? Vector, string? Error)[] items, int dim)
     {
