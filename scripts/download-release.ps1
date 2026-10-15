@@ -2,122 +2,77 @@ param(
     [string]$Repo = "ex-ru/win_search",
     [string]$Tag = "latest",
     [string]$OutputDir = "",
-    [switch]$Portable = $false,
-    [switch]$Full = $false,
-    [switch]$IncludeTools = $false,
-    [switch]$IncludeModels = $false
+    [switch]$Portable = $false
 )
 
 $ErrorActionPreference = "Stop"
-
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $RepoRoot "dist\releases"
+    $OutputDir = Join-Path $RepoRoot "dist/releases"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " WAI Release Downloader (Release 1.1.0)" -ForegroundColor Cyan
-Write-Host " Repository: $Repo" -ForegroundColor Cyan
-Write-Host " Target:     $OutputDir" -ForegroundColor Cyan
-Write-Host " Package:    $(if ($Portable) { 'Portable ZIP' } elseif ($Full) { 'Full Offline Setup (~290 MB)' } else { 'Slim Lightweight Setup (~75 MB)' })" -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
-
+$targetName = if ($Portable) { "WinSearch.WAI-win-Portable.zip" } else { "WinSearch.WAI-win-Setup.exe" }
 $apiUrl = if ($Tag -eq "latest") {
     "https://api.github.com/repos/$Repo/releases/latest"
 } else {
     "https://api.github.com/repos/$Repo/releases/tags/$Tag"
 }
-
-Write-Host "Checking GitHub Releases at $apiUrl..." -ForegroundColor Yellow
-$headers = @{
-    "User-Agent" = "WAI-Downloader/1.1"
-    "Accept" = "application/vnd.github.v3+json"
+$headers = @{ "User-Agent" = "WAI-Downloader/1.2.0"; "Accept" = "application/vnd.github.v3+json" }
+$release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
+$targetAsset = @($release.assets | Where-Object { $_.name -eq $targetName } | Select-Object -First 1)
+if ($targetAsset.Count -eq 0) {
+    throw "Release $($release.tag_name) does not contain the expected WAI asset $targetName. Review the release assets before downloading."
 }
-
-try {
-    $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
-} catch {
-    Write-Warning "Could not fetch release metadata from GitHub API: $_"
-    Write-Host "`nПрямые ссылки для ручного скачивания в браузере:" -ForegroundColor Cyan
-    Write-Host "👉 https://github.com/$Repo/releases`n" -ForegroundColor Yellow
-    exit 1
+$targetAsset = $targetAsset[0]
+$checksumAsset = @($release.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" } | Select-Object -First 1)
+if ($checksumAsset.Count -eq 0) {
+    throw "Release $($release.tag_name) does not provide SHA256SUMS.txt; the package cannot be verified."
 }
+$checksumAsset = $checksumAsset[0]
 
-$targetPattern = if ($Portable) {
-    "*win-Portable.zip"
-} elseif ($Full) {
-    "*win-Setup-Full.exe"
-} else {
-    "*win-Setup.exe"
-}
-
-$assets = @($release.assets)
-$targetAsset = $assets | Where-Object { $_.name -like $targetPattern -or $_.name -like "*$targetPattern*" } | Select-Object -First 1
-
-if (!$targetAsset) {
-    # Fallback to any exe or zip asset
-    $targetAsset = $assets | Where-Object { $_.name -like "*.exe" -or $_.name -like "*.zip" } | Select-Object -First 1
-}
-
-if (!$targetAsset) {
-    Write-Error "No matching release asset found in release $($release.tag_name)."
-    exit 1
-}
+Write-Host "WAI Release Downloader 1.2.0" -ForegroundColor Cyan
+Write-Host "Release: $($release.tag_name)" -ForegroundColor Cyan
+Write-Host "Package: $(if ($Portable) { 'Full portable package' } else { 'Full setup with FFmpeg bundled' })" -ForegroundColor Cyan
 
 $destFile = Join-Path $OutputDir $targetAsset.name
-Write-Host "Found release $($release.tag_name): $($targetAsset.name) ($([Math]::Round($targetAsset.size / 1MB, 2)) MB)" -ForegroundColor Green
-Write-Host "Downloading to $destFile..." -ForegroundColor Yellow
-
+$sumsFile = Join-Path $OutputDir "SHA256SUMS.txt"
 $wc = New-Object System.Net.WebClient
-$wc.Headers.Add("User-Agent", "WAI-Downloader/1.0")
-$wc.DownloadFile($targetAsset.browser_download_url, $destFile)
-
-Write-Host "Download complete: $destFile" -ForegroundColor Green
-
-# Also download checksums and manifests if available
-foreach ($metaName in @("SHA256SUMS.txt", "releases.win.json", "RELEASES")) {
-    $metaAsset = $assets | Where-Object { $_.name -eq $metaName } | Select-Object -First 1
-    if ($metaAsset) {
-        $metaPath = Join-Path $OutputDir $metaName
-        try {
-            $wc.DownloadFile($metaAsset.browser_download_url, $metaPath)
-            Write-Host "Downloaded metadata: $metaName" -ForegroundColor Gray
-        } catch { }
+try {
+    $wc.Headers.Add("User-Agent", "WAI-Downloader/1.2.0")
+    $wc.DownloadFile($targetAsset.browser_download_url, $destFile)
+    $wc.DownloadFile($checksumAsset.browser_download_url, $sumsFile)
+    foreach ($metaName in @("releases.win.json", "RELEASES")) {
+        $metaAsset = $release.assets | Where-Object { $_.name -eq $metaName } | Select-Object -First 1
+        if ($metaAsset) {
+            try { $wc.DownloadFile($metaAsset.browser_download_url, (Join-Path $OutputDir $metaName)) } catch { }
+        }
     }
+} finally {
+    $wc.Dispose()
 }
 
-# Verify SHA256 if SHA256SUMS.txt exists
-$sumsFile = Join-Path $OutputDir "SHA256SUMS.txt"
-if (Test-Path $sumsFile) {
-    $expectedHash = ""
-    foreach ($line in Get-Content $sumsFile) {
-        $parts = $line -split '\s+'
-        if ($parts.Length -ge 2 -and $parts[1] -eq $targetAsset.name) {
+$expectedHash = ""
+foreach ($line in Get-Content -LiteralPath $sumsFile) {
+    $parts = $line -split '\s+'
+    if ($parts.Length -ge 2) {
+        $checksumName = $parts[1].Trim()
+        if ($checksumName.StartsWith('*')) { $checksumName = $checksumName.Substring(1) }
+        if ($checksumName -eq $targetAsset.name) {
             $expectedHash = $parts[0].Trim()
             break
         }
     }
-    if ($expectedHash) {
-        $actualHash = (Get-FileHash -Path $destFile -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($actualHash -eq $expectedHash.ToLowerInvariant()) {
-            Write-Host "SHA256 verification passed: $actualHash" -ForegroundColor Green
-        } else {
-            Write-Warning "SHA256 verification mismatch! Expected $expectedHash, got $actualHash"
-        }
-    }
+}
+if ($expectedHash -notmatch '^[a-fA-F0-9]{64}$') {
+    throw "SHA256SUMS.txt does not contain a valid checksum for $($targetAsset.name)."
+}
+$actualHash = (Get-FileHash -LiteralPath $destFile -Algorithm SHA256).Hash
+if ($actualHash -ne $expectedHash) {
+    throw "SHA-256 verification failed for $($targetAsset.name). Expected $expectedHash, got $actualHash."
 }
 
-if ($IncludeTools) {
-    $toolsAsset = $assets | Where-Object { $_.name -like "*ffmpeg-tools*" } | Select-Object -First 1
-    if ($toolsAsset) {
-        $toolsDest = Join-Path $OutputDir $toolsAsset.name
-        Write-Host "Downloading on-demand media tools: $($toolsAsset.name)..." -ForegroundColor Yellow
-        $wc.DownloadFile($toolsAsset.browser_download_url, $toolsDest)
-        Write-Host "Media tools package saved to: $toolsDest" -ForegroundColor Green
-    }
-}
-
-Write-Host "`nГотово! Вы можете запустить установщик:" -ForegroundColor Cyan
-Write-Host "  $destFile`n" -ForegroundColor Yellow
+Write-Host "SHA-256 verification passed: $actualHash" -ForegroundColor Green
+Write-Host "Download complete and verified: $destFile" -ForegroundColor Green
+Write-Host "Review the release source and version before running the installer." -ForegroundColor Cyan

@@ -1,0 +1,63 @@
+{
+  "status": "passed",
+  "startedAtUtc": "2026-10-15T12:39:18.9602224+00:00",
+  "finishedAtUtc": "2026-10-15T12:40:08.0210306+00:00",
+  "packageDir": "C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\dist\\staging",
+  "checks": [
+    {
+      "name": "packaged-payload-net10-full",
+      "status": "passed",
+      "seconds": 0.094132,
+      "detail": [
+        "Full payload and .NET 10 runtime verified."
+      ]
+    },
+    {
+      "name": "release-sha256-and-portable-payload",
+      "status": "passed",
+      "seconds": 5.1831857,
+      "detail": [
+        "7 release checksums and portable executable/native/runtime payload verified."
+      ]
+    },
+    {
+      "name": "isolate-local-models",
+      "status": "passed",
+      "seconds": 4.0099677,
+      "detail": [
+        "Isolated model path: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\models. No downloads."
+      ]
+    },
+    {
+      "name": "packaged-cli",
+      "status": "passed",
+      "seconds": 9.2269585,
+      "detail": [
+        "Real packaged CLI estimate/index/search/status passed with isolated home/index/models: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439"
+      ]
+    },
+    {
+      "name": "release-smoke",
+      "status": "passed",
+      "seconds": 30.4920142,
+      "detail": [
+        "passed: arguments",
+        "passed: file-lifecycle-lexical",
+        "passed: crash-during-transaction",
+        "passed: sqlite-disk-full",
+        "passed: packaged-worker-cpu",
+        "passed: native-pdfium-ffmpeg",
+        "passed: C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\results\\release-default-model\\smoke.json",
+        "File lifecycle, real CPU worker, crash recovery, constrained SQLite disk-full and requested native/evaluation checks passed."
+      ]
+    }
+  ],
+  "limitations": [
+    "Not an installed-application UI test.",
+    "CPU mode verified; no GPU vendor matrix claim.",
+    "Actual updater application is a separate baseline-to-target gate.",
+    "Synthetic corpus results do not establish real-world retrieval accuracy."
+  ],
+  "nativeRequested": true,
+  "evaluationRequested": false
+}

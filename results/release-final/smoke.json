@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "startedAtUtc": "2026-10-15T12:38:32.533202+00:00",
+  "finishedAtUtc": "2026-10-15T12:39:09.2768498+00:00",
+  "loadedCoreAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\\harness\\WAI.Core.dll",
+  "loadedCoreSha256": "2BCE7E1168E058C167D2A75EEC7F2967D79251F79A64E0986ED7E9D315E7B12E",
+  "loadedRuntimeAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\\harness\\System.Private.CoreLib.dll",
+  "isolatedWorkspace": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-release-fcef9f0867b348bb882f863d3aaad70b",
+  "checks": [
+    {
+      "name": "arguments",
+      "status": "passed",
+      "detail": "Explicit dependency options validated.",
+      "seconds": 0.014731
+    },
+    {
+      "name": "file-lifecycle-lexical",
+      "status": "passed",
+      "detail": "Real crawler \u2192 DefaultExtractor \u2192 Indexer \u2192 SQLite \u2192 Searcher; change, rename, delete, dispose/reopen and integrity verified.",
+      "seconds": 0.8980905
+    },
+    {
+      "name": "crash-during-transaction",
+      "status": "passed",
+      "detail": "Killed a live child inside Database.Transaction after an actual 2 MB write and indexed document/FTS insertion; reopen rolled back all uncommitted rows and retained committed data.",
+      "seconds": 0.5377315
+    },
+    {
+      "name": "sqlite-disk-full",
+      "status": "passed",
+      "detail": "Real SQLite write reached SQLITE_FULL via max_page_count (no host disk filled); rollback, integrity and subsequent write verified.",
+      "seconds": 0.0481702
+    },
+    {
+      "name": "packaged-worker-cpu",
+      "status": "passed",
+      "detail": "Actual packaged worker launched with --cpu, model=bge-m3; embeddings, hybrid search, update, rename, deletion and reopen passed. GPU hardware matrix is not tested.",
+      "seconds": 8.4442859
+    },
+    {
+      "name": "production-evaluation",
+      "status": "passed",
+      "detail": "Frozen corpus evaluated with actual model vectors; all required per-query assertions passed. This does not establish real-world accuracy.",
+      "seconds": 23.3158437
+    },
+    {
+      "name": "native-pdfium-ffmpeg",
+      "status": "passed",
+      "detail": "PDFium text extraction and PNG rendering; real FFprobe probing, FFmpeg PCM decoding and video generation/frame decoding passed.",
+      "seconds": 3.4699276
+    }
+  ]
+}

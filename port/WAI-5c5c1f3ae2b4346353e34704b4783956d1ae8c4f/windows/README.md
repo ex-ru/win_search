@@ -1,14 +1,8 @@
-WAI on Windows. Native and fast. No web shell.
+# WAI for Windows 1.2.0
 
-- Start here: `docs/User-Guide.md` (use it), `docs/Builder-Guide.md` (build it).
-- Code: `src/WAI.Core` (engine), `src/WAI.Embed` (model helper,
-  wai-embed.exe), `src/wai` (CLI), `src/WAI.App` (WPF app,
-  WAIApp.exe — the name differs from wai.exe on purpose).
-- Model runtime: `powershell -File scripts\build-llama-windows.ps1`
-  puts DLLs in `windows/native/x64`.
-- Dev run (builds all, checks all, starts the app):
-  `powershell -File scripts\dev-run-windows.ps1`.
-- Build: `dotnet build WAI.Windows.sln -c Release`.
-- Ship: per-user Velopack, no admin. See `setup/velopack-notes.md`.
-- Privacy: all on your PC. Model fetch once + daily update check only.
-- Worker chatter goes to `<index>\worker.log`, never to your results.
+- Start with docs/User-Guide.md for the simple three-step setup, or docs/Builder-Guide.md to build and validate the package.
+- The repository uses .NET SDK 10.0.402 from global.json.
+- The standard full package has identity WinSearch.WAI, includes CPU/Vulkan runtimes and bundles FFmpeg. Models are fetched on first use and verified against pinned size and SHA-256 metadata.
+- Build the app with dotnet build WAI.Windows.sln -c Release. Build the standard release package with scripts/build-package.ps1; the default is the full package.
+- User settings and index data are under %LOCALAPPDATA%\WAI. Existing data stays in place; automatic upgrade from a different package identity is not guaranteed.
+- Indexing and search run locally. Network use is for model downloads and optional update checks.

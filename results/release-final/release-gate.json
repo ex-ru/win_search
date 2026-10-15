@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "startedAtUtc": "2026-10-15T12:37:31.879623+00:00",
+  "finishedAtUtc": "2026-10-15T12:39:09.335678+00:00",
+  "packageDir": "C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\dist\\staging",
+  "checks": [
+    {
+      "name": "packaged-payload-net10-full",
+      "status": "passed",
+      "seconds": 0.1090766,
+      "detail": [
+        "Full payload and .NET 10 runtime verified."
+      ]
+    },
+    {
+      "name": "release-sha256-and-portable-payload",
+      "status": "passed",
+      "seconds": 5.3142352,
+      "detail": [
+        "7 release checksums and portable executable/native/runtime payload verified."
+      ]
+    },
+    {
+      "name": "isolate-local-models",
+      "status": "passed",
+      "seconds": 0.2547401,
+      "detail": [
+        "Isolated model path: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\\models. No downloads."
+      ]
+    },
+    {
+      "name": "packaged-cli",
+      "status": "passed",
+      "seconds": 7.7011259,
+      "detail": [
+        "Real packaged CLI estimate/index/search/status passed with isolated home/index/models: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4"
+      ]
+    },
+    {
+      "name": "release-smoke",
+      "status": "passed",
+      "seconds": 84.0137255,
+      "detail": [
+        "passed: arguments",
+        "passed: file-lifecycle-lexical",
+        "passed: crash-during-transaction",
+        "passed: sqlite-disk-full",
+        "passed: packaged-worker-cpu",
+        "passed: production-evaluation",
+        "passed: native-pdfium-ffmpeg",
+        "passed: C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\results\\release-final\\smoke.json",
+        "File lifecycle, real CPU worker, crash recovery, constrained SQLite disk-full and requested native/evaluation checks passed."
+      ]
+    }
+  ],
+  "limitations": [
+    "Not an installed-application UI test.",
+    "CPU mode verified; no GPU vendor matrix claim.",
+    "Actual updater application is a separate baseline-to-target gate.",
+    "Synthetic corpus results do not establish real-world retrieval accuracy."
+  ],
+  "nativeRequested": true,
+  "evaluationRequested": true
+}
