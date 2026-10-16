@@ -1,6 +1,6 @@
 retry: 1 PDFs previously blocked by missing PDFium
 sync: +0 ~0 =1 moved:0 -0
 re-indexing with new vectors (was: (none))
-[1/1] done     D:/_projects/win_search/state/fix-smoke/pdf-input/invoice-probe.pdf
+[1/1] done     <repo>/state/fix-smoke/pdf-input/invoice-probe.pdf
   done            1
 read+decode 0,0 s CPU, model+store 15,4 s (0,1 files/s).

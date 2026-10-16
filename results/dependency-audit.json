@@ -6,19 +6,19 @@
   ],
   "projects": [
     {
-      "path": "C:/Users/admin/.codex/worktrees/wai-production/win_search/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Core/WAI.Core.csproj"
+      "path": "<repo>/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Core/WAI.Core.csproj"
     },
     {
-      "path": "C:/Users/admin/.codex/worktrees/wai-production/win_search/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Embed/WAI.Embed.csproj"
+      "path": "<repo>/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Embed/WAI.Embed.csproj"
     },
     {
-      "path": "C:/Users/admin/.codex/worktrees/wai-production/win_search/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/wai/wai.csproj"
+      "path": "<repo>/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/wai/wai.csproj"
     },
     {
-      "path": "C:/Users/admin/.codex/worktrees/wai-production/win_search/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.App/WAI.App.csproj"
+      "path": "<repo>/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.App/WAI.App.csproj"
     },
     {
-      "path": "C:/Users/admin/.codex/worktrees/wai-production/win_search/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Tests/WAI.Tests.csproj"
+      "path": "<repo>/port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/src/WAI.Tests/WAI.Tests.csproj"
     }
   ]
 }

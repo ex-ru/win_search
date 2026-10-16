@@ -2,7 +2,7 @@
   "status": "passed",
   "startedAtUtc": "2026-10-15T12:37:31.879623+00:00",
   "finishedAtUtc": "2026-10-15T12:39:09.335678+00:00",
-  "packageDir": "C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\dist\\staging",
+  "packageDir": "<repo>\\dist\\staging",
   "checks": [
     {
       "name": "packaged-payload-net10-full",
@@ -25,7 +25,7 @@
       "status": "passed",
       "seconds": 0.2547401,
       "detail": [
-        "Isolated model path: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\\models. No downloads."
+        "Isolated model path: <temp>\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4\\models. No downloads."
       ]
     },
     {
@@ -33,7 +33,7 @@
       "status": "passed",
       "seconds": 7.7011259,
       "detail": [
-        "Real packaged CLI estimate/index/search/status passed with isolated home/index/models: C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4"
+        "Real packaged CLI estimate/index/search/status passed with isolated home/index/models: <temp>\\WAI-package-gate-e6d54786409c4ffe959ee8541230b5f4"
       ]
     },
     {
@@ -48,7 +48,7 @@
         "passed: packaged-worker-cpu",
         "passed: production-evaluation",
         "passed: native-pdfium-ffmpeg",
-        "passed: C:\\Users\\admin\\.codex\\worktrees\\wai-production\\win_search\\results\\release-final\\smoke.json",
+        "passed: <repo>\\results\\release-final\\smoke.json",
         "File lifecycle, real CPU worker, crash recovery, constrained SQLite disk-full and requested native/evaluation checks passed."
       ]
     }

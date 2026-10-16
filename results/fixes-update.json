@@ -1,9 +1,9 @@
 {
   "passed": true,
-  "source": "d:\\_projects\\win_search\\dist\\releases",
+  "source": "<repo>\\dist\\releases",
   "installedVersion": "1.1.1",
   "targetVersion": "1.1.2",
-  "package": "d:\\_projects\\win_search\\state\\fix-smoke\\update\\packages\\WinSearch.DigUp-1.1.2-full.nupkg",
+  "package": "<repo>\\state\\fix-smoke\\update\\packages\\WinSearch.DigUp-1.1.2-full.nupkg",
   "checksumMatches": true,
   "LastUpdateCheck": "2026-10-14T21:12:51.0755623+00:00",
   "managerCreations": 1,

@@ -1,9 +1,9 @@
 {
   "startedAtUtc": "2026-10-12T15:03:36.443084+00:00",
   "finishedAtUtc": "2026-10-12T15:03:38.5689413+00:00",
-  "runDirectory": "D:\\_projects\\win_search\\run-vulkan",
-  "indexDirectory": "D:\\_projects\\win_search\\state\\index-vulkan",
-  "manifestPath": "D:\\_projects\\win_search\\testbed-russian-eval.json",
+  "runDirectory": "<repo>\\run-vulkan",
+  "indexDirectory": "<repo>\\state\\index-vulkan",
+  "manifestPath": "<repo>\\testbed-russian-eval.json",
   "worker": {
     "model": "google/embeddinggemma-2",
     "revision": "bfcd298762cc34d0357ece5ebdd31791a3a374d8",

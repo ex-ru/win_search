@@ -2,10 +2,10 @@
   "status": "passed",
   "startedAtUtc": "2026-10-15T12:39:55.391923+00:00",
   "finishedAtUtc": "2026-10-15T12:40:07.9319359+00:00",
-  "loadedCoreAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\WAI.Core.dll",
+  "loadedCoreAssembly": "<temp>\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\WAI.Core.dll",
   "loadedCoreSha256": "2BCE7E1168E058C167D2A75EEC7F2967D79251F79A64E0986ED7E9D315E7B12E",
-  "loadedRuntimeAssembly": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\System.Private.CoreLib.dll",
-  "isolatedWorkspace": "C:\\Users\\admin\\AppData\\Local\\Temp\\WAI-release-aa5499d9e3394619bb44c90922843fa1",
+  "loadedRuntimeAssembly": "<temp>\\WAI-package-gate-79045615c1324b92b11fb57eefe2e439\\harness\\System.Private.CoreLib.dll",
+  "isolatedWorkspace": "<temp>\\WAI-release-aa5499d9e3394619bb44c90922843fa1",
   "checks": [
     {
       "name": "arguments",

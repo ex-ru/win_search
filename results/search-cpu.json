@@ -1,9 +1,9 @@
 {
   "startedAtUtc": "2026-10-12T13:43:25.3511403+00:00",
   "finishedAtUtc": "2026-10-12T13:43:27.7933698+00:00",
-  "runDirectory": "D:\\_projects\\win_search\\run",
-  "indexDirectory": "D:\\_projects\\win_search\\state\\index-cpu",
-  "manifestPath": "D:\\_projects\\win_search\\testbed-expectations.json",
+  "runDirectory": "<repo>\\run",
+  "indexDirectory": "<repo>\\state\\index-cpu",
+  "manifestPath": "<repo>\\testbed-expectations.json",
   "worker": {
     "model": "google/embeddinggemma-2",
     "revision": "bfcd298762cc34d0357ece5ebdd31791a3a374d8",
