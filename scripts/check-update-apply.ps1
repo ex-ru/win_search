@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory=$true)][string]$TargetReleaseDir,
     [Parameter(Mandatory=$true)][string]$ModelsDir,
     [string]$BaselineVersion='1.1.99',
-    [string]$TargetVersion='1.2.1',
+    [string]$TargetVersion='1.2.2',
     [string]$BaselineReleaseDir='',
     [string]$Model='bge-m3',
     [string]$ReportDir=''

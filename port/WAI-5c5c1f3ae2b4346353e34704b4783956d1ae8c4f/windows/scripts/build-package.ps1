@@ -1,7 +1,7 @@
 # Build and package WAI (Windows AI Search) for Windows (Velopack Setup.exe + Portable zip)
 # PowerShell 5.1 & Core safe.
 param(
-    [string]$Version = "1.2.1",
+    [string]$Version = "1.2.2",
     [string]$OutputDir = "",
     [switch]$Slim = $false,
     [switch]$Full = $false

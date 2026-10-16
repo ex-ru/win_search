@@ -115,7 +115,7 @@ public sealed class Settings
             try
             {
                 using var run = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-                return run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("WAI") is not null;
+                return run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("DigUp") is not null;
             }
             catch { return false; }
         }
@@ -127,13 +127,22 @@ public sealed class Settings
                 if (run is null) return;
                 if (value)
                 {
-                    run.SetValue(AppConstants.AppName, "\"" + Environment.ProcessPath + "\"");
-                    try { run.DeleteValue("WAI", false); } catch { }
+                    string? exePath = Environment.ProcessPath;
+                    if (string.IsNullOrWhiteSpace(exePath))
+                    {
+                        exePath = Environment.GetCommandLineArgs().FirstOrDefault();
+                    }
+                    if (!string.IsNullOrWhiteSpace(exePath))
+                    {
+                        exePath = System.IO.Path.GetFullPath(exePath);
+                        run.SetValue(AppConstants.AppName, $"\"{exePath}\" --silent");
+                        try { run.DeleteValue("DigUp", false); } catch { }
+                    }
                 }
                 else
                 {
                     try { run.DeleteValue(AppConstants.AppName, false); } catch { }
-                    try { run.DeleteValue("WAI", false); } catch { }
+                    try { run.DeleteValue("DigUp", false); } catch { }
                 }
             }
             catch { }
