@@ -40,8 +40,9 @@ public sealed class Engine : IDisposable
     {
         _settings = settings;
         _configuration = Configuration.Capture(settings);
-        _batterySaver = OnBatterySaver();
-        if (_batterySaver) Status = "Обработка приостановлена для экономии батареи";
+        var (initPause, initReason) = CheckPowerPolicy();
+        _batterySaver = initPause;
+        if (_batterySaver) Status = initReason;
         _powerTimer = new System.Threading.Timer(_ => PowerChanged(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
     }
 
@@ -185,6 +186,7 @@ public sealed class Engine : IDisposable
         Say($"Ожидают обработки: {sync.Queued.Count + recovered}");
         int failures = 0;
         var refresh = System.Diagnostics.Stopwatch.StartNew();
+        var costs = new Costs();
         indexer.Run(shouldStop: () => ct.IsCancellationRequested, onEvent: e => {
             ProgressDone = e.Done; ProgressTotal = e.Total;
             if (e.State == FileState.Failed)
@@ -192,7 +194,11 @@ public sealed class Engine : IDisposable
                 failures++;
                 ErrorLog.Write($"Cannot read {e.Path}: {e.Note}");
             }
-            Say($"Обрабатывается {e.Done} из {e.Total}: {Short(e.Path)}");
+            int remaining = Math.Max(0, e.Total - e.Done);
+            double baseSec = remaining * costs.CostFor(e.Kind);
+            double etaSec = indexer.Calibrator.CalibrateSeconds(baseSec);
+            string etaText = remaining > 0 ? $" · {PaceCalibrator.FormatEta(etaSec)}" : "";
+            Say($"Обрабатывается {e.Done} из {e.Total}{etaText}: {Short(e.Path)}");
             if (refresh.Elapsed >= TimeSpan.FromSeconds(5)) { RefreshSearchers(); refresh.Restart(); }
         });
         ct.ThrowIfCancellationRequested();
@@ -445,25 +451,58 @@ public sealed class Engine : IDisposable
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct SystemPowerStatus
+    public struct SystemPowerStatus
     {
-        public byte AcLineStatus, BatteryFlag, BatteryLifePercent, SystemStatusFlag;
-        public uint BatteryLifeTime, BatteryFullLifeTime;
+        public byte AcLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public uint BatteryLifeTime;
+        public uint BatteryFullLifeTime;
     }
+
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool GetSystemPowerStatus(out SystemPowerStatus status);
-    private static bool OnBatterySaver() { try { return GetSystemPowerStatus(out var status) && status.SystemStatusFlag == 1; } catch { return false; } }
+    public static extern bool GetSystemPowerStatus(out SystemPowerStatus status);
+
+    public static (bool ShouldPause, string Reason) EvaluatePowerPolicy(SystemPowerStatus status)
+    {
+        // 1. Windows system battery saver mode
+        if (status.SystemStatusFlag == 1)
+            return (true, "Обработка приостановлена: включён режим экономии заряда Windows");
+
+        // 2. Disconnected from AC power (running on battery)
+        if (status.AcLineStatus == 0)
+        {
+            // Critical battery level (<= 20%)
+            if (status.BatteryLifePercent <= 20 && status.BatteryLifePercent != 255)
+                return (true, $"Обработка приостановлена: критический уровень батареи ({status.BatteryLifePercent}%)");
+        }
+
+        return (false, string.Empty);
+    }
+
+    private static (bool ShouldPause, string Reason) CheckPowerPolicy()
+    {
+        try
+        {
+            if (GetSystemPowerStatus(out var status))
+                return EvaluatePowerPolicy(status);
+        }
+        catch { }
+        return (false, string.Empty);
+    }
+
     private void PowerChanged()
     {
         lock (_controlGate)
         {
             if (_disposed) return;
-            bool saver = OnBatterySaver();
-            if (saver == _batterySaver) return;
-            _batterySaver = saver;
+            var (pause, reason) = CheckPowerPolicy();
+            if (pause == _batterySaver) return;
+            _batterySaver = pause;
             StopIndexing(); DropQueryWorker(); ResumeIndexing();
-            Say(saver ? "Обработка приостановлена для экономии батареи" : "Подготовка индекса…");
+            Say(pause ? reason : "Подготовка индекса…");
             RequestIndex();
         }
     }

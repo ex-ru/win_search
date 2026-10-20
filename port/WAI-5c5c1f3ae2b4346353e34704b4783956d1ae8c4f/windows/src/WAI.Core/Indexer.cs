@@ -112,6 +112,9 @@ public sealed class Indexer : System.IDisposable
     /// </summary>
     public string? EmbedderSource { get; set; }
 
+    /// <summary>Dynamic pace calibrator for indexing ETA scaling (ETA-01).</summary>
+    public PaceCalibrator Calibrator { get; } = new();
+
     public Indexer(
         IIndexerStore store,
         IndexOptions options,
@@ -347,6 +350,14 @@ public sealed class Indexer : System.IDisposable
         var jobs = System.Linq.Enumerable.Select(ExtractorRunner.Batches(queue), b => new Job(b)).ToList();
         Process(jobs, shouldStop, (index, job, results, seconds) =>
         {
+            if (job.Files.Count > 0 && seconds > 0)
+            {
+                var defaultCosts = new Costs();
+                double secondsPerFile = seconds / job.Files.Count;
+                foreach (var f in job.Files)
+                    Calibrator.Record(f.Kind, secondsPerFile, defaultCosts.CostFor(f.Kind));
+            }
+
             for (int o = 0; o < job.Files.Count; o++)
             {
                 var (state, note) = results[o];

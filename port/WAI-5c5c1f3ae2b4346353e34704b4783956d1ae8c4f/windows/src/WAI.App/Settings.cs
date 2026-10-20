@@ -59,7 +59,7 @@ public sealed class Settings
         Environment.GetEnvironmentVariable("WAI_INDEX") is { Length: > 0 } d ? d
         : System.IO.Path.Combine(Dir, "index.noindex");
 
-    public static readonly string[] Editors = ["auto", "code", "cursor", "devenv", "notepad++", "subl", "idea64"];
+    public static readonly string[] Editors = ["auto", "code", "cursor", "idea64", "pycharm64", "rider64", "webstorm64", "devenv", "notepad++", "subl"];
 
     public static Settings Load()
     {

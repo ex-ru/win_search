@@ -60,6 +60,8 @@ public partial class PreviewWindow : Window
             else if (e.Key is Key.PageUp or Key.Left && _currentPdfPath is not null && !Words.IsFocused) { PrevPdfPage(); e.Handled = true; }
             else if (e.Key is Key.PageDown && WordsScroll.Visibility == Visibility.Visible && !Words.IsFocused) { WordsScroll.PageDown(); e.Handled = true; }
             else if (e.Key is Key.PageUp && WordsScroll.Visibility == Visibility.Visible && !Words.IsFocused) { WordsScroll.PageUp(); e.Handled = true; }
+            else if (e.Key is Key.Left && Player.Visibility == Visibility.Visible && !Words.IsFocused) { SeekTo(Player.Position.TotalSeconds - 5); e.Handled = true; }
+            else if (e.Key is Key.Right && Player.Visibility == Visibility.Visible && !Words.IsFocused) { SeekTo(Player.Position.TotalSeconds + 5); e.Handled = true; }
             else if (e.Key == Key.Down && !Words.IsFocused) { _onNavigate?.Invoke(1); e.Handled = true; }
             else if (e.Key == Key.Up && !Words.IsFocused) { _onNavigate?.Invoke(-1); e.Handled = true; }
             else if (e.Key == Key.E && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { OnOpenInExplorer(this, new RoutedEventArgs()); e.Handled = true; }
@@ -70,8 +72,16 @@ public partial class PreviewWindow : Window
         {
             try
             {
-                if (_moment > 0 && _moment < Player.NaturalDuration.TimeSpan.TotalSeconds)
+                double total = Player.NaturalDuration.HasTimeSpan ? Player.NaturalDuration.TimeSpan.TotalSeconds : 0;
+                if (MediaPositionSlider is not null && total > 0)
+                {
+                    MediaPositionSlider.Maximum = total;
+                }
+                if (_moment > 0 && total > 0 && _moment < total)
+                {
                     Player.Position = TimeSpan.FromSeconds(_moment);
+                    if (MediaPositionSlider is not null) MediaPositionSlider.Value = _moment;
+                }
                 Player.Play();
                 PlayPause.Content = "Pause";
             }
@@ -239,7 +249,16 @@ public partial class PreviewWindow : Window
             try
             {
                 if (Player.Source is not null && Player.NaturalDuration.HasTimeSpan)
-                    Time.Text = $"{Stamp(Player.Position.TotalSeconds)} / {Stamp(Player.NaturalDuration.TimeSpan.TotalSeconds)}";
+                {
+                    double total = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                    double current = Player.Position.TotalSeconds;
+                    Time.Text = $"{Stamp(current)} / {Stamp(total)}";
+                    if (!_isDraggingSlider && MediaPositionSlider is not null)
+                    {
+                        MediaPositionSlider.Maximum = total;
+                        MediaPositionSlider.Value = current;
+                    }
+                }
             }
             catch { }
         };
@@ -247,6 +266,43 @@ public partial class PreviewWindow : Window
     }
 
     private void StopClock() { try { _clock?.Stop(); } catch { } _clock = null; }
+
+    private bool _isDraggingSlider;
+
+    private void OnSliderMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingSlider = true;
+    }
+
+    private void OnSliderMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingSlider = false;
+        if (MediaPositionSlider is not null)
+            SeekTo(MediaPositionSlider.Value);
+    }
+
+    private void OnSliderValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isDraggingSlider)
+        {
+            SeekTo(e.NewValue);
+        }
+    }
+
+    public void SeekTo(double seconds)
+    {
+        try
+        {
+            if (Player.Source is not null && Player.NaturalDuration.HasTimeSpan)
+            {
+                double total = Player.NaturalDuration.TimeSpan.TotalSeconds;
+                double clamped = Math.Clamp(seconds, 0, total);
+                Player.Position = TimeSpan.FromSeconds(clamped);
+                Time.Text = $"{Stamp(clamped)} / {Stamp(total)}";
+            }
+        }
+        catch { }
+    }
 
     private void OnPlayPause(object sender, RoutedEventArgs e)
     {

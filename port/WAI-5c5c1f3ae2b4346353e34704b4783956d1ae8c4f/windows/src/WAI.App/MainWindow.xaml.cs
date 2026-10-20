@@ -987,11 +987,16 @@ public partial class MainWindow : Window
         {
             if (h.Kind == "Code")
             {
-                int line = h.Where.StartsWith("lines ") ? ParseLine(h.Where) : 1;
-                var t = Editors.ForCode(_settings.Editor, h.Path, line);
+                var (line, col) = ParseLineAndColumn(h.Where);
+                var t = Editors.ForCode(_settings.Editor, h.Path, line, col);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(t.Exe, t.Args) { UseShellExecute = true });
             }
             else if (h.Kind == "Pdf") Editors.OpenPdf(h.Path, ParsePage(h.Where));
+            else if (h.Kind is "Video" or "Audio")
+            {
+                double seconds = ParseSeconds(h.Where);
+                Editors.OpenMedia(h.Path, seconds > 0 ? seconds : null);
+            }
             else Editors.Open(h.Path);
             Hide();
         }
@@ -1002,6 +1007,20 @@ public partial class MainWindow : Window
     {
         var digits = new string(where.SkipWhile(c => !char.IsDigit(c)).TakeWhile(c => char.IsDigit(c)).ToArray());
         return int.TryParse(digits, out int n) ? Math.Max(1, n) : 1;
+    }
+
+    internal static (int Line, int Column) ParseLineAndColumn(string where)
+    {
+        if (string.IsNullOrWhiteSpace(where)) return (1, 1);
+        int line = ParseLine(where);
+        int col = 1;
+        int colonIdx = where.IndexOf(':');
+        if (colonIdx >= 0 && colonIdx < where.Length - 1)
+        {
+            var colDigits = new string(where.Substring(colonIdx + 1).TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(colDigits, out int c)) col = Math.Max(1, c);
+        }
+        return (line, col);
     }
 
     internal static double? ParsePage(string where)

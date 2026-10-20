@@ -1,6 +1,6 @@
 # Publish a tested package as a draft; make it public only after asset verification.
 param(
-    [string]$Version = '1.2.2',
+    [string]$Version = '1.2.3',
     [string]$Repo = 'ex-ru/win_search',
     [string]$ReleasesDir = '',
     [string]$TargetCommitish = '',

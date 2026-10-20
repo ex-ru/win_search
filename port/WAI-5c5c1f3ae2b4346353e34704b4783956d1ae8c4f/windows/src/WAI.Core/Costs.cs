@@ -36,6 +36,19 @@ public sealed class Costs
 
     /// <summary>A stretch of code.</summary>
     public double CodeStretch { get; set; } = 0.037;
+
+    /// <summary>Gets default baseline expected seconds for a file kind.</summary>
+    public double CostFor(FileKind kind) => kind switch
+    {
+        FileKind.Image => Image,
+        FileKind.Screenshot => Screenshot,
+        FileKind.Pdf => PdfPage,
+        FileKind.Doc => DocChunk,
+        FileKind.Audio => AudioSecond,
+        FileKind.Video => VideoSecond,
+        FileKind.Code => CodeStretch,
+        _ => Image
+    };
 }
 
 /// <summary>How big the code index gets (Estimator.swift:22).</summary>
@@ -327,4 +340,85 @@ public static class Estimator
     /// <c>durationOf</c> to <see cref="Estimate"/> when available.
     /// </summary>
     public static double DefaultDurationOf(string path) => 0.0;
+}
+
+/// <summary>
+/// Dynamic pace calibration for indexing progress and runtime estimation (ETA-01).
+/// Tracks the actual rate of document processing vs baseline expectations
+/// to adaptively scale remaining time estimates and eliminate inflated forecasts.
+/// </summary>
+public sealed class PaceCalibrator
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<FileKind, (double TotalSeconds, int Count)> _statsByKind = new();
+    private double _totalObservedSeconds;
+    private double _totalExpectedSeconds;
+    private int _samplesCount;
+
+    public double DefaultMultiplier { get; set; } = 1.0;
+
+    /// <summary>Records an observed extraction & embedding duration for a given file kind.</summary>
+    public void Record(FileKind kind, double actualSeconds, double expectedSeconds)
+    {
+        if (actualSeconds <= 0 || expectedSeconds <= 0) return;
+        lock (_gate)
+        {
+            _totalObservedSeconds += actualSeconds;
+            _totalExpectedSeconds += expectedSeconds;
+            _samplesCount++;
+
+            if (_statsByKind.TryGetValue(kind, out var current))
+                _statsByKind[kind] = (current.TotalSeconds + actualSeconds, current.Count + 1);
+            else
+                _statsByKind[kind] = (actualSeconds, 1);
+        }
+    }
+
+    /// <summary>Pace scale multiplier: &lt; 1.0 means hardware processes files faster than baseline costs; &gt; 1.0 means slower.</summary>
+    public double CurrentScale
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_samplesCount < 2 || _totalExpectedSeconds <= 0) return DefaultMultiplier;
+                // Ratio of actual time taken to expected baseline cost, smoothed and clamped between 0.05 and 10.0
+                double ratio = _totalObservedSeconds / _totalExpectedSeconds;
+                return Math.Clamp(ratio, 0.05, 10.0);
+            }
+        }
+    }
+
+    /// <summary>Calculates calibrated remaining seconds for a given baseline estimate.</summary>
+    public double CalibrateSeconds(double baselineSeconds)
+    {
+        if (baselineSeconds <= 0) return 0;
+        return baselineSeconds * CurrentScale;
+    }
+
+    /// <summary>Formats a human-readable estimate (e.g. "~2 мин", "&lt; 1 мин", "~1 ч 15 мин").</summary>
+    public static string FormatEta(double seconds, bool isRu = true)
+    {
+        if (seconds <= 0) return isRu ? "завершается…" : "finishing…";
+        if (seconds < 45) return isRu ? "< 1 мин" : "< 1 min";
+        if (seconds < 3600)
+        {
+            int mins = (int)Math.Round(seconds / 60.0);
+            return isRu ? $"~{mins} мин" : $"~{mins} min";
+        }
+        int hours = (int)(seconds / 3600.0);
+        int remMins = (int)Math.Round((seconds % 3600.0) / 60.0);
+        return isRu ? $"~{hours} ч {remMins} мин" : $"~{hours} h {remMins} m";
+    }
+
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            _statsByKind.Clear();
+            _totalObservedSeconds = 0;
+            _totalExpectedSeconds = 0;
+            _samplesCount = 0;
+        }
+    }
 }

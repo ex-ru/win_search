@@ -105,21 +105,103 @@ public static class HardwareDetector
                 break;
         }
 
-        // Auto resolution: Discrete GPU -> Integrated GPU -> CPU fallback
+        // Auto resolution: AutoTune (checks discrete GPU, integrated GPU vs CPU speed, and vector agreement)
+        var auto = AutoTune(info, isRu: isRu);
+        return (auto.RecommendedBackend, auto.DeviceIndex, auto.Reason);
+    }
+
+    public const double VectorAgreementThreshold = 0.999;
+
+    /// <summary>
+    /// Computes the cosine agreement between CPU and GPU embedding vectors.
+    /// Returns 1.0 for identical vectors; &lt; 0.999 indicates numerical instability or driver artifacts.
+    /// </summary>
+    public static double CalculateAgreement(ReadOnlySpan<float> cpuVector, ReadOnlySpan<float> gpuVector)
+    {
+        if (cpuVector.Length != gpuVector.Length || cpuVector.Length == 0) return 0.0;
+        float dot = Vectors.DotProduct(cpuVector, gpuVector);
+        double normCpu = 0, normGpu = 0;
+        for (int i = 0; i < cpuVector.Length; i++)
+        {
+            normCpu += cpuVector[i] * cpuVector[i];
+            normGpu += gpuVector[i] * gpuVector[i];
+        }
+        if (normCpu <= 0 || normGpu <= 0) return 0.0;
+        return dot / Math.Sqrt(normCpu * normGpu);
+    }
+
+    public sealed record AutoTuneResult(
+        string RecommendedBackend,
+        int DeviceIndex,
+        double VectorAgreement,
+        bool FallbackToCpu,
+        string Reason);
+
+    /// <summary>
+    /// Evaluates hardware options, checks vector agreement against CPU baseline,
+    /// and falls back to CPU if integrated GPU (Intel UHD) underperforms or vectors diverge (OPT-05).
+    /// </summary>
+    public static AutoTuneResult AutoTune(
+        HardwareInfo info,
+        ReadOnlySpan<float> sampleCpuVector = default,
+        ReadOnlySpan<float> sampleGpuVector = default,
+        double? cpuLatencyMs = null,
+        double? gpuLatencyMs = null,
+        bool isRu = true)
+    {
+        // 1. Vector agreement verification (if samples provided)
+        if (!sampleCpuVector.IsEmpty && !sampleGpuVector.IsEmpty)
+        {
+            double agreement = CalculateAgreement(sampleCpuVector, sampleGpuVector);
+            if (agreement < VectorAgreementThreshold)
+            {
+                return new AutoTuneResult(
+                    "cpu",
+                    -1,
+                    agreement,
+                    FallbackToCpu: true,
+                    Reason: isRu
+                        ? $"Расхождение векторов GPU с эталоном CPU ({agreement:F4} < {VectorAgreementThreshold}). Выбран безопасный откат на CPU."
+                        : $"GPU vector divergence from CPU baseline ({agreement:F4} < {VectorAgreementThreshold}). Safely falling back to CPU.");
+            }
+        }
+
+        // 2. Discrete GPU priority
         if (info.DiscreteGpu != null)
         {
             var g = info.DiscreteGpu;
             string b = g.HasCuda && g.VendorId == 0x10DE ? "cuda" : "vulkan";
-            return (b, g.Index, isRu ? $"Авто: {g.Name} (Дискретная)" : $"Auto: {g.Name} (Discrete)");
+            return new AutoTuneResult(b, g.Index, 1.0, false,
+                isRu ? $"Авто: Дискретный GPU {g.Name} ({g.VramMb} МБ)" : $"Auto: Discrete GPU {g.Name} ({g.VramMb} MB)");
         }
 
+        // 3. Integrated GPU: latency or heuristic benchmark
         if (info.IntegratedGpu != null)
         {
             var g = info.IntegratedGpu;
-            return ("vulkan", g.Index, isRu ? $"Авто: {g.Name} (Встроенная)" : $"Auto: {g.Name} (Integrated)");
+            if (cpuLatencyMs.HasValue && gpuLatencyMs.HasValue && cpuLatencyMs.Value < gpuLatencyMs.Value)
+            {
+                return new AutoTuneResult("cpu", -1, 1.0, true,
+                    isRu
+                        ? $"Авто: CPU быстрее встроенной графики {g.Name} ({cpuLatencyMs.Value:F1}мс vs {gpuLatencyMs.Value:F1}мс)"
+                        : $"Auto: CPU is faster than integrated graphics {g.Name} ({cpuLatencyMs.Value:F1}ms vs {gpuLatencyMs.Value:F1}ms)");
+            }
+
+            // Older Intel UHD with 8+ CPU cores usually slower than AVX2 CPU
+            if (g.VendorId == 0x8086 && g.Name.Contains("UHD", StringComparison.OrdinalIgnoreCase) && info.CpuCores >= 8)
+            {
+                return new AutoTuneResult("cpu", -1, 1.0, true,
+                    isRu
+                        ? $"Авто: Для {g.Name} на {info.CpuCores}-поточном CPU выбран процессорный режим"
+                        : $"Auto: For {g.Name} on {info.CpuCores}-thread CPU, CPU mode selected");
+            }
+
+            return new AutoTuneResult("vulkan", g.Index, 1.0, false,
+                isRu ? $"Авто: {g.Name} (Встроенная)" : $"Auto: {g.Name} (Integrated)");
         }
 
-        return ("cpu", -1, isRu ? $"Авто: CPU ({info.CpuCores} потоков)" : $"Auto: CPU ({info.CpuCores} threads)");
+        return new AutoTuneResult("cpu", -1, 1.0, false,
+            isRu ? $"Авто: CPU ({info.CpuCores} потоков)" : $"Auto: CPU ({info.CpuCores} threads)");
     }
 
     private static List<GpuDevice> EnumerateGpus(bool systemVulkan, bool systemCuda)
