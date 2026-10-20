@@ -123,7 +123,7 @@ public sealed class Settings
         {
             try
             {
-                using var run = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
+                using var run = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
                 if (run is null) return;
                 if (value)
                 {
@@ -132,9 +132,13 @@ public sealed class Settings
                     {
                         exePath = Environment.GetCommandLineArgs().FirstOrDefault();
                     }
+                    if (string.IsNullOrWhiteSpace(exePath))
+                    {
+                        exePath = AppDomain.CurrentDomain.BaseDirectory;
+                    }
                     if (!string.IsNullOrWhiteSpace(exePath))
                     {
-                        exePath = System.IO.Path.GetFullPath(exePath);
+                        try { exePath = System.IO.Path.GetFullPath(exePath); } catch { }
                         run.SetValue(AppConstants.AppName, $"\"{exePath}\" --silent");
                         try { run.DeleteValue("DigUp", false); } catch { }
                     }

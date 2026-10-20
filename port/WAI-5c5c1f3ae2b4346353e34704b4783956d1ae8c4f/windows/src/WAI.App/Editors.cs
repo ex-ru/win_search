@@ -17,26 +17,26 @@ public static class Editors
     {
         string q = $"\"{path}\"";
         if (editor == "auto") editor = FindEditor() ?? "notepad";
-        string lower = editor.ToLowerInvariant();
+        string name = Path.GetFileNameWithoutExtension(editor).ToLowerInvariant();
         int col = Math.Max(1, column);
         int ln = Math.Max(1, line);
 
-        if (lower is "code" or "vscode" or "cursor" or "vscodium" || lower.EndsWith("code.exe") || lower.EndsWith("code.cmd") || lower.EndsWith("cursor.exe"))
+        if (name is "code" or "vscode" or "cursor" or "vscodium")
             return new Target(editor, $"--goto {q}:{ln}:{col}");
 
-        if (lower is "notepad++" or "notepadpp" || lower.EndsWith("notepad++.exe"))
+        if (name is "notepad++" or "notepadpp")
             return new Target(editor, $"-n{ln} -c{col} {q}");
 
-        if (lower is "sublime" or "subl" || lower.EndsWith("subl.exe"))
+        if (name is "sublime" or "subl" or "sublime_text")
             return new Target(editor, $"{q}:{ln}:{col}");
 
-        if (lower is "devenv" or "visualstudio" || lower.EndsWith("devenv.exe"))
+        if (name is "devenv" or "visualstudio")
             return new Target(editor, $"{q} /command \"edit.goto {ln}\"");
 
-        if (IsJetBrains(lower))
+        if (IsJetBrains(editor))
             return new Target(editor, $"--line {ln} --column {col} {q}");
 
-        if (lower is "kate" or "geany" || lower.EndsWith("kate.exe") || lower.EndsWith("geany.exe"))
+        if (name is "kate" or "geany")
             return new Target(editor, $"-l {ln} -c {col} {q}");
 
         return new Target(editor, q);
@@ -44,11 +44,12 @@ public static class Editors
 
     public static bool IsJetBrains(string editor)
     {
-        string lower = editor.ToLowerInvariant();
-        return lower is "jetbrains" or "idea" or "pycharm" or "webstorm" or "rider" or "clion" or "goland" or "rustrover" or "phpstorm"
-            || lower.EndsWith("idea64.exe") || lower.EndsWith("pycharm64.exe") || lower.EndsWith("rider64.exe")
-            || lower.EndsWith("webstorm64.exe") || lower.EndsWith("clion64.exe") || lower.EndsWith("goland64.exe")
-            || lower.EndsWith("rustrover64.exe") || lower.EndsWith("phpstorm64.exe") || lower.EndsWith("studio64.exe");
+        string name = Path.GetFileNameWithoutExtension(editor).ToLowerInvariant();
+        return name is "jetbrains" or "idea" or "idea64" or "pycharm" or "pycharm64" or "rider" or "rider64"
+            || name is "webstorm" or "webstorm64" or "clion" or "clion64" or "goland" or "goland64"
+            || name is "rustrover" or "rustrover64" or "phpstorm" or "phpstorm64" or "studio64"
+            || name.StartsWith("idea") || name.StartsWith("pycharm") || name.StartsWith("rider")
+            || name.StartsWith("webstorm") || name.StartsWith("clion") || name.StartsWith("goland");
     }
 
     private static string? FindEditor()
