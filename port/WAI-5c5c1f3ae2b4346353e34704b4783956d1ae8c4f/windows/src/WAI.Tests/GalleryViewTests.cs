@@ -11,6 +11,8 @@ using System.Windows.Media.Imaging;
 using WAI.App;
 using WAI.Core;
 using Xunit;
+using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace WAI.Tests;
 
