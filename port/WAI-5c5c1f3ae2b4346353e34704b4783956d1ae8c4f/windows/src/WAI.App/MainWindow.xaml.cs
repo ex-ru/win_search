@@ -19,8 +19,12 @@ using Brush = System.Windows.Media.Brush;
 
 namespace WAI.App;
 
-public sealed class ResultItemViewModel
+public sealed class ResultItemViewModel : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? prop = null)
+        => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(prop));
+
     public required Engine.Hit Hit { get; init; }
     public required string Title { get; init; }
     public required string Detail { get; init; }
@@ -32,6 +36,29 @@ public sealed class ResultItemViewModel
     public required string RelevanceTooltip { get; init; }
     public required System.Windows.Media.Brush RelevanceBackground { get; init; }
     public required System.Windows.Media.Brush RelevanceForeground { get; init; }
+
+    private System.Windows.Media.ImageSource? _thumbnail;
+    public System.Windows.Media.ImageSource? Thumbnail
+    {
+        get => _thumbnail;
+        set
+        {
+            _thumbnail = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasThumbnail));
+        }
+    }
+    public bool HasThumbnail => _thumbnail != null;
+
+    public string GalleryIcon => Hit.Kind switch
+    {
+        "Image" or "Screenshot" => "🖼️",
+        "Video" => "🎬",
+        "Audio" => "🎵",
+        "Pdf" => "📄",
+        "Code" => "💻",
+        _ => "📝"
+    };
 }
 
 public partial class MainWindow : Window
@@ -52,10 +79,11 @@ public partial class MainWindow : Window
     private bool _closed;
     private const int SearchLimit = 50;
     private sealed record SearchRequest(int Generation, string Query, HashSet<FileKind>? Kinds);
-    // Mac rule: once arrows/click moved the selection, Space previews
-    // instead of typing a space. Any edit (or a click back in the field)
-    // hands Space back to typing.
     private bool _navigated;
+    private bool _isGalleryMode;
+    private bool _syncingSelection;
+
+    public bool IsGalleryMode => _isGalleryMode;
 
     public MainWindow(Engine engine, Settings settings)
     {
@@ -83,8 +111,12 @@ public partial class MainWindow : Window
         Query.PreviewMouseLeftButtonDown += (_, _) => _navigated = false;
         Results.MouseDoubleClick += (_, _) => OpenSelected();
         Results.PreviewMouseLeftButtonDown += (_, _) => _navigated = true;
-        Results.SelectionChanged += (_, _) => { ShowPreview(); FollowPreview(); };
         Results.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Space) { TogglePreview(); e.Handled = true; }
+        };
+        GalleryResults.PreviewMouseLeftButtonDown += (_, _) => _navigated = true;
+        GalleryResults.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Space) { TogglePreview(); e.Handled = true; }
         };
@@ -94,7 +126,13 @@ public partial class MainWindow : Window
             UpdateWidgetOpacity();
             try { _settings.Save(); } catch { }
         };
-        Loaded += (_, _) => { AdjustCardSize(); FadeIn(); };
+        Loaded += (_, _) =>
+        {
+            _isGalleryMode = _settings.PreferGallery;
+            UpdateViewMode();
+            AdjustCardSize();
+            FadeIn();
+        };
         SizeChanged += (_, _) => AdjustCardSize();
         UpdateLocalization();
     }
@@ -104,7 +142,9 @@ public partial class MainWindow : Window
         try
         {
             double screenH = SystemParameters.WorkArea.Height;
-            Results.MaxHeight = Math.Clamp(screenH * 0.44, 340, 620);
+            double h = Math.Clamp(screenH * 0.44, 340, 620);
+            Results.MaxHeight = h;
+            if (GalleryResults != null) GalleryResults.MaxHeight = h;
         }
         catch { }
     }
@@ -199,6 +239,8 @@ public partial class MainWindow : Window
             if (SemanticPill is not null) SemanticPill.ToolTip = Loc.IsRu
                 ? "Прямые совпадения найдены. Выполняется семантический поиск по смыслу…"
                 : "Direct keyword matches found. Searching by meaning…";
+            if (BtnViewList is not null) BtnViewList.ToolTip = Loc.ViewListTooltip;
+            if (BtnViewGallery is not null) BtnViewGallery.ToolTip = Loc.ViewGalleryTooltip;
             UpdateFilterCounts();
         }
         catch { }
@@ -457,14 +499,91 @@ public partial class MainWindow : Window
         Query.Focus();
     }
 
+    private void OnViewToggleClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        bool gallery = btn == BtnViewGallery;
+        SetViewMode(gallery);
+        if (_isGalleryMode && GalleryResults.SelectedItem != null)
+            GalleryResults.ScrollIntoView(GalleryResults.SelectedItem);
+        else if (!_isGalleryMode && Results.SelectedItem != null)
+            Results.ScrollIntoView(Results.SelectedItem);
+        Query.Focus();
+    }
+
+    public void SetViewMode(bool gallery)
+    {
+        if (_isGalleryMode == gallery) return;
+        _isGalleryMode = gallery;
+        _settings.PreferGallery = gallery;
+        try { _settings.Save(); } catch { }
+        UpdateViewMode();
+    }
+
+    private void UpdateViewMode()
+    {
+        if (BtnViewList != null) BtnViewList.Tag = _isGalleryMode ? "" : "Active";
+        if (BtnViewGallery != null) BtnViewGallery.Tag = _isGalleryMode ? "Active" : "";
+        if (Results != null) Results.Visibility = _isGalleryMode ? Visibility.Collapsed : Visibility.Visible;
+        if (GalleryResults != null)
+        {
+            GalleryResults.Visibility = _isGalleryMode ? Visibility.Visible : Visibility.Collapsed;
+            if (_isGalleryMode)
+            {
+                if (GalleryResults.SelectedIndex != Results.SelectedIndex)
+                    GalleryResults.SelectedIndex = Results.SelectedIndex;
+                LoadThumbnailsForItems(_currentItems, _searchGen);
+            }
+        }
+    }
+
+    private void OnResultsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingSelection) return;
+        _syncingSelection = true;
+        try
+        {
+            if (GalleryResults != null && GalleryResults.SelectedIndex != Results.SelectedIndex)
+                GalleryResults.SelectedIndex = Results.SelectedIndex;
+            ShowPreview();
+            FollowPreview();
+        }
+        finally { _syncingSelection = false; }
+    }
+
+    private void OnGallerySelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingSelection) return;
+        _syncingSelection = true;
+        try
+        {
+            if (Results != null && Results.SelectedIndex != GalleryResults.SelectedIndex)
+                Results.SelectedIndex = GalleryResults.SelectedIndex;
+            ShowPreview();
+            FollowPreview();
+        }
+        finally { _syncingSelection = false; }
+    }
+
+    private void OnGalleryMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        OpenSelected();
+    }
+
     private void ApplyCurrentFilter()
     {
         // The engine already filtered candidates before ranking and limiting.
         _currentItems = _allHits.ToList();
         Results.ItemsSource = _currentItems;
+        if (GalleryResults != null) GalleryResults.ItemsSource = _currentItems;
         Results.SelectedIndex = _currentItems.Count > 0 ? 0 : -1;
+        if (GalleryResults != null) GalleryResults.SelectedIndex = _currentItems.Count > 0 ? 0 : -1;
         ShowPreview();
         FollowPreview();
+        if (_isGalleryMode)
+        {
+            LoadThumbnailsForItems(_currentItems, _searchGen);
+        }
     }
 
     private void UpdateFilterCounts()
@@ -500,7 +619,9 @@ public partial class MainWindow : Window
         _allHits.Clear();
         _currentItems.Clear();
         Results.ItemsSource = null;
+        if (GalleryResults != null) GalleryResults.ItemsSource = null;
         Results.SelectedIndex = -1;
+        if (GalleryResults != null) GalleryResults.SelectedIndex = -1;
         SemanticPill.Visibility = Visibility.Collapsed;
         PreviewImage.Source = null;
         PreviewText.Text = string.Empty;
@@ -777,17 +898,29 @@ public partial class MainWindow : Window
             TogglePreview();
             e.Handled = true;
         }
-        else if (e.Key == Key.Down && Results.Items.Count > 0)
+        else if (e.Key == Key.Right && _isGalleryMode && _currentItems.Count > 0)
         {
-            Results.SelectedIndex = Math.Min(Results.SelectedIndex + 1, Results.Items.Count - 1);
-            Results.ScrollIntoView(Results.SelectedItem);
+            NavigateSelection(1);
             _navigated = true;
             e.Handled = true;
         }
-        else if (e.Key == Key.Up && Results.Items.Count > 0)
+        else if (e.Key == Key.Left && _isGalleryMode && _currentItems.Count > 0)
         {
-            Results.SelectedIndex = Math.Max(Results.SelectedIndex - 1, 0);
-            Results.ScrollIntoView(Results.SelectedItem);
+            NavigateSelection(-1);
+            _navigated = true;
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Down && _currentItems.Count > 0)
+        {
+            int step = _isGalleryMode ? GalleryColumns() : 1;
+            NavigateSelection(step);
+            _navigated = true;
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Up && _currentItems.Count > 0)
+        {
+            int step = _isGalleryMode ? GalleryColumns() : 1;
+            NavigateSelection(-step);
             _navigated = true;
             e.Handled = true;
         }
@@ -808,15 +941,60 @@ public partial class MainWindow : Window
         }
     }
 
+    private int GalleryColumns()
+    {
+        double width = (GalleryResults != null && GalleryResults.ActualWidth > 0)
+            ? GalleryResults.ActualWidth
+            : (ActualWidth > 0 ? ActualWidth - 40 : 680);
+        return Math.Max(1, (int)(width / 166));
+    }
+
     public void NavigateSelection(int delta)
     {
-        if (Results.Items.Count == 0) return;
-        int next = Math.Clamp(Results.SelectedIndex + delta, 0, Results.Items.Count - 1);
-        if (next != Results.SelectedIndex)
+        var list = _isGalleryMode && GalleryResults != null ? GalleryResults : Results;
+        if (list.Items.Count == 0) return;
+        int next = Math.Clamp(list.SelectedIndex + delta, 0, list.Items.Count - 1);
+        if (next != list.SelectedIndex)
         {
-            Results.SelectedIndex = next;
-            Results.ScrollIntoView(Results.SelectedItem);
+            list.SelectedIndex = next;
+            list.ScrollIntoView(list.SelectedItem);
         }
+    }
+
+    private void LoadThumbnailsForItems(IEnumerable<ResultItemViewModel> items, int gen)
+    {
+        var list = items.ToList();
+        Task.Run(() =>
+        {
+            foreach (var item in list)
+            {
+                if (_searchGen != gen || _closed) break;
+                if (item.Thumbnail != null) continue;
+                string? thumbPath = ThumbFor(item.Hit);
+                if (thumbPath != null && File.Exists(thumbPath))
+                {
+                    try
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.DecodePixelWidth = 320;
+                        bmp.UriSource = new Uri(thumbPath);
+                        bmp.EndInit();
+                        bmp.Freeze();
+
+                        if (_searchGen == gen && !_closed)
+                        {
+                            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+                            {
+                                if (_searchGen == gen) item.Thumbnail = bmp;
+                            });
+                        }
+                    }
+                    catch { }
+                }
+            }
+        });
     }
 
     internal static string FindPdfium()

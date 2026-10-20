@@ -43,6 +43,8 @@ public sealed class Settings
     public bool QueryFastPathCpu { get; set; } = true;
     /// <summary>Active embedding model: "gemma2" or "bge-m3".</summary>
     public string EmbeddingModel { get; set; } = "gemma2";
+    /// <summary>Display image search results as a thumbnail gallery grid.</summary>
+    public bool PreferGallery { get; set; } = false;
 
     /// <summary>True when there was no settings file: first run, show setup.</summary>
     public bool IsNew { get; set; } = true;

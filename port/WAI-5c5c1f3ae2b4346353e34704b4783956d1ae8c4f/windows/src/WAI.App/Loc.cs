@@ -222,4 +222,6 @@ public static class Loc
     public static string CodeLabel => IsRu ? "Код" : "Code";
     public static string PreviewLabel => IsRu ? "Предпросмотр" : "Preview";
     public static string HideSearch => IsRu ? "Скрыть" : "Hide";
+    public static string ViewListTooltip => IsRu ? "Режим списка (список результатов)" : "List view (regular results)";
+    public static string ViewGalleryTooltip => IsRu ? "Галерея миниатюр (плитка изображений)" : "Thumbnail gallery (image grid)";
 }

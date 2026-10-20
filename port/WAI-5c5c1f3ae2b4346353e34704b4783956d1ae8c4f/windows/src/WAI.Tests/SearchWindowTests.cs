@@ -166,6 +166,72 @@ public sealed class SearchWindowTests
         Assert.Equal(Visibility.Collapsed, state.PreviewVisibility);
     }
 
+    [Fact]
+    public void View_mode_toggle_switches_between_list_and_gallery_views()
+    {
+        using var fixture = new SearchFixture();
+        using var ui = new WindowDispatcher(fixture.Engine);
+
+        ui.Invoke(window =>
+        {
+            var btnList = Get<WpfButton>(window, "BtnViewList");
+            var btnGallery = Get<WpfButton>(window, "BtnViewGallery");
+            var results = Get<WpfListBox>(window, "Results");
+            var galleryResults = Get<WpfListBox>(window, "GalleryResults");
+
+            // Initial: List view
+            Assert.False(window.IsGalleryMode);
+            Assert.Equal("Active", btnList.Tag);
+            Assert.Equal(Visibility.Visible, results.Visibility);
+            Assert.Equal(Visibility.Collapsed, galleryResults.Visibility);
+
+            // Switch to Gallery
+            btnGallery.RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent, btnGallery));
+            Assert.True(window.IsGalleryMode);
+            Assert.Equal("Active", btnGallery.Tag);
+            Assert.Equal(Visibility.Collapsed, results.Visibility);
+            Assert.Equal(Visibility.Visible, galleryResults.Visibility);
+
+            // Switch back to List
+            btnList.RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent, btnList));
+            Assert.False(window.IsGalleryMode);
+            Assert.Equal("Active", btnList.Tag);
+            Assert.Equal(Visibility.Visible, results.Visibility);
+            Assert.Equal(Visibility.Collapsed, galleryResults.Visibility);
+        });
+    }
+
+    [Fact]
+    public void Gallery_results_selection_and_items_are_synchronized_with_results_list()
+    {
+        using var fixture = new SearchFixture();
+        using var ui = new WindowDispatcher(fixture.Engine);
+
+        ui.Invoke(window => Get<WpfTextBox>(window, "Query").Text = SearchTerm);
+
+        Assert.True(SpinWait.SpinUntil(() => ui.Invoke(window =>
+            Get<WpfListBox>(window, "Results").Items.Count > 0), TimeSpan.FromSeconds(10)),
+            "Results did not populate.");
+
+        ui.Invoke(window =>
+        {
+            var results = Get<WpfListBox>(window, "Results");
+            var galleryResults = Get<WpfListBox>(window, "GalleryResults");
+            var btnGallery = Get<WpfButton>(window, "BtnViewGallery");
+
+            // Verify both have same item count
+            Assert.Equal(results.Items.Count, galleryResults.Items.Count);
+
+            // Switch to Gallery
+            btnGallery.RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent, btnGallery));
+            Assert.Equal(results.SelectedIndex, galleryResults.SelectedIndex);
+
+            // Selection in Gallery updates Results
+            galleryResults.SelectedIndex = 0;
+            Assert.Equal(0, results.SelectedIndex);
+        });
+    }
+
     private static void RaiseClearClick(MainWindow window)
     {
         var button = Get<WpfButton>(window, "ClearButton");
