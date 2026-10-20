@@ -21,12 +21,12 @@ public class GalleryViewTests
     [Fact]
     public void ResultItemViewModel_GalleryIcon_MatchesHitKind()
     {
-        var imgHit = new Engine.Hit("C:\\photos\\beach.jpg", "Image", 0.95, "", "Sunset");
-        var vidHit = new Engine.Hit("C:\\movies\\trip.mp4", "Video", 0.90, "0:15", "Trip");
-        var audioHit = new Engine.Hit("C:\\music\\song.mp3", "Audio", 0.85, "1:30", "Music");
-        var pdfHit = new Engine.Hit("C:\\docs\\manual.pdf", "Pdf", 0.80, "p.1", "Manual");
-        var codeHit = new Engine.Hit("C:\\src\\main.cs", "Code", 0.75, "line 10", "Main");
-        var docHit = new Engine.Hit("C:\\docs\\notes.txt", "Doc", 0.70, "", "Notes");
+        var imgHit = new Engine.Hit("C:\\photos\\beach.jpg", "Image", "", "Sunset", 0.95);
+        var vidHit = new Engine.Hit("C:\\movies\\trip.mp4", "Video", "0:15", "Trip", 0.90);
+        var audioHit = new Engine.Hit("C:\\music\\song.mp3", "Audio", "1:30", "Music", 0.85);
+        var pdfHit = new Engine.Hit("C:\\docs\\manual.pdf", "Pdf", "p.1", "Manual", 0.80);
+        var codeHit = new Engine.Hit("C:\\src\\main.cs", "Code", "line 10", "Main", 0.75);
+        var docHit = new Engine.Hit("C:\\docs\\notes.txt", "Doc", "", "Notes", 0.70);
 
         var dummyBrush = Brushes.Transparent;
         var vmImg = CreateVm(imgHit, dummyBrush);
@@ -47,7 +47,7 @@ public class GalleryViewTests
     [Fact]
     public void ResultItemViewModel_Thumbnail_NotifiesPropertyChanged()
     {
-        var hit = new Engine.Hit("C:\\test.png", "Image", 0.9, "", "test");
+        var hit = new Engine.Hit("C:\\test.png", "Image", "", "test", 0.9);
         var vm = CreateVm(hit, Brushes.Transparent);
 
         Assert.False(vm.HasThumbnail);
