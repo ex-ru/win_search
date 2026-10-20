@@ -19,7 +19,7 @@ $apiUrl = if ($Tag -eq "latest") {
 } else {
     "https://api.github.com/repos/$Repo/releases/tags/$Tag"
 }
-$headers = @{ "User-Agent" = "WAI-Downloader/1.2.2"; "Accept" = "application/vnd.github.v3+json" }
+$headers = @{ "User-Agent" = "WAI-Downloader/1.2.4"; "Accept" = "application/vnd.github.v3+json" }
 try {
     $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
 } catch {
@@ -39,7 +39,7 @@ if ($checksumAsset.Count -eq 0) {
 }
 $checksumAsset = $checksumAsset[0]
 
-Write-Host "WAI Release Downloader 1.2.2" -ForegroundColor Cyan
+Write-Host "WAI Release Downloader 1.2.4" -ForegroundColor Cyan
 Write-Host "Release: $($release.tag_name)" -ForegroundColor Cyan
 Write-Host "Package: $(if ($Portable) { 'Full portable package' } else { 'Full setup with FFmpeg bundled' })" -ForegroundColor Cyan
 
@@ -47,7 +47,7 @@ $destFile = Join-Path $OutputDir $targetAsset.name
 $sumsFile = Join-Path $OutputDir "SHA256SUMS.txt"
 $wc = New-Object System.Net.WebClient
 try {
-    $wc.Headers.Add("User-Agent", "WAI-Downloader/1.2.2")
+    $wc.Headers.Add("User-Agent", "WAI-Downloader/1.2.4")
     $wc.DownloadFile($targetAsset.browser_download_url, $destFile)
     $wc.DownloadFile($checksumAsset.browser_download_url, $sumsFile)
     foreach ($metaName in @("releases.win.json", "RELEASES")) {

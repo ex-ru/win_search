@@ -1,4 +1,4 @@
-# WAI 1.2.1 - third-party distribution
+# WAI 1.2.4 - third-party distribution
 
 WAI project code uses the [MIT license](LICENSE). Bundled components keep their own licenses. Actual notices are included under licenses/ in the package.
 

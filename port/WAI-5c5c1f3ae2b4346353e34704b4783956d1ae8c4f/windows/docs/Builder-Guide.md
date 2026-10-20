@@ -1,4 +1,4 @@
-# WAI for Windows 1.2.1 — Builder Guide
+# WAI for Windows 1.2.4 — Builder Guide
 
 ## Requirements and pinned inputs
 
@@ -22,9 +22,9 @@ dotnet test "$win\WAI.Windows.sln" -c Release -p:RestoreLockedMode=true --logger
 .\scripts\build-release.ps1
 ~~~
 
-`release-version.json` selects the package version; for 1.2.1 the output is `dist\1.2.1\staging` and `dist\1.2.1\releases`. The builder creates a full package and rejects the removed Slim profile. It publishes the GUI, CLI, and worker self-contained for `win-x64`, copies the verified native runtime and its notices, installs Velopack 1.2.161 if needed, creates installer/portable assets, and writes `SHA256SUMS.txt`.
+`release-version.json` selects the package version; for 1.2.4 the output is `dist\1.2.4\staging` and `dist\1.2.4\releases`. The builder creates a full package and rejects the removed Slim profile. It publishes the GUI, CLI, and worker self-contained for `win-x64`, copies the verified native runtime and its notices, installs Velopack 1.2.161 if needed, creates installer/portable assets, and writes `SHA256SUMS.txt`.
 
-The first 1.2.1 CI package run seeds `tools\native-cache` with the `ffmpeg-win-x64` Actions artifact from the run ID in `release-version.json`; the artifact must contain `ffmpeg-tools-win-x64.zip` and `ffmpeg-corresponding-source.zip`. For a local build before 1.2.1 is public, download that same run's artifact and place those two files in `tools\native-cache`. Check their sizes and SHA-256 against `native-dependencies.json`. The other native archives are downloaded and verified by `prepare-runtime.ps1`. After publication, the pinned FFmpeg archive URLs also resolve from the public release.
+The initial CI package run seeds `tools\native-cache` with the `ffmpeg-win-x64` Actions artifact from the run ID in `release-version.json`; the artifact must contain `ffmpeg-tools-win-x64.zip` and `ffmpeg-corresponding-source.zip`. For a local build before assets are published, download that same run's artifact and place those two files in `tools\native-cache`. Check their sizes and SHA-256 against `native-dependencies.json`. The other native archives are downloaded and verified by `prepare-runtime.ps1`. After publication, the pinned FFmpeg archive URLs also resolve from the public release.
 
 The native lock file pins the original FFmpeg, dav1d, and zlib source archives as well as the Windows runtime archives. The release carries the matching source bundle, `native-provenance.json`, and legal notices for native, managed, .NET runtime, and Velopack dependencies. Their source files live under `licenses/`; `THIRD_PARTY_NOTICES.md` summarizes the shipped components. Missing notices or changed native inputs stop packaging. A clean Windows checkout can repeat the build from these pinned inputs; byte-for-byte equality of Velopack output across machines/runs is not claimed.
 
