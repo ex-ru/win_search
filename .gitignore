@@ -51,3 +51,5 @@ __pycache__/
 *.pyc
 
 dist/
+run_log/
+run_log*/
