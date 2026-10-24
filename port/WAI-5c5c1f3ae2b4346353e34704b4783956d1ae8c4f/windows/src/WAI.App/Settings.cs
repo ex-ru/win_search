@@ -57,42 +57,125 @@ public sealed class Settings
         System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAI");
     public static string LogsDir => System.IO.Path.Combine(Dir, "logs");
     public static string Path => System.IO.Path.Combine(Dir, "settings.json");
+    public static string BackupPath => System.IO.Path.Combine(Dir, "settings.json.bak");
     public static string IndexDir =>
         Environment.GetEnvironmentVariable("WAI_INDEX") is { Length: > 0 } d ? d
         : System.IO.Path.Combine(Dir, "index.noindex");
 
     public static readonly string[] Editors = ["auto", "code", "cursor", "idea64", "pycharm64", "rider64", "webstorm64", "devenv", "notepad++", "subl"];
 
-    public static Settings Load()
+    private static string? TryReadJsonWithRetry(string filePath)
     {
-        try
+        if (!File.Exists(filePath)) return null;
+        for (int i = 0; i < 5; i++)
         {
-            if (File.Exists(Path))
+            try
             {
-                var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(Path)) ?? new Settings();
-                s.IsNew = false;
-                // Missing old flags can be migrated, but an explicitly unfinished setup stays unfinished.
-                using var document = JsonDocument.Parse(File.ReadAllText(Path));
-                if (!document.RootElement.TryGetProperty(nameof(SetupDone), out _))
-                    s.SetupDone = s.Folders.Count > 0;
-                // Migrate to new default Ctrl+Space if old default was present
-                if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
-                    s.Hotkey = "ctrl+space";
-                if (string.IsNullOrWhiteSpace(s.UpdateSource) ||
-                    string.Equals(s.UpdateSource, "dist\\releases", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(s.UpdateSource, "dist/releases", StringComparison.OrdinalIgnoreCase))
-                {
-                    s.UpdateSource = AppConstants.DefaultUpdateSource;
-                }
-                if (s.WindowWidth < 580)
-                    s.WindowWidth = 720;
-                // Keep settings from older releases usable when a model is no longer supported.
-                s.EmbeddingModel = ModelCatalog.Get(s.EmbeddingModel).Id;
-                return s;
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(fs);
+                return reader.ReadToEnd();
+            }
+            catch (IOException) when (i < 4)
+            {
+                Thread.Sleep(50);
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write($"Failed to read {filePath} on attempt {i + 1}: {ex.Message}");
+                break;
             }
         }
-        catch { }
+        return null;
+    }
+
+    private static Settings? TryDeserialize(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<Settings>(json);
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("Settings deserialization error: " + ex.Message);
+            return null;
+        }
+    }
+
+    public static Settings Load()
+    {
+        string? primaryJson = TryReadJsonWithRetry(Path);
+        var s = TryDeserialize(primaryJson);
+        string? activeJson = primaryJson;
+
+        if (s is null)
+        {
+            string? backupJson = TryReadJsonWithRetry(BackupPath);
+            s = TryDeserialize(backupJson);
+            if (s is not null)
+            {
+                activeJson = backupJson;
+                ErrorLog.Write("Recovered settings from backup file.");
+            }
+        }
+
+        if (s is not null)
+        {
+            s.IsNew = false;
+
+            // If folders exist in settings, setup was already performed.
+            if (s.Folders.Count > 0)
+            {
+                s.SetupDone = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(activeJson))
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(activeJson);
+                    if (!document.RootElement.TryGetProperty(nameof(SetupDone), out _))
+                        s.SetupDone = false;
+                }
+                catch { s.SetupDone = false; }
+            }
+
+            // If folders are empty, attempt recovery from existing SQLite database
+            if (s.Folders.Count == 0 && IndexStore.TryRecoverFolders(IndexDir, out var recovered) && recovered.Count > 0)
+            {
+                s.Folders = recovered;
+                s.SetupDone = true;
+                s.IsNew = false;
+                ErrorLog.Write($"Recovered {recovered.Count} folder(s) from existing index: {string.Join(", ", recovered)}");
+                try { s.Save(); } catch { }
+            }
+
+            // Migrate to new default Ctrl+Space if old default was present
+            if (s.Hotkey is "shift+alt+space" or "ctrl+alt+space")
+                s.Hotkey = "ctrl+space";
+            if (string.IsNullOrWhiteSpace(s.UpdateSource) ||
+                string.Equals(s.UpdateSource, "dist\\releases", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.UpdateSource, "dist/releases", StringComparison.OrdinalIgnoreCase))
+            {
+                s.UpdateSource = AppConstants.DefaultUpdateSource;
+            }
+            if (s.WindowWidth < 580)
+                s.WindowWidth = 720;
+            // Keep settings from older releases usable when a model is no longer supported.
+            s.EmbeddingModel = ModelCatalog.Get(s.EmbeddingModel).Id;
+            return s;
+        }
+
         var fresh = new Settings { IsNew = true };
+        if (IndexStore.TryRecoverFolders(IndexDir, out var recoveredFromDb) && recoveredFromDb.Count > 0)
+        {
+            fresh.Folders = recoveredFromDb;
+            fresh.SetupDone = true;
+            fresh.IsNew = false;
+            ErrorLog.Write($"Recovered {recoveredFromDb.Count} folder(s) into fresh settings from index: {string.Join(", ", recoveredFromDb)}");
+            try { fresh.Save(); } catch { }
+            return fresh;
+        }
+
         string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (Directory.Exists(docs)) fresh.Folders.Add(docs);
         return fresh;
@@ -101,10 +184,18 @@ public sealed class Settings
     public void Save()
     {
         IsNew = false;
+        if (Folders.Count > 0)
+        {
+            SetupDone = true;
+        }
         Directory.CreateDirectory(Dir);
         // Atomic: a kill mid-write leaves the old file, never half a file.
         string tmp = Path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        if (File.Exists(Path))
+        {
+            try { File.Copy(Path, BackupPath, overwrite: true); } catch { }
+        }
         File.Move(tmp, Path, overwrite: true);
     }
 

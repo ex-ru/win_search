@@ -997,6 +997,95 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         return counts;
     }
 
+    /// <summary>
+    /// Attempts to deduce configured search folders and verify existing indexed files from an existing SQLite database.
+    /// Useful for self-healing settings when settings.json was deleted, damaged, or lost during upgrade.
+    /// </summary>
+    public static bool TryRecoverFolders(string indexDir, out List<string> recoveredFolders)
+    {
+        recoveredFolders = [];
+        try
+        {
+            string dbPath = System.IO.Path.Combine(indexDir, MainFile);
+            if (!System.IO.File.Exists(dbPath) || new System.IO.FileInfo(dbPath).Length < 32768)
+                return false;
+
+            using var db = new Database(dbPath, readOnly: true);
+            long fileCount = 0;
+            db.Query("SELECT COUNT(*) FROM files", r => fileCount = r.GetInt64(0));
+            if (fileCount == 0) return false;
+
+            var samplePaths = new List<string>();
+            db.Query("SELECT path FROM files LIMIT 2000", r =>
+            {
+                if (r.NullableText(0) is { Length: > 0 } p)
+                    samplePaths.Add(p);
+            });
+
+            recoveredFolders = DeduceSearchRoots(samplePaths);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static List<string> DeduceSearchRoots(IEnumerable<string> samplePaths)
+    {
+        var knownSpecialFolders = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } up ? System.IO.Path.Combine(up, "Downloads") : null,
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+        }.Where(p => !string.IsNullOrWhiteSpace(p) && System.IO.Directory.Exists(p)).Select(System.IO.Path.GetFullPath).ToList();
+
+        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rawPath in samplePaths)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath)) continue;
+            string normPath = rawPath.Replace('/', System.IO.Path.DirectorySeparatorChar);
+            try { normPath = System.IO.Path.GetFullPath(normPath); } catch { continue; }
+
+            bool matchedSpecial = false;
+            foreach (var special in knownSpecialFolders)
+            {
+                if (normPath.StartsWith(special + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normPath, special, StringComparison.OrdinalIgnoreCase))
+                {
+                    discovered.Add(special);
+                    matchedSpecial = true;
+                    break;
+                }
+            }
+
+            if (!matchedSpecial)
+            {
+                var parts = normPath.Split(System.IO.Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    string root = parts[0] + System.IO.Path.DirectorySeparatorChar;
+                    string candidate = root;
+                    for (int depth = 1; depth < Math.Min(parts.Length, 3); depth++)
+                    {
+                        candidate = System.IO.Path.Combine(candidate, parts[depth]);
+                        if (System.IO.Directory.Exists(candidate))
+                        {
+                            discovered.Add(candidate);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return discovered.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     public void Dispose()
     {
         if (_disposed)

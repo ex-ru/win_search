@@ -1,4 +1,4 @@
-# WAI for Windows 1.2.5 — User Guide
+# WAI for Windows 1.2.6 — User Guide
 
 WAI searches files in folders you choose. Describe what you remember, or search for exact words. Search and indexing run on your PC. The app downloads a model on first use and can check for updates if that setting is enabled; it does not send indexed file contents to a cloud search service.
 

@@ -69,6 +69,8 @@ public partial class SettingsWindow : Window
             !_settings.Folders.Contains(dlg.SelectedPath, StringComparer.OrdinalIgnoreCase))
         {
             _settings.Folders.Add(dlg.SelectedPath);
+            _settings.SetupDone = true;
+            _settings.Save();
             RefreshFolders();
         }
     }
@@ -78,6 +80,9 @@ public partial class SettingsWindow : Window
         if (Folders.SelectedItem is string s)
         {
             _settings.Folders.Remove(s);
+            if (_settings.Folders.Count > 0)
+                _settings.SetupDone = true;
+            _settings.Save();
             RefreshFolders();
         }
     }
@@ -478,10 +483,23 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private bool _cancelled;
+
     private void OnCancel(object sender, RoutedEventArgs e)
     {
+        _cancelled = true;
         try { DialogResult = false; } catch { }
         Close();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_cancelled)
+        {
+            ApplyCurrentSettings();
+            _onApplyCallback?.Invoke();
+        }
+        base.OnClosing(e);
     }
 
     public sealed record HardwareComboItem(string Id, string Title);
@@ -752,6 +770,8 @@ public partial class SettingsWindow : Window
             _settings.LastUpdateCheck = null;
         _settings.UpdateSource = updateSource;
         _settings.StartWithWindows = Startup.IsChecked == true;
+        if (_settings.Folders.Count > 0)
+            _settings.SetupDone = true;
         _settings.Save();
         return true;
     }

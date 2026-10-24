@@ -1,8 +1,8 @@
-# WAI Windows 1.2.5 🔍
+# WAI Windows 1.2.6 🔍
 
 WAI searches files in folders you choose using semantic and full-text search. The Windows build runs locally; it contacts the network to download verified model files and, when enabled, check for updates. Search queries and indexed file contents are not sent to a search service.
 
-[![Release: 1.2.5](https://img.shields.io/badge/Release-1.2.5-brightgreen.svg)](https://github.com/ex-ru/win_search/releases/tag/v1.2.5)
+[![Release: 1.2.6](https://img.shields.io/badge/Release-1.2.6-brightgreen.svg)](https://github.com/ex-ru/win_search/releases/tag/v1.2.6)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue.svg)](https://microsoft.com)
 [![Runtime: .NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com)
@@ -16,6 +16,7 @@ WAI searches files in folders you choose using semantic and full-text search. Th
 - Uses CPU or Vulkan inference in the shipped Windows package. CUDA is not included.
 - The standard full package includes FFmpeg. Model files are downloaded separately and checked against pinned size and SHA-256 values before use.
 - Stores WAI settings and index data under %LOCALAPPDATA%\WAI.
+- **Settings persistence & self-healing index recovery (1.2.6):** Immediate saving of configured search folders and settings upon window close, atomic mirror backup (`settings.json.bak`), resilient file-share retries, and automatic self-healing recovery of search roots directly from existing SQLite index data if configurations are ever interrupted.
 - **Tray context menu responsiveness & Windows autostart (1.2.5):** Tray progress polling runs against asynchronous memory cache without UI thread blocking; autostart reliably synchronizes with Windows 10/11 `StartupApproved\Run` and sets application base directory.
 - **Thumbnail gallery view (1.2.4):** Offers an alternative media grid view (⊞) alongside the classic list view (☰), with asynchronous background thumbnail decoding and disk caching (`%LOCALAPPDATA%\WAI\thumbs`) and 2D keyboard navigation.
 - **Code editor deep linking (1.2.3):** Opening code search results navigates directly to the matched line and column in VS Code / Cursor, JetBrains IDEs, Visual Studio, Notepad++, Sublime Text, and Kate.
@@ -26,7 +27,7 @@ WAI searches files in folders you choose using semantic and full-text search. Th
 
 The package identity for this release is WinSearch.WAI. Existing WAI data under %LOCALAPPDATA%\WAI remains in place. Installations with a different package identity are not promised to upgrade automatically; install the new package and verify it before removing an older installation.
 
-Download the [Windows installer](https://github.com/ex-ru/win_search/releases/download/v1.2.5/WinSearch.WAI-win-Setup.exe) or [portable archive](https://github.com/ex-ru/win_search/releases/download/v1.2.5/WinSearch.WAI-win-Portable.zip) from the public [1.2.5 release](https://github.com/ex-ru/win_search/releases/tag/v1.2.5) (or the [latest release](https://github.com/ex-ru/win_search/releases/latest)). No GitHub account is required. See [1.2.5 release notes](docs/RELEASE_1.2.5.md), [distribution instructions](DISTRIBUTION.md), [third-party notices](THIRD_PARTY_NOTICES.md), and [1.2.1 verification](docs/RELEASE_VERIFICATION_1.2.1.md). Clean Windows 11 feedback is being collected by the owner’s volunteer group.
+Download the [Windows installer](https://github.com/ex-ru/win_search/releases/download/v1.2.6/WinSearch.WAI-win-Setup.exe) or [portable archive](https://github.com/ex-ru/win_search/releases/download/v1.2.6/WinSearch.WAI-win-Portable.zip) from the public [1.2.6 release](https://github.com/ex-ru/win_search/releases/tag/v1.2.6) (or the [latest release](https://github.com/ex-ru/win_search/releases/latest)). No GitHub account is required. See [1.2.6 release notes](docs/RELEASE_1.2.6.md), [distribution instructions](DISTRIBUTION.md), [third-party notices](THIRD_PARTY_NOTICES.md), and [1.2.1 verification](docs/RELEASE_VERIFICATION_1.2.1.md). Clean Windows 11 feedback is being collected by the owner’s volunteer group.
 
 ## Get started
 
@@ -53,10 +54,10 @@ For the CLI, point WAI_MODELS to the folder containing downloaded model files:
 
 ~~~powershell
 $env:WAI_MODELS = Join-Path $env:LOCALAPPDATA 'WAI\Models'
-.\dist\1.2.5\staging\wai.exe status --index .\state\index
-.\dist\1.2.5\staging\wai.exe index 'C:\MyFolder' --index .\state\index
-.\dist\1.2.5\staging\wai.exe search 'договор оказания услуг' --index .\state\index
-.\dist\1.2.5\staging\wai.exe mcp
+.\dist\1.2.6\staging\wai.exe status --index .\state\index
+.\dist\1.2.6\staging\wai.exe index 'C:\MyFolder' --index .\state\index
+.\dist\1.2.6\staging\wai.exe search 'договор оказания услуг' --index .\state\index
+.\dist\1.2.6\staging\wai.exe mcp
 ~~~
 
 See the [MCP guide](docs/MCP_GUIDE.md) for client configuration.
@@ -70,10 +71,10 @@ dotnet test .\port\WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f\windows\WAI.Wind
 
 dotnet run --project .\checks\WAI.Performance\WAI.Performance.csproj -c Release -- --counts 10000,100000 --repetitions 12 --report .\state\perf\report.json
 
-.\scripts\check-release.ps1 -PackageDir .\dist\1.2.5\staging -ModelsDir (Join-Path $env:LOCALAPPDATA 'WAI\Models') -Model gemma2 -SkipEvaluation -Native
+.\scripts\check-release.ps1 -PackageDir .\dist\1.2.6\staging -ModelsDir (Join-Path $env:LOCALAPPDATA 'WAI\Models') -Model gemma2 -SkipEvaluation -Native
 ~~~
 
-The release check expects a staged full package and the pinned model files locally. Review the generated reports from each run; results depend on the machine, model, and test corpus. See [1.2.5 release notes](docs/RELEASE_1.2.5.md), [1.2.1 release verification](docs/RELEASE_VERIFICATION_1.2.1.md) and [historical 1.2.0 stabilization](docs/STABILIZATION.md) for checks and their limits.
+The release check expects a staged full package and the pinned model files locally. Review the generated reports from each run; results depend on the machine, model, and test corpus. See [1.2.6 release notes](docs/RELEASE_1.2.6.md), [1.2.1 release verification](docs/RELEASE_VERIFICATION_1.2.1.md) and [historical 1.2.0 stabilization](docs/STABILIZATION.md) for checks and their limits.
 
 Historic search measurements are retained as context, not guarantees. The initial Russian fixture reported Top-1 and Top-5 of 100% across 3 OCR and 3 semantic positive queries, with a 23.2 ms warm response. A later small 13-vector fixture reported 6/6 positive queries, 62.2 ms median and 77.3 ms p95 while another app was active. A separate 8,137-vector run reported about 150 ms median. These small, machine-specific samples do not establish real-world accuracy or latency.
 
@@ -85,7 +86,7 @@ Build the standard full package (including FFmpeg) with:
 .\scripts\build-release.ps1
 ~~~
 
-The setup executable and portable archive are written under dist\1.2.5\releases. The models are fetched on first use and are not embedded in the package. See [DISTRIBUTION.md](DISTRIBUTION.md) and the [builder guide](port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/docs/Builder-Guide.md).
+The setup executable and portable archive are written under dist\1.2.6\releases. The models are fetched on first use and are not embedded in the package. See [DISTRIBUTION.md](DISTRIBUTION.md) and the [builder guide](port/WAI-5c5c1f3ae2b4346353e34704b4783956d1ae8c4f/windows/docs/Builder-Guide.md).
 
 ## Project history
 
