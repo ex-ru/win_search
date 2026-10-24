@@ -35,6 +35,8 @@ public sealed class Engine : IDisposable
     public bool IsSemanticAvailable { get; private set; }
     public int ProgressDone { get; private set; }
     public int ProgressTotal { get; private set; }
+    private (int Indexed, int Remaining) _cachedProgress = (0, 0);
+    private Task _cacheTask = Task.CompletedTask;
 
     public Engine(Settings settings)
     {
@@ -77,6 +79,7 @@ public sealed class Engine : IDisposable
             }
             ResumeIndexing();
             RequestIndex();
+            RefreshProgressCache();
         }
     }
 
@@ -126,6 +129,7 @@ public sealed class Engine : IDisposable
                 lock (_loopGate) { if (ReferenceEquals(_run, run)) _run = null; }
                 run.Dispose();
                 IsIndexing = false;
+                RefreshProgressCache();
                 Changed?.Invoke();
             }
         }
@@ -262,12 +266,41 @@ public sealed class Engine : IDisposable
         }
     }
 
-    public (int Indexed, int Remaining) GetIndexProgress() => ReadStores(() => {
-        if (IsIndexing && ProgressTotal > 0) return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
-        var (done, _, pending, _) = _store!.GetFileCounts();
-        if (_codeStore is not null) { var (cDone, _, cPending, _) = _codeStore.GetFileCounts(); done += cDone; pending += cPending; }
-        return (done, pending);
-    }, (0, 0));
+    public void RefreshProgressCache()
+    {
+        if (_disposed) return;
+        lock (_controlGate)
+        {
+            if (_disposed) return;
+            _cacheTask = Task.Run(() =>
+            {
+                try
+                {
+                    if (_disposed) return;
+                    var progress = ReadStores(() =>
+                    {
+                        var (done, _, pending, _) = _store!.GetFileCounts();
+                        if (_codeStore is not null)
+                        {
+                            var (cDone, _, cPending, _) = _codeStore.GetFileCounts();
+                            done += cDone;
+                            pending += cPending;
+                        }
+                        return (done, pending);
+                    }, (0, 0));
+                    if (!_disposed) _cachedProgress = progress;
+                }
+                catch { }
+            });
+        }
+    }
+
+    public (int Indexed, int Remaining) GetIndexProgress()
+    {
+        if (IsIndexing && ProgressTotal > 0)
+            return (ProgressDone, Math.Max(0, ProgressTotal - ProgressDone));
+        return _cachedProgress;
+    }
 
     public (int DoneFiles, int TotalFiles, int PendingFiles, int Vectors) GetDetailedProgress() => ReadStores(() => {
         var (done, total, pending, vectors) = _store!.GetFileCounts();
@@ -297,7 +330,7 @@ public sealed class Engine : IDisposable
                     return count;
                 }, 0);
             }
-            finally { ResumeIndexing(); RequestIndex(); }
+            finally { ResumeIndexing(); RequestIndex(); RefreshProgressCache(); }
         }
     }
     public FolderVectorStats? GetFolderStats(string folder) => ReadStores<FolderVectorStats?>(() => _store!.GetFolderStats(folder), null);
@@ -317,6 +350,8 @@ public sealed class Engine : IDisposable
             }
             catch (Exception ex) { ErrorLog.Write("ResetIndex: " + ex); Say("Не удалось очистить индекс: " + FirstLine(ex.Message)); }
             finally { ResumeIndexing(); }
+            _cachedProgress = (0, 0);
+            RefreshProgressCache();
             RequestIndex();
         }
     }
@@ -529,6 +564,7 @@ public sealed class Engine : IDisposable
             _powerTimer.Dispose();
             _shutdown.Cancel();
             StopIndexing(); DropQueryWorker();
+            try { _cacheTask.GetAwaiter().GetResult(); } catch { }
             lock (_searchGate)
             {
                 _searcher?.Dispose(); _searcher = null; _codeSearcher?.Dispose(); _codeSearcher = null;

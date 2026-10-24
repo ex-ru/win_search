@@ -108,16 +108,30 @@ public sealed class Settings
         File.Move(tmp, Path, overwrite: true);
     }
 
+    private const string RunRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupApprovedRegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
     // "Start with Windows": one value under HKCU ...\Run (this user only,
-    // no admin). Off removes it again. Nothing else is ever written there.
+    // no admin), synchronized with StartupApproved\Run so Windows 10/11 does not block it.
     public bool StartWithWindows
     {
         get
         {
             try
             {
-                using var run = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-                return run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("DigUp") is not null;
+                using var run = Registry.CurrentUser.OpenSubKey(RunRegistryKey, false);
+                bool hasEntry = run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("DigUp") is not null;
+                if (!hasEntry) return false;
+
+                using var approved = Registry.CurrentUser.OpenSubKey(StartupApprovedRegistryKey, false);
+                if (approved is not null)
+                {
+                    if (approved.GetValue(AppConstants.AppName) is byte[] b && b.Length > 0 && (b[0] & 1) != 0)
+                        return false;
+                    if (approved.GetValue("DigUp") is byte[] bOld && bOld.Length > 0 && (bOld[0] & 1) != 0)
+                        return false;
+                }
+                return true;
             }
             catch { return false; }
         }
@@ -125,7 +139,7 @@ public sealed class Settings
         {
             try
             {
-                using var run = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
+                using var run = Registry.CurrentUser.CreateSubKey(RunRegistryKey);
                 if (run is null) return;
                 if (value)
                 {
@@ -143,15 +157,78 @@ public sealed class Settings
                         try { exePath = System.IO.Path.GetFullPath(exePath); } catch { }
                         run.SetValue(AppConstants.AppName, $"\"{exePath}\" --silent");
                         try { run.DeleteValue("DigUp", false); } catch { }
+
+                        // Ensure Windows Explorer / Task Manager does not block it in StartupApproved\Run
+                        try
+                        {
+                            using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedRegistryKey);
+                            if (approved is not null)
+                            {
+                                if (approved.GetValue(AppConstants.AppName) is byte[] b && b.Length >= 1)
+                                {
+                                    b[0] = 0x02; // 0x02 = Enabled in Windows
+                                    approved.SetValue(AppConstants.AppName, b, RegistryValueKind.Binary);
+                                }
+                                else
+                                {
+                                    byte[] enabled = new byte[12];
+                                    enabled[0] = 0x02;
+                                    approved.SetValue(AppConstants.AppName, enabled, RegistryValueKind.Binary);
+                                }
+                                try { approved.DeleteValue("DigUp", false); } catch { }
+                            }
+                        }
+                        catch { }
                     }
                 }
                 else
                 {
                     try { run.DeleteValue(AppConstants.AppName, false); } catch { }
                     try { run.DeleteValue("DigUp", false); } catch { }
+                    try
+                    {
+                        using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedRegistryKey);
+                        approved?.DeleteValue(AppConstants.AppName, false);
+                        approved?.DeleteValue("DigUp", false);
+                    }
+                    catch { }
                 }
             }
             catch { }
         }
+    }
+
+    /// <summary>
+    /// Synchronizes StartupApproved registry state when autostart is configured,
+    /// healing any stale disabled flags (e.g. byte 0 == 3) that prevent Windows from running WAI on boot.
+    /// </summary>
+    public static void SyncStartupApproved()
+    {
+        try
+        {
+            using var run = Registry.CurrentUser.OpenSubKey(RunRegistryKey, false);
+            bool hasEntry = run?.GetValue(AppConstants.AppName) is not null || run?.GetValue("DigUp") is not null;
+            if (!hasEntry) return;
+
+            using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedRegistryKey);
+            if (approved is null) return;
+
+            if (approved.GetValue(AppConstants.AppName) is byte[] b && b.Length >= 1)
+            {
+                if ((b[0] & 1) != 0)
+                {
+                    b[0] = 0x02;
+                    approved.SetValue(AppConstants.AppName, b, RegistryValueKind.Binary);
+                }
+            }
+            else if (approved.GetValue(AppConstants.AppName) is null)
+            {
+                byte[] enabled = new byte[12];
+                enabled[0] = 0x02;
+                approved.SetValue(AppConstants.AppName, enabled, RegistryValueKind.Binary);
+            }
+            try { approved.DeleteValue("DigUp", false); } catch { }
+        }
+        catch { }
     }
 }

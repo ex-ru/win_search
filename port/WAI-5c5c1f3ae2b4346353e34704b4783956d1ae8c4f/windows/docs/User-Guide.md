@@ -1,4 +1,4 @@
-# WAI for Windows 1.2.4 — User Guide
+# WAI for Windows 1.2.5 — User Guide
 
 WAI searches files in folders you choose. Describe what you remember, or search for exact words. Search and indexing run on your PC. The app downloads a model on first use and can check for updates if that setting is enabled; it does not send indexed file contents to a cloud search service.
 
@@ -6,7 +6,7 @@ WAI searches files in folders you choose. Describe what you remember, or search 
 
 1. Install WAI for your Windows account. Administrator access is not required.
 2. Open WAI, choose the folders you want to search, then wait while the selected model downloads and the first index is created. The standard full installer includes FFmpeg for supported audio and video files.
-3. Press Ctrl+Space, enter a description or words from a file, then open a result. The tray icon also provides access to search and settings.
+3. Press Ctrl+Space, enter a description or words from a file, then open a result. The tray icon also provides access to search and settings with instantaneous context menu response.
 
 WAI uses the selected model to create vectors. Model downloads are pinned to known sources and validated against expected file size and SHA-256 values.
 
@@ -22,7 +22,7 @@ WAI uses the selected model to create vectors. Model downloads are pinned to kno
 
 ## Advanced settings (optional)
 
-Open Settings from the tray to change the folders WAI watches, choose a model or CPU/Vulkan preference, enable code indexing for selected folders, toggle autostart with Windows, or change the hotkey. These options are not required for the default search workflow.
+Open Settings from the tray to change the folders WAI watches, choose a model or CPU/Vulkan preference, enable code indexing for selected folders, toggle autostart with Windows (synchronized with Windows Task Manager `StartupApproved`), or change the hotkey. These options are not required for the default search workflow.
 
 WAI indexes supported file types from selected folders. Image decoding and OCR depend on available Windows components and installed OCR languages. Audio and video support depends on the format and codec; bundled FFmpeg removes the need to install it separately. No claim is made that every format, language, or file is supported.
 

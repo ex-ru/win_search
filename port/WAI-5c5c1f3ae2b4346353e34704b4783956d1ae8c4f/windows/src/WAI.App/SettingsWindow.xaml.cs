@@ -241,57 +241,66 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        try
+        string? selectedFolder = Folders.SelectedItem as string;
+
+        Task.Run(() =>
         {
-            long dbBytes = _engine.GetDatabaseFileSize();
-            double dbMb = Math.Round(dbBytes / (1024.0 * 1024.0), 1);
-            if (TxtDbTotalSize is not null) TxtDbTotalSize.Text = Loc.IsRu ? $"База index: {dbMb} МБ" : $"Index DB: {dbMb} MB";
-
-            var (doneFiles, totalFiles, pendingFiles, _) = _engine.GetDetailedProgress();
-
-            if (Folders.SelectedItem is string selectedFolder)
+            try
             {
-                var stats = _engine.GetFolderStats(selectedFolder);
-                if (stats is not null && TxtFolderStats is not null)
-                {
-                    TxtFolderStats.Text = $"📁 {selectedFolder}\n" + (Loc.IsRu
-                        ? $"Файлов в базе: {stats.FileCount:N0} · Векторов: {stats.VectorCount:N0} · Объем эмбеддингов: {stats.VectorMegabytes:F2} МБ"
-                        : $"Files in index: {stats.FileCount:N0} · Vectors: {stats.VectorCount:N0} · Embeddings size: {stats.VectorMegabytes:F2} MB");
-                }
-            }
-            else
-            {
-                var total = _engine.GetTotalStats();
-                if (total is not null && TxtFolderStats is not null)
-                {
-                    TxtFolderStats.Text = (Loc.IsRu ? "📁 Суммарно в базе поиска:\n" : "📁 Total in search index:\n") + (Loc.IsRu
-                        ? $"Индексируемых файлов: {totalFiles:N0} (готово: {doneFiles:N0}, в очереди: {pendingFiles:N0}) · Векторов: {total.VectorCount:N0} · Объем: {total.VectorMegabytes:F2} МБ"
-                        : $"Indexed files: {totalFiles:N0} (ready: {doneFiles:N0}, queued: {pendingFiles:N0}) · Vectors: {total.VectorCount:N0} · Size: {total.VectorMegabytes:F2} MB");
-                }
-            }
+                long dbBytes = _engine.GetDatabaseFileSize();
+                double dbMb = Math.Round(dbBytes / (1024.0 * 1024.0), 1);
 
-            // Check for orphaned vectors of removed folders
-            var orphaned = _engine.GetOrphanedStats();
-            if (CardOrphaned is not null)
-            {
-                if (orphaned is not null && orphaned.Files > 0)
+                var (doneFiles, totalFiles, pendingFiles, _) = _engine.GetDetailedProgress();
+                var folderStats = selectedFolder is not null ? _engine.GetFolderStats(selectedFolder) : null;
+                var totalStats = selectedFolder is null ? _engine.GetTotalStats() : null;
+                var orphaned = _engine.GetOrphanedStats();
+
+                Dispatcher.InvokeAsync(() =>
                 {
-                    CardOrphaned.Visibility = Visibility.Visible;
-                    if (TxtOrphanedTitle is not null) TxtOrphanedTitle.Text = Loc.OrphanedTitle;
-                    if (TxtOrphanedInfo is not null)
+                    if (TxtDbTotalSize is not null) TxtDbTotalSize.Text = Loc.IsRu ? $"База index: {dbMb} МБ" : $"Index DB: {dbMb} MB";
+
+                    if (selectedFolder is not null)
                     {
-                        string sizeStr = $"{orphaned.VectorMegabytes:F2} {(Loc.IsRu ? "МБ" : "MB")}";
-                        TxtOrphanedInfo.Text = Loc.OrphanedInfo(orphaned.Files, orphaned.Vectors, sizeStr);
+                        if (folderStats is not null && TxtFolderStats is not null)
+                        {
+                            TxtFolderStats.Text = $"📁 {selectedFolder}\n" + (Loc.IsRu
+                                ? $"Файлов в базе: {folderStats.FileCount:N0} · Векторов: {folderStats.VectorCount:N0} · Объем эмбеддингов: {folderStats.VectorMegabytes:F2} МБ"
+                                : $"Files in index: {folderStats.FileCount:N0} · Vectors: {folderStats.VectorCount:N0} · Embeddings size: {folderStats.VectorMegabytes:F2} MB");
+                        }
                     }
-                    if (BtnPurgeOrphaned is not null) BtnPurgeOrphaned.Content = Loc.PurgeOrphanedBtn;
-                }
-                else
-                {
-                    CardOrphaned.Visibility = Visibility.Collapsed;
-                }
+                    else
+                    {
+                        if (totalStats is not null && TxtFolderStats is not null)
+                        {
+                            TxtFolderStats.Text = (Loc.IsRu ? "📁 Суммарно в базе поиска:\n" : "📁 Total in search index:\n") + (Loc.IsRu
+                                ? $"Индексируемых файлов: {totalFiles:N0} (готово: {doneFiles:N0}, в очереди: {pendingFiles:N0}) · Векторов: {totalStats.VectorCount:N0} · Объем: {totalStats.VectorMegabytes:F2} МБ"
+                                : $"Indexed files: {totalFiles:N0} (ready: {doneFiles:N0}, queued: {pendingFiles:N0}) · Vectors: {totalStats.VectorCount:N0} · Size: {totalStats.VectorMegabytes:F2} MB");
+                        }
+                    }
+
+                    // Check for orphaned vectors of removed folders
+                    if (CardOrphaned is not null)
+                    {
+                        if (orphaned is not null && orphaned.Files > 0)
+                        {
+                            CardOrphaned.Visibility = Visibility.Visible;
+                            if (TxtOrphanedTitle is not null) TxtOrphanedTitle.Text = Loc.OrphanedTitle;
+                            if (TxtOrphanedInfo is not null)
+                            {
+                                string sizeStr = $"{orphaned.VectorMegabytes:F2} {(Loc.IsRu ? "МБ" : "MB")}";
+                                TxtOrphanedInfo.Text = Loc.OrphanedInfo(orphaned.Files, orphaned.Vectors, sizeStr);
+                            }
+                            if (BtnPurgeOrphaned is not null) BtnPurgeOrphaned.Content = Loc.PurgeOrphanedBtn;
+                        }
+                        else
+                        {
+                            CardOrphaned.Visibility = Visibility.Collapsed;
+                        }
+                    }
+                });
             }
-        }
-        catch { }
+            catch { }
+        });
     }
 
     private void OnPurgeOrphaned(object sender, RoutedEventArgs e)

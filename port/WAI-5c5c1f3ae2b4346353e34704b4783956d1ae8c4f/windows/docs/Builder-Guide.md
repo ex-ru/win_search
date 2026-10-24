@@ -1,4 +1,4 @@
-# WAI for Windows 1.2.4 — Builder Guide
+# WAI for Windows 1.2.5 — Builder Guide
 
 ## Requirements and pinned inputs
 
@@ -22,7 +22,7 @@ dotnet test "$win\WAI.Windows.sln" -c Release -p:RestoreLockedMode=true --logger
 .\scripts\build-release.ps1
 ~~~
 
-`release-version.json` selects the package version; for 1.2.4 the output is `dist\1.2.4\staging` and `dist\1.2.4\releases`. The builder creates a full package and rejects the removed Slim profile. It publishes the GUI, CLI, and worker self-contained for `win-x64`, copies the verified native runtime and its notices, installs Velopack 1.2.161 if needed, creates installer/portable assets, and writes `SHA256SUMS.txt`.
+`release-version.json` selects the package version; for 1.2.5 the output is `dist\1.2.5\staging` and `dist\1.2.5\releases`. The builder creates a full package and rejects the removed Slim profile. It publishes the GUI, CLI, and worker self-contained for `win-x64`, copies the verified native runtime and its notices, installs Velopack 1.2.161 if needed, creates installer/portable assets, and writes `SHA256SUMS.txt`.
 
 The initial CI package run seeds `tools\native-cache` with the `ffmpeg-win-x64` Actions artifact from the run ID in `release-version.json`; the artifact must contain `ffmpeg-tools-win-x64.zip` and `ffmpeg-corresponding-source.zip`. For a local build before assets are published, download that same run's artifact and place those two files in `tools\native-cache`. Check their sizes and SHA-256 against `native-dependencies.json`. The other native archives are downloaded and verified by `prepare-runtime.ps1`. After publication, the pinned FFmpeg archive URLs also resolve from the public release.
 

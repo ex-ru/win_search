@@ -375,7 +375,6 @@ public sealed class IndexStore : IDisposable, IIndexerStore
         int done = 0;
         int total = 0;
         int pending = 0;
-        int vectors = 0;
 
         try
         {
@@ -387,16 +386,10 @@ public sealed class IndexStore : IDisposable, IIndexerStore
                 if (state is "done" or "partial") done += count;
                 else if (state == "pending") pending += count;
             });
-
-            string inScope = scope.Roots is null ? "" : " AND file IN (SELECT id FROM files WHERE 1" + scope.Sql() + ")";
-            _db.Query("SELECT COUNT(vec) FROM segments WHERE kind != 'name'" + inScope, scope.Values, r =>
-            {
-                vectors = (int)r.GetInt64(0);
-            });
         }
         catch { }
 
-        return (done, total, pending, vectors);
+        return (done, total, pending, 0);
     }
 
     // ---------- Schema ----------

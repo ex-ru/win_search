@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     {
         try
         {
+            try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
             // Installer hooks must run before WPF, the single-instance mutex and indexing.
             VelopackApp.Build().Run();
             var app = new App();
@@ -118,6 +119,7 @@ public partial class App : System.Windows.Application
         }
 
         _settings = Settings.Load();
+        Settings.SyncStartupApproved();
         Loc.CurrentLanguage = _settings.Language;
         _engine = new Engine(_settings);
         _panel = new MainWindow(_engine, _settings);
@@ -302,6 +304,10 @@ public partial class App : System.Windows.Application
                     indexItem.Text = Loc.IndexRunning(indexed, remaining);
                 }
                 indexItem.Checked = !_engine.IsPaused;
+                if (!_engine.IsIndexing)
+                {
+                    _engine.RefreshProgressCache();
+                }
             }
         };
 
