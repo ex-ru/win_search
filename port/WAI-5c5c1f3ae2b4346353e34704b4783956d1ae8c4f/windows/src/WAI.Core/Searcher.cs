@@ -340,11 +340,10 @@ public sealed class Searcher : IDisposable
         }
 
         // A file qualifies by standing out in meaning, or by containing at least half
-        // of the query's words. Score: meaning z + a bonus that grows with word
-        // coverage, + 1 for the kind the query asks for.
+        // of the query's words, or appearing in top keyword search results.
         bool lookup = IsLookup(terms) || identifier is not null;
         double meaningWeight = lookup ? 0.5 : 1;
-        double wordsWeight = lookup ? ww * 2 : ww;
+        double wordsWeight = lookup ? ww * 3 : ww * 2;
         var hinted = KindHints(text);
         var candidates = new HashSet<long>();
         bool QualifiesMeaning((double Z, double Cosine, int Row) value) =>
@@ -359,14 +358,9 @@ public sealed class Searcher : IDisposable
             if (kv.Value >= 0.5)
                 candidates.Add(kv.Key);
         }
-        var scored = new Dictionary<long, double>();
-        foreach (long file in candidates)
+        foreach (var w in words)
         {
-            double s = meaningWeight * Math.Max(best.TryGetValue(file, out var b) ? b.Z : 0, 0) +
-                       wordsWeight * Math.Pow(coverage.GetValueOrDefault(file), 1.5);
-            if (fileKind.TryGetValue(file, out var k) && hinted.Contains(k))
-                s += 1;
-            scored[file] = s;
+            candidates.Add(w.File);
         }
 
         var wordRank = new Dictionary<long, (int Rank, (long Segment, string? Snippet) Match)>();
@@ -374,6 +368,67 @@ public sealed class Searcher : IDisposable
         {
             if (!wordRank.ContainsKey(words[i].File))
                 wordRank[words[i].File] = (i + 1, (words[i].Segment, words[i].Snippet));
+        }
+
+        string queryTrim = text.Trim();
+        string queryStem = Path.HasExtension(queryTrim)
+            ? Path.GetFileNameWithoutExtension(queryTrim)
+            : queryTrim;
+        string queryExt = Path.GetExtension(queryTrim);
+        if (queryExt.StartsWith('.')) queryExt = queryExt[1..];
+
+        var scored = new Dictionary<long, double>();
+        foreach (long file in candidates)
+        {
+            double cov = coverage.GetValueOrDefault(file);
+            double s = meaningWeight * Math.Max(best.TryGetValue(file, out var b) ? b.Z : 0, 0) +
+                       wordsWeight * Math.Pow(cov, 1.5);
+            if (fileKind.TryGetValue(file, out var k) && hinted.Contains(k))
+                s += 1;
+
+            // BM25 keyword rank boost for top results
+            if (wordRank.TryGetValue(file, out var wr) && wr.Rank <= 10)
+            {
+                s += Math.Max(0.5, 3.0 - 0.25 * (wr.Rank - 1));
+            }
+
+            // Filename and path boosting
+            if (_fileVersions.TryGetValue(file, out var ver))
+            {
+                string fName = Path.GetFileName(ver.Path);
+                string fStem = Path.GetFileNameWithoutExtension(ver.Path);
+                string fExt = Path.GetExtension(ver.Path);
+                if (fExt.StartsWith('.')) fExt = fExt[1..];
+
+                bool exactFile = string.Equals(fName, queryTrim, StringComparison.OrdinalIgnoreCase);
+                bool exactStem = !string.IsNullOrEmpty(queryStem) && string.Equals(fStem, queryStem, StringComparison.OrdinalIgnoreCase);
+                bool extMatch = !string.IsNullOrEmpty(queryExt) && string.Equals(fExt, queryExt, StringComparison.OrdinalIgnoreCase);
+
+                if (exactFile)
+                {
+                    s += 12.0;
+                }
+                else if (exactStem)
+                {
+                    s += 8.0;
+                    if (extMatch) s += 4.0;
+                }
+                else if (!string.IsNullOrEmpty(queryStem) && queryStem.Length >= 2 && fStem.StartsWith(queryStem, StringComparison.OrdinalIgnoreCase))
+                {
+                    s += 5.0;
+                    if (extMatch) s += 2.0;
+                }
+                else if (!string.IsNullOrEmpty(queryStem) && queryStem.Length >= 2 && fName.Contains(queryStem, StringComparison.OrdinalIgnoreCase))
+                {
+                    s += 3.5;
+                }
+                else if (terms.Count > 0 && terms.All(t => fName.Contains(t, StringComparison.OrdinalIgnoreCase)))
+                {
+                    s += 3.0;
+                }
+            }
+
+            scored[file] = s;
         }
 
         var top = scored.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Take(limit).ToArray();
@@ -385,8 +440,16 @@ public sealed class Searcher : IDisposable
             bool hasSemantic = best.TryGetValue(kv.Key, out var semantic);
             bool hasKeyword = wordRank.TryGetValue(kv.Key, out var keyword);
             bool useMeaning = hasSemantic && (QualifiesMeaning(semantic) || !hasKeyword);
-            if (!useMeaning && !hasKeyword) continue;
-            long segmentId = useMeaning ? _rowSegment[semantic.Row] : keyword.Match.Segment;
+            long segmentId;
+            if (useMeaning) segmentId = _rowSegment[semantic.Row];
+            else if (hasKeyword) segmentId = keyword.Match.Segment;
+            else
+            {
+                long firstSeg = 0;
+                _db.Query("SELECT id FROM segments WHERE file = ? ORDER BY id LIMIT 1", new[] { SqlValue.Int(kv.Key) }, r => firstSeg = r.GetInt64(0));
+                if (firstSeg == 0) continue;
+                segmentId = firstSeg;
+            }
             (long Segment, double? Focus) place = (segmentId, null);
             if (IsCode)
                 place = CodePlace(kv.Key, segmentId, places.Count < 10 ? identifier : null, text, terms,
@@ -590,6 +653,10 @@ public sealed class Searcher : IDisposable
         "when", "is", "was", "are", "were", "be", "it", "its", "some", "any", "find", "show",
         "file", "files", "photo", "photos", "picture", "image", "images",
         "screenshot", "screenshots", "video", "videos", "pdf", "document", "documents", "recording",
+        // Common file extensions treated as kind/format stopwords
+        "jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "svg",
+        "docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt", "rtf",
+        "mp4", "mkv", "mov", "avi", "webm", "mp3", "wav", "flac", "m4a", "ogg", "aac",
         // Bengali and Arabic (normalized, as Terms sees them)
         "এবং", "ও", "এই", "সেই", "একটি", "আমার", "থেকে", "জন্য", "সাথে", "মধ্যে",
         "কোথায়", "কোন", "কী", "কি", "যে", "ছবি", "স্ক্রিনশট", "ভিডিও", "ফাইল", "পিডিএফ",
@@ -628,6 +695,19 @@ public sealed class Searcher : IDisposable
                 if (piece.EnumerateRunes().Count() >= 2 &&
                     !Stopwords.Contains(piece) && seen.Add(piece))
                     output.Add(piece);
+            }
+        }
+        // Fallback: if all words were filtered as stopwords/extensions (e.g. searching directly for "jpg" or "video"),
+        // keep the original pieces so the user can still search by them.
+        if (output.Count == 0)
+        {
+            foreach (var token in SearchText.Normalized(text).ToLowerInvariant().Split(Array.Empty<char>()))
+            {
+                foreach (var piece in SplitWords(token))
+                {
+                    if (piece.EnumerateRunes().Count() >= 2 && seen.Add(piece))
+                        output.Add(piece);
+                }
             }
         }
         return output;
@@ -703,6 +783,57 @@ public sealed class Searcher : IDisposable
         ["podcast"] = FileKind.Audio,
         ["voice"] = FileKind.Audio,
         ["sound"] = FileKind.Audio,
+        // Common file extensions
+        ["jpg"] = FileKind.Image,
+        ["jpeg"] = FileKind.Image,
+        ["png"] = FileKind.Image,
+        ["gif"] = FileKind.Image,
+        ["webp"] = FileKind.Image,
+        ["tif"] = FileKind.Image,
+        ["tiff"] = FileKind.Image,
+        ["bmp"] = FileKind.Image,
+        ["svg"] = FileKind.Image,
+        ["docx"] = FileKind.Doc,
+        ["doc"] = FileKind.Doc,
+        ["xlsx"] = FileKind.Doc,
+        ["xls"] = FileKind.Doc,
+        ["pptx"] = FileKind.Doc,
+        ["ppt"] = FileKind.Doc,
+        ["txt"] = FileKind.Doc,
+        ["rtf"] = FileKind.Doc,
+        ["mp4"] = FileKind.Video,
+        ["mkv"] = FileKind.Video,
+        ["mov"] = FileKind.Video,
+        ["avi"] = FileKind.Video,
+        ["webm"] = FileKind.Video,
+        ["mp3"] = FileKind.Audio,
+        ["wav"] = FileKind.Audio,
+        ["flac"] = FileKind.Audio,
+        ["m4a"] = FileKind.Audio,
+        ["ogg"] = FileKind.Audio,
+        ["aac"] = FileKind.Audio,
+        // Russian kind words
+        ["картинка"] = FileKind.Image,
+        ["картинки"] = FileKind.Image,
+        ["фото"] = FileKind.Image,
+        ["фотография"] = FileKind.Image,
+        ["фотографии"] = FileKind.Image,
+        ["скриншот"] = FileKind.Screenshot,
+        ["скриншоты"] = FileKind.Screenshot,
+        ["скрин"] = FileKind.Screenshot,
+        ["скрины"] = FileKind.Screenshot,
+        ["видео"] = FileKind.Video,
+        ["клип"] = FileKind.Video,
+        ["фильм"] = FileKind.Video,
+        ["аудио"] = FileKind.Audio,
+        ["песня"] = FileKind.Audio,
+        ["музыка"] = FileKind.Audio,
+        ["трек"] = FileKind.Audio,
+        ["документ"] = FileKind.Doc,
+        ["документы"] = FileKind.Doc,
+        ["текст"] = FileKind.Doc,
+        ["пдф"] = FileKind.Pdf,
+        // Bengali and Arabic (normalized, as Terms sees them)
         ["স্ক্রিনশট"] = FileKind.Screenshot,
         ["ছবি"] = FileKind.Image,
         ["পিডিএফ"] = FileKind.Pdf,

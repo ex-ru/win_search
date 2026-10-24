@@ -667,7 +667,8 @@ public partial class MainWindow : Window
                     if (_closed || request.Generation != _searchGen || cancellation.IsCancellationRequested) continue;
                     if (lexical.Count > 0)
                     {
-                        _allHits = lexical.Select(CreateItem).ToList();
+                        double maxLex = lexical[0].Score > 1.0 ? lexical[0].Score : 1.0;
+                        _allHits = lexical.Select(h => CreateItem(h, maxLex)).ToList();
                         ApplyCurrentFilter();
                         Status.Text = Loc.SearchResults(_allHits.Count, SearchLimit) + " · " + Loc.Searching;
                     }
@@ -676,7 +677,8 @@ public partial class MainWindow : Window
                         request.Kinds, cancellation.Token), cancellation.Token);
                     if (_closed || request.Generation != _searchGen || cancellation.IsCancellationRequested) continue;
                     SemanticPill.Visibility = Visibility.Collapsed;
-                    _allHits = hits.Select(CreateItem).ToList();
+                    double maxScore = hits.Count > 0 && hits[0].Score > 1.0 ? hits[0].Score : 1.0;
+                    _allHits = hits.Select(h => CreateItem(h, maxScore)).ToList();
                     UpdateFilterCounts();
                     ApplyCurrentFilter();
                     Status.Text = Loc.SearchResults(_allHits.Count, SearchLimit)
@@ -700,7 +702,7 @@ public partial class MainWindow : Window
         finally { _searchPumpRunning = false; }
     }
 
-    private ResultItemViewModel CreateItem(Engine.Hit h)
+    private ResultItemViewModel CreateItem(Engine.Hit h, double maxScore = 1.0)
     {
         string ext = Path.GetExtension(h.Path).ToLowerInvariant();
         string badgeText;
@@ -773,7 +775,8 @@ public partial class MainWindow : Window
         borderBrush.Freeze();
         fgBrush.Freeze();
 
-        int scorePct = Math.Clamp((int)Math.Round(h.Score * 100), 1, 99);
+        double normalizedScore = maxScore > 1.0 ? (h.Score / maxScore) : h.Score;
+        int scorePct = Math.Clamp((int)Math.Round(normalizedScore * 100), 1, 99);
         string relPercent = $"{scorePct}%";
         string relTooltip = Loc.IsRu
             ? $"Точность совпадения: {scorePct}% (score: {h.Score:F3})"

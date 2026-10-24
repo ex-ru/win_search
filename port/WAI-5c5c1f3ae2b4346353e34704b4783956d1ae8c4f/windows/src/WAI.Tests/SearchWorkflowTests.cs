@@ -111,4 +111,48 @@ public class SearchWorkflowTests
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }
+
+    [Fact]
+    public void ExactFilenameMatch_RanksFirstEvenWithSemanticMatches()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "wai_filename_boost_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            string targetFile = Path.Combine(tempDir, "обои.jpg");
+            File.WriteAllText(targetFile, "dummy image content");
+
+            string semanticMatchFile = Path.Combine(tempDir, "calendar_2027.tif");
+            File.WriteAllText(semanticMatchFile, "dummy image content");
+
+            using var store = new IndexStore(tempDir);
+
+            // File 1: target image "обои.jpg"
+            long fileId1 = store.Insert(new CrawlCandidate(targetFile, 100, 1, FileKind.Doc));
+            store.AddSegment(fileId1, SegmentKind.Name, Modality.Text,
+                excerpt: "обои.jpg",
+                text: "обои jpg");
+            store.Finish(fileId1, "done");
+
+            // File 2: other file where text mentions "обои"
+            long fileId2 = store.Insert(new CrawlCandidate(semanticMatchFile, 100, 1, FileKind.Doc));
+            store.AddSegment(fileId2, SegmentKind.Chunk, Modality.Text,
+                excerpt: "Смени обстановку, хотя бы рабочие обои на ноутбуке",
+                text: "Смени обстановку хотя бы рабочие обои на ноутбуке");
+            store.Finish(fileId2, "done");
+
+            using var searcher = new Searcher(store, loadVectors: false);
+
+            var hits = searcher.Search("обои.jpg", queryVector: null, limit: 10);
+            Assert.NotEmpty(hits);
+            // Target file should rank first with substantial score boost (> 10.0)
+            Assert.Equal(Path.GetFullPath(targetFile), Path.GetFullPath(hits[0].Path), StringComparer.OrdinalIgnoreCase);
+            Assert.True(hits[0].Score > 10.0, $"Expected score > 10.0 for exact filename match, got {hits[0].Score}");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }
+
