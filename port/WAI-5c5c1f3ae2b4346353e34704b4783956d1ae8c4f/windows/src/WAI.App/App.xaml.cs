@@ -354,11 +354,6 @@ public partial class App : System.Windows.Application
         win.Closed += (_, _) =>
         {
             _settingsWindow = null;
-            RegisterHotkey();
-            ResetWatcher();
-            _engine.ApplySettings();
-            _updates?.Restart();
-            RefreshTray();
         };
         win.Show();
         win.Activate();

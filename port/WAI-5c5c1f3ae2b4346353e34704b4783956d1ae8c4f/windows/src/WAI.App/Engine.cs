@@ -37,6 +37,7 @@ public sealed class Engine : IDisposable
     public int ProgressTotal { get; private set; }
     private (int Indexed, int Remaining) _cachedProgress = (0, 0);
     private Task _cacheTask = Task.CompletedTask;
+    private int _refreshingProgress;
 
     public Engine(Settings settings)
     {
@@ -269,30 +270,31 @@ public sealed class Engine : IDisposable
     public void RefreshProgressCache()
     {
         if (_disposed) return;
-        lock (_controlGate)
+        if (Interlocked.CompareExchange(ref _refreshingProgress, 1, 0) != 0) return;
+        _cacheTask = Task.Run(() =>
         {
-            if (_disposed) return;
-            _cacheTask = Task.Run(() =>
+            try
             {
-                try
+                if (_disposed) return;
+                var progress = ReadStores(() =>
                 {
-                    if (_disposed) return;
-                    var progress = ReadStores(() =>
+                    var (done, _, pending, _) = _store!.GetFileCounts();
+                    if (_codeStore is not null)
                     {
-                        var (done, _, pending, _) = _store!.GetFileCounts();
-                        if (_codeStore is not null)
-                        {
-                            var (cDone, _, cPending, _) = _codeStore.GetFileCounts();
-                            done += cDone;
-                            pending += cPending;
-                        }
-                        return (done, pending);
-                    }, (0, 0));
-                    if (!_disposed) _cachedProgress = progress;
-                }
-                catch { }
-            });
-        }
+                        var (cDone, _, cPending, _) = _codeStore.GetFileCounts();
+                        done += cDone;
+                        pending += cPending;
+                    }
+                    return (done, pending);
+                }, (0, 0));
+                if (!_disposed) _cachedProgress = progress;
+            }
+            catch { }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshingProgress, 0);
+            }
+        });
     }
 
     public (int Indexed, int Remaining) GetIndexProgress()

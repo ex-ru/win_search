@@ -24,10 +24,10 @@ public sealed record EmbeddingModelDef(
 
     public IReadOnlyList<ModelFile> Files => ModelCatalog.FilesFor(Id);
 
-    public bool IsDownloaded(string? customDir = null)
+    public bool IsDownloaded(string? customDir = null, bool fastCheck = true)
     {
         return Files.All(file => ResolvePath(file.Name, customDir) is { } path
-            && VerifiedDownload.IsValid(path, file.Bytes, file.Sha256));
+            && VerifiedDownload.IsValid(path, file.Bytes, file.Sha256, fastCheck: fastCheck));
     }
 
     public static string? ResolvePath(string fileName, string? customDir = null)

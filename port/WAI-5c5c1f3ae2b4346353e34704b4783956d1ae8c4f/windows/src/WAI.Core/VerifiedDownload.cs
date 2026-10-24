@@ -12,12 +12,13 @@ public static class VerifiedDownload
     private static readonly HttpClient Client = new() { Timeout = Timeout.InfiniteTimeSpan };
     private static readonly ConcurrentDictionary<string, (long Size, DateTime Written, string Hash)> Verified = new(StringComparer.OrdinalIgnoreCase);
 
-    public static bool IsValid(string path, long expectedBytes, string sha256)
+    public static bool IsValid(string path, long expectedBytes, string sha256, bool fastCheck = false)
     {
         try
         {
             var info = new FileInfo(path);
             if (!info.Exists || info.Length != expectedBytes || expectedBytes <= 0 || sha256.Length != 64) return false;
+            if (fastCheck) return true;
             if (Verified.TryGetValue(path, out var previous) && previous == (info.Length, info.LastWriteTimeUtc, sha256)) return true;
             using var stream = File.OpenRead(path);
             if (!Convert.ToHexString(SHA256.HashData(stream)).Equals(sha256, StringComparison.OrdinalIgnoreCase)) return false;

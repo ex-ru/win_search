@@ -10,7 +10,7 @@ The installer is unsigned: Windows may display an unknown-publisher warning. Che
 
 ## Changes
 
-- **Instant tray menu response:** Eliminated context menu lag on right-clicking the system tray icon. Tray index progress is now read instantly from an asynchronously refreshed memory cache instead of executing blocking SQLite segment scans on the main UI thread.
+- **Instant tray menu and settings response:** Eliminated context menu and dialog lag. Tray index progress is now read instantly from an asynchronously refreshed memory cache without blocking SQLite segment scans. Model status checks in Settings use instantaneous size and existence verification rather than synchronous multi-gigabyte SHA-256 hash passes on the UI thread.
 - **Background settings statistics:** Folder vector and database size calculations in the Settings dialog now run asynchronously in background tasks, keeping the UI completely fluid and responsive.
 - **Reliable Windows autostart & Task Manager synchronization:**
   - Resolved an issue where autostart on Windows boot did not trigger despite being enabled in settings.
